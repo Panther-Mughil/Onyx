@@ -96,6 +96,7 @@ struct AppState {
     is_model_ready: Mutex<bool>,
     sys: Mutex<System>,
     proxy_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    proxy_addr: Mutex<Option<String>>,
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -148,15 +149,29 @@ async fn update_network_config(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<NetworkConfig>,
 ) -> Json<StartResponse> {
-    let mut proxy_lock = state.proxy_task.lock().await;
-    
-    // Abort existing proxy if it exists
-    if let Some(task) = proxy_lock.take() {
-        task.abort();
-    }
-    
     let bind_ip = if payload.network_host { "0.0.0.0" } else { "127.0.0.1" };
     let bind_addr = format!("{}:{}", bind_ip, payload.port);
+    
+    let mut proxy_addr_lock = state.proxy_addr.lock().await;
+    
+    // Check if already bound to the requested address
+    if let Some(current_addr) = proxy_addr_lock.as_ref() {
+        if current_addr == &bind_addr {
+            return Json(StartResponse {
+                success: true,
+                message: format!("Proxy already running on {}", bind_addr),
+            });
+        }
+    }
+    
+    let mut proxy_lock = state.proxy_task.lock().await;
+    
+    // Abort existing proxy if it exists and allow OS to reclaim socket
+    if let Some(task) = proxy_lock.take() {
+        task.abort();
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    }
+    
     let target_addr = "127.0.0.1:8080".to_string();
     
     let listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
@@ -174,6 +189,7 @@ async fn update_network_config(
                 }
             });
             *proxy_lock = Some(task);
+            *proxy_addr_lock = Some(bind_addr.clone());
             
             {
                 let mut logs = state.server_logs.lock().await;
@@ -444,6 +460,7 @@ async fn main() {
         is_model_ready: Mutex::new(false),
         sys: Mutex::new(sys),
         proxy_task: Mutex::new(None),
+        proxy_addr: Mutex::new(None),
     });
 
     let app = Router::new()
