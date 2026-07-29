@@ -1,0 +1,12 @@
+@echo off
+echo Starting LocalLLM Dashboard Servers...
+
+:: Try to use Windows Terminal (wt.exe) to open both processes in multiple tabs
+wt -d .\backend cmd /k "title Rust Backend && cargo watch -q -c -w src/ -x run" ; new-tab -d .\frontend cmd /k "title Vite Frontend && npm run dev"
+
+:: If Windows Terminal is not installed, it will fallback to opening separate standard command prompt windows
+if %errorlevel% neq 0 (
+    echo Windows Terminal not found, falling back to separate windows...
+    start "LocalLLM Backend" cmd /k "cd backend && cargo watch -q -c -w src/ -x run"
+    start "LocalLLM Frontend" cmd /k "cd frontend && npm run dev"
+)
