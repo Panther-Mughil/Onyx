@@ -297,13 +297,6 @@ async fn stop_server(
     })
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "PascalCase")]
-#[allow(non_snake_case)]
-struct ThermalZone {
-    CurrentTemperature: u32,
-}
-
 async fn get_telemetry(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<TelemetryResponse> {
@@ -358,13 +351,6 @@ async fn main() {
 
     let mut sys = System::new_all();
     sys.refresh_all(); // Initial warm-up for accurate usage
-
-    let mut components = sysinfo::Components::new();
-    components.refresh_list();
-    println!("Found {} thermal components natively", components.list().len());
-    for component in components.list() {
-        println!("Thermal Sensor: {:?} -> {:?}", component.label(), component.temperature());
-    }
 
     let shared_state = Arc::new(AppState {
         server_process: Mutex::new(None),

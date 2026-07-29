@@ -116,7 +116,7 @@ function App() {
     const { name, value, type, checked } = e.target;
     setConfig(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : (type === 'number' ? Number(value) : value)
+      [name]: type === 'checkbox' ? checked : (type === 'number' || type === 'range' ? Number(value) : value)
     }));
   };
 
