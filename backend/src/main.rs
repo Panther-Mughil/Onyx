@@ -305,7 +305,7 @@ async fn get_telemetry(
     sys.refresh_memory();
     
     let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
-    let cpu_usage_pct = sys.global_cpu_usage();
+    let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
     
     let cpu_temp_c = 0.0; 
 
