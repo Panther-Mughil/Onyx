@@ -1,0 +1,14 @@
+models/
+bin/
+
+# Future Rust backend ignores
+backend/target/
+**/*.rs.bk
+
+# Future Node/Vite frontend ignores
+frontend/node_modules/
+frontend/dist/
+.env
+.env.*
+!.env.example
+.DS_Store
