@@ -14,6 +14,15 @@ function App() {
   const [activeTab, setActiveTab] = useState('load'); // 'info', 'load', 'inference', 'monitoring'
   const [telemetry, setTelemetry] = useState(null);
 
+  const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
+  const [serverSettings, setServerSettings] = useState({
+    port: 1234,
+    networkHost: false,
+    cors: true,
+    jitModelLoading: false,
+    autoUnload: false
+  });
+
   const logsEndRef = useRef(null);
 
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -157,7 +166,7 @@ function App() {
             Status: {activeServer.isRunning ? 'Running' : 'Stopped'}
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeServer.isRunning ? 'var(--ready-green)' : 'var(--border-color)', marginLeft: '4px' }}></div>
           </div>
-          <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsServerSettingsOpen(true)}>
             <Settings2 size={14} /> Server Settings
           </button>
         </div>
@@ -422,9 +431,9 @@ function App() {
                         <div className="box" style={{ padding: '16px' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <div className="info-row" style={{ padding: '4px 0' }}><span>Used Memory</span> <span>{telemetry.ram_used_gb.toFixed(2)} GB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{telemetry.ram_total_gb.toFixed(2)} GB</span></div>
                               <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.ram_total_gb - telemetry.ram_used_gb).toFixed(2)} GB</span></div>
-                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Total Memory</span> <span>{telemetry.ram_total_gb.toFixed(2)} GB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{telemetry.ram_used_gb.toFixed(2)} GB</span></div>
                            </div>
                         </div>
 
@@ -507,6 +516,50 @@ function App() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Server Settings Modal */}
+      {isServerSettingsOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="box" style={{ width: '450px', background: 'var(--bg-main)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Server Settings</h2>
+              <button style={{ background: 'transparent', color: 'var(--text-muted)' }} onClick={() => setIsServerSettingsOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-row">
+                <span>Server Port</span>
+                <input type="number" className="num-input" value={serverSettings.port} onChange={(e) => setServerSettings({...serverSettings, port: Number(e.target.value)})} />
+              </div>
+
+              <div className="form-row" style={{ alignItems: 'flex-start' }}>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span>Host on Local Network</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{serverSettings.networkHost ? '0.0.0.0 (Exposed to network)' : '127.0.0.1 (Localhost only)'}</span>
+                </span>
+                <div className={`toggle-switch ${serverSettings.networkHost ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, networkHost: !serverSettings.networkHost})}></div>
+              </div>
+
+              <div className="form-row">
+                <span>Enable CORS</span>
+                <div className={`toggle-switch ${serverSettings.cors ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, cors: !serverSettings.cors})}></div>
+              </div>
+
+              <div className="form-row">
+                <span>Just-in-Time model loading</span>
+                <div className={`toggle-switch ${serverSettings.jitModelLoading ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, jitModelLoading: !serverSettings.jitModelLoading})}></div>
+              </div>
+
+              <div className="form-row">
+                <span>Auto unload model when unused</span>
+                <div className={`toggle-switch ${serverSettings.autoUnload ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, autoUnload: !serverSettings.autoUnload})}></div>
+              </div>
             </div>
           </div>
         </div>
