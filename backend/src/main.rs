@@ -192,30 +192,28 @@ async fn start_server(
             let stdout = child.stdout.take().unwrap();
             let stderr = child.stderr.take().unwrap();
             
-            let logs_clone = state.server_logs.clone();
-            
             // Clear old logs
             {
-                let mut logs = logs_clone.lock().await;
+                let mut logs = state.server_logs.lock().await;
                 logs.clear();
             }
 
             // Spawn tasks to capture logs
-            let logs_clone1 = logs_clone.clone();
+            let state1 = state.clone();
             tokio::spawn(async move {
                 let mut reader = BufReader::new(stdout).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
-                    let mut logs = logs_clone1.lock().await;
+                    let mut logs = state1.server_logs.lock().await;
                     logs.push(line);
                     if logs.len() > 1000 { logs.remove(0); } // Retain last 1000 lines
                 }
             });
 
-            let logs_clone2 = logs_clone.clone();
+            let state2 = state.clone();
             tokio::spawn(async move {
                 let mut reader = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
-                    let mut logs = logs_clone2.lock().await;
+                    let mut logs = state2.server_logs.lock().await;
                     logs.push(line);
                     if logs.len() > 1000 { logs.remove(0); }
                 }
