@@ -15,6 +15,8 @@ function App() {
 
   const logsEndRef = useRef(null);
 
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
   const [config, setConfig] = useState({
     ctxSize: 2048,
     gpuLayers: 28,
@@ -65,6 +67,25 @@ function App() {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs]);
+
+  useEffect(() => {
+    let interval;
+    if (activeServer.isRunning && !activeServer.isReady) {
+      setLoadingProgress(0);
+      interval = setInterval(() => {
+        setLoadingProgress(prev => {
+          const remaining = 99 - prev;
+          const step = remaining > 20 ? 8 : (remaining > 5 ? 2 : 0.5);
+          return Math.min(99.9, prev + step);
+        });
+      }, 500);
+    } else if (activeServer.isReady) {
+      setLoadingProgress(100);
+    } else {
+      setLoadingProgress(0);
+    }
+    return () => clearInterval(interval);
+  }, [activeServer.isRunning, activeServer.isReady]);
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -146,27 +167,34 @@ function App() {
               {activeModelDetails ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   
-                  <div style={{ 
-                      alignSelf: 'flex-start', 
-                      border: `1px solid ${activeServer.isReady ? 'var(--ready-green)' : '#eab308'}`, 
-                      color: activeServer.isReady ? 'var(--ready-green)' : '#eab308', 
-                      padding: '2px 8px', 
-                      borderRadius: '4px', 
-                      fontSize: '10px', 
-                      fontWeight: 'bold',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ 
+                        border: `1px solid ${activeServer.isReady ? 'var(--ready-green)' : '#eab308'}`, 
+                        color: activeServer.isReady ? 'var(--ready-green)' : '#eab308', 
+                        padding: '2px 8px', 
+                        borderRadius: '4px', 
+                        fontSize: '10px', 
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                      {!activeServer.isReady && (
+                         <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      )}
+                      {activeServer.isReady ? 'READY' : 'LOADING...'}
+                    </div>
+
                     {!activeServer.isReady && (
-                       <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      <div style={{ fontSize: '11px', color: '#eab308', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                        {Math.floor(loadingProgress)}%
+                      </div>
                     )}
-                    {activeServer.isReady ? 'READY' : 'LOADING...'}
                   </div>
 
                   {!activeServer.isReady && (
-                    <div style={{ width: '100%', height: '4px', background: 'var(--bg-input)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px', marginBottom: '8px' }}>
-                       <div className="indeterminate-progress"></div>
+                    <div style={{ width: '100%', height: '4px', background: 'var(--bg-input)', borderRadius: '2px', overflow: 'hidden', marginTop: '-4px', marginBottom: '4px' }}>
+                       <div style={{ width: `${loadingProgress}%`, height: '100%', background: '#eab308', transition: 'width 0.5s ease-out' }}></div>
                     </div>
                   )}
 
