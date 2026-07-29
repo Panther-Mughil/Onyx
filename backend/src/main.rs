@@ -314,19 +314,7 @@ async fn get_telemetry(
     let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
     let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
     
-    let cpu_temp_c = tokio::task::spawn_blocking(|| {
-        let mut temp_c = 0.0;
-        if let Ok(com_con) = wmi::COMLibrary::new() {
-            if let Ok(wmi_con) = wmi::WMIConnection::with_namespace_path("ROOT\\WMI", com_con.into()) {
-                if let Ok(results) = wmi_con.raw_query::<ThermalZone>("SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature") {
-                    if let Some(zone) = results.first() {
-                        temp_c = (zone.CurrentTemperature as f32 / 10.0) - 273.15;
-                    }
-                }
-            }
-        }
-        temp_c
-    }).await.unwrap_or(0.0);
+    let cpu_temp_c = 0.0; 
 
     let ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
     let ram_total_gb = sys.total_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
