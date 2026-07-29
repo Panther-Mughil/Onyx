@@ -550,7 +550,7 @@ function App() {
                       Terminal Output
                       <button style={{ background: 'transparent', color: 'var(--text-muted)', display: 'flex', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => {
                         fetch('http://127.0.0.1:3001/api/server/benchmark/clear', { method: 'POST' });
-                        setBenchmarkStatus(prev => ({ ...prev, logs: [] }));
+                        setBenchmarkStatus(prev => ({ ...prev, logs: [], pp: null, tg: null }));
                       }} title="Clear Logs">
                         <Trash2 size={14} />
                       </button>
