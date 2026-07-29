@@ -596,7 +596,20 @@ function App() {
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-row">
                 <span>Server Port</span>
-                <input type="number" className="num-input" value={serverSettings.port} onChange={(e) => setServerSettings({...serverSettings, port: Number(e.target.value)})} />
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="65535" 
+                  className="num-input" 
+                  value={serverSettings.port} 
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val !== "") {
+                      val = Math.max(1, Math.min(65535, Number(val)));
+                    }
+                    setServerSettings({...serverSettings, port: val === "" ? "" : val});
+                  }} 
+                />
               </div>
 
               <div className="form-row" style={{ alignItems: 'flex-start' }}>
