@@ -130,6 +130,15 @@ function App() {
     }
   }, [selectedModel, activeServer.isRunning, activeServer.modelId, models]);
 
+  // Hot-swap network proxy whenever server settings change
+  useEffect(() => {
+    fetch('http://127.0.0.1:3001/api/server/network', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(serverSettings)
+    }).catch(err => console.error("Failed to update network proxy", err));
+  }, [serverSettings]);
+
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
     setConfig(prev => ({

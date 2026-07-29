@@ -56,6 +56,13 @@ struct StartResponse {
     message: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NetworkConfig {
+    port: u16,
+    network_host: bool,
+}
+
 #[derive(Serialize)]
 struct StatusResponse {
     is_running: bool,
@@ -88,6 +95,7 @@ struct AppState {
     server_logs: Mutex<Vec<String>>,
     is_model_ready: Mutex<bool>,
     sys: Mutex<System>,
+    proxy_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -134,6 +142,50 @@ async fn get_local_models() -> Json<Vec<Model>> {
 
     models.sort_by(|a, b| a.name.cmp(&b.name));
     Json(models)
+}
+
+async fn update_network_config(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<NetworkConfig>,
+) -> Json<StartResponse> {
+    let mut proxy_lock = state.proxy_task.lock().await;
+    
+    // Abort existing proxy if it exists
+    if let Some(task) = proxy_lock.take() {
+        task.abort();
+    }
+    
+    let bind_ip = if payload.network_host { "0.0.0.0" } else { "127.0.0.1" };
+    let bind_addr = format!("{}:{}", bind_ip, payload.port);
+    let target_addr = "127.0.0.1:8080".to_string();
+    
+    let listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
+    
+    match listener_result {
+        Ok(listener) => {
+            let task = tokio::spawn(async move {
+                while let Ok((mut inbound, _)) = listener.accept().await {
+                    let target = target_addr.clone();
+                    tokio::spawn(async move {
+                        if let Ok(mut outbound) = tokio::net::TcpStream::connect(target).await {
+                            let _ = tokio::io::copy_bidirectional(&mut inbound, &mut outbound).await;
+                        }
+                    });
+                }
+            });
+            *proxy_lock = Some(task);
+            Json(StartResponse {
+                success: true,
+                message: format!("Proxy running on {}", bind_addr),
+            })
+        },
+        Err(e) => {
+            Json(StartResponse {
+                success: false,
+                message: format!("Failed to bind {}: {}", bind_addr, e),
+            })
+        }
+    }
 }
 
 async fn get_server_status(
@@ -381,6 +433,7 @@ async fn main() {
         server_logs: Mutex::new(Vec::new()),
         is_model_ready: Mutex::new(false),
         sys: Mutex::new(sys),
+        proxy_task: Mutex::new(None),
     });
 
     let app = Router::new()
@@ -390,6 +443,7 @@ async fn main() {
         .route("/api/server/logs", get(get_server_logs))
         .route("/api/server/logs/clear", post(clear_server_logs))
         .route("/api/server/telemetry", get(get_telemetry))
+        .route("/api/server/network", post(update_network_config))
         .route("/api/server/start", post(start_server))
         .route("/api/server/stop", post(stop_server))
         .with_state(shared_state)
