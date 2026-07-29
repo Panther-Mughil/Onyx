@@ -458,43 +458,36 @@ function App() {
             )}
 
             {activeTab === 'inference' && (
-              selectedModel ? (
-                <>
-                  <div className="form-section">
-                    <div className="form-section-title"><Settings size={16}/> Settings</div>
-                    <div style={{ marginBottom: '20px' }}>
-                      <div className="form-row">
-                        <span>Temperature</span>
-                        <input type="number" className="num-input" defaultValue="0.1" step="0.1" />
-                      </div>
-                      <input type="range" className="range-slider" min="0" max="2" step="0.1" defaultValue="0.1" />
-                    </div>
-                    
-                    <div className="form-row" style={{marginBottom: '16px'}}>
-                      <span>Limit Response Length</span>
-                      <div className="toggle-switch" ></div>
-                    </div>
-                  </div>
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflowY: 'auto' }}>
+                <div className="form-section-title" style={{ padding: 0, border: 'none' }}><Zap size={16}/> Local API Server</div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.5' }}>
+                  This dashboard acts as a model loader. Your active model is seamlessly exposed via an OpenAI-compatible API endpoint. Use the snippets below to integrate it into your own applications.
+                </div>
+                
+                <div className="box" style={{ padding: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>Base URL</div>
+                  <code style={{ background: '#050505', padding: '8px 12px', borderRadius: '6px', color: 'var(--ready-green)', display: 'block', fontSize: '13px', fontFamily: 'monospace' }}>
+                    http://127.0.0.1:{serverSettings.port}/v1
+                  </code>
+                </div>
 
-                  <div className="form-section">
-                    <div className="form-section-title"><SlidersHorizontal size={16}/> Sampling</div>
-                    <div className="form-row" style={{marginBottom: '16px'}}>
-                      <span>Top K Sampling</span>
-                      <input type="number" className="num-input" defaultValue="40" />
-                    </div>
-                    <div className="form-row" style={{marginBottom: '16px'}}>
-                      <span>Repeat Penalty</span>
-                      <input type="number" className="num-input" defaultValue="1.1" step="0.1" />
-                    </div>
-                    <div className="form-row" style={{marginBottom: '16px'}}>
-                      <span>Top P Sampling</span>
-                      <input type="number" className="num-input" defaultValue="0.95" step="0.05" />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu to view inference settings.</div>
-              )
+                <div className="box" style={{ padding: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '12px' }}>cURL Example</div>
+                  <pre style={{ background: '#050505', padding: '16px', borderRadius: '6px', color: '#a1a1aa', fontSize: '12px', fontFamily: 'monospace', overflowX: 'auto', margin: 0, lineHeight: '1.4' }}>
+{`curl http://127.0.0.1:${serverSettings.port}/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "messages": [
+      { "role": "system", "content": "You are a helpful assistant." },
+      { "role": "user", "content": "Hello!" }
+    ],
+    "temperature": 0.7,
+    "max_tokens": -1,
+    "stream": true
+  }'`}
+                  </pre>
+                </div>
+              </div>
             )}
 
             {activeTab === 'rpc' && (
