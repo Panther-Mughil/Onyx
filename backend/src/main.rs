@@ -439,9 +439,11 @@ async fn clear_benchmark_logs(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<StartResponse> {
     state.benchmark_logs.lock().await.clear();
+    *state.benchmark_pp.lock().await = None;
+    *state.benchmark_tg.lock().await = None;
     Json(StartResponse {
         success: true,
-        message: "Benchmark logs cleared".to_string(),
+        message: "Benchmark logs and metrics cleared".to_string(),
     })
 }
 
