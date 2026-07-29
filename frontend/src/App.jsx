@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, ChevronRight, X, ChevronDown, CheckCircle2, Zap, Network, Plus, Gauge } from 'lucide-react';
+import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, ChevronRight, X, ChevronDown, CheckCircle2, Zap, Network, Plus, Gauge, BookOpen, Server, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import './index.css';
 
