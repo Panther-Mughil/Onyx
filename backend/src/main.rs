@@ -64,6 +64,14 @@ struct StartResponse {
     message: String,
 }
 
+#[derive(Serialize)]
+struct BenchmarkStatus {
+    is_running: bool,
+    logs: Vec<String>,
+    pp: Option<f32>,
+    tg: Option<f32>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NetworkConfig {
@@ -105,6 +113,10 @@ struct AppState {
     sys: Mutex<System>,
     proxy_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     proxy_addr: Mutex<Option<String>>,
+    benchmark_running: Mutex<bool>,
+    benchmark_logs: Mutex<Vec<String>>,
+    benchmark_pp: Mutex<Option<f32>>,
+    benchmark_tg: Mutex<Option<f32>>,
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -329,77 +341,69 @@ async fn start_server(
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
 
     // Spawn natively and pipe outputs
-    let mut cmd = Command::new(binary_path);
-    cmd.args(&args)
-       .stdout(Stdio::piped())
-       .stderr(Stdio::piped());
-
-    match cmd.spawn() {
-        Ok(mut child) => {
-            let stdout = child.stdout.take().unwrap();
-            let stderr = child.stderr.take().unwrap();
-            
-            // Clear old logs
-            {
-                let mut logs = state.server_logs.lock().await;
-                logs.clear();
-            }
-
-            // Spawn tasks to capture logs
-            let state1 = state.clone();
-            tokio::spawn(async move {
-                let mut reader = BufReader::new(stdout).lines();
-                while let Ok(Some(line)) = reader.next_line().await {
-                    let mut logs = state1.server_logs.lock().await;
-                    logs.push(line.clone());
-                    if logs.len() > 1000 { logs.remove(0); }
-                    
-                    if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                        let mut ready = state1.is_model_ready.lock().await;
-                        *ready = true;
-                    }
-                }
-            });
-
-            let state2 = state.clone();
-            tokio::spawn(async move {
-                let mut reader = BufReader::new(stderr).lines();
-                while let Ok(Some(line)) = reader.next_line().await {
-                    let mut logs = state2.server_logs.lock().await;
-                    logs.push(line.clone());
-                    if logs.len() > 1000 { logs.remove(0); }
-                    
-                    if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                        let mut ready = state2.is_model_ready.lock().await;
-                        *ready = true;
-                    }
-                }
-            });
-
-            *process_lock = Some(child);
-            let mut active_model = state.active_model_id.lock().await;
-            *active_model = Some(payload.model_id);
-            
-            Json(StartResponse {
-                success: true,
-                message: "llama-server started".to_string(),
-            })
-        }
-        Err(e) => {
-            Json(StartResponse {
-                success: false,
-                message: format!("Failed to spawn llama-server: {}", e),
-            })
-        }
+    let mut child = Command::new(binary_path)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to start llama-server");
+    
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    
+    // Clear old logs
+    {
+        let mut logs = state.server_logs.lock().await;
+        logs.clear();
     }
+
+    // Spawn tasks to capture logs
+    let state1 = state.clone();
+    tokio::spawn(async move {
+        let mut reader = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let mut logs = state1.server_logs.lock().await;
+            logs.push(line.clone());
+            if logs.len() > 1000 { logs.remove(0); }
+            
+            if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                let mut ready = state1.is_model_ready.lock().await;
+                *ready = true;
+            }
+        }
+    });
+
+    let state2 = state.clone();
+    tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let mut logs = state2.server_logs.lock().await;
+            logs.push(line.clone());
+            if logs.len() > 1000 { logs.remove(0); }
+            
+            if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                let mut ready = state2.is_model_ready.lock().await;
+                *ready = true;
+            }
+        }
+    });
+
+    *process_lock = Some(child);
+    let mut active_model = state.active_model_id.lock().await;
+    *active_model = Some(payload.model_id);
+    
+    Json(StartResponse {
+        success: true,
+        message: "llama-server started".to_string(),
+    })
 }
 
 async fn stop_server(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<StartResponse> {
     let mut process_lock = state.server_process.lock().await;
-    let mut active_model = state.active_model_id.lock().await;
-    *state.is_model_ready.lock().await = false;
+    let mut model_lock = state.active_model_id.lock().await;
+    let mut ready_lock = state.is_model_ready.lock().await;
     
     // Aggressive Windows cleanup
     let _ = std::process::Command::new("taskkill")
@@ -410,11 +414,147 @@ async fn stop_server(
         let _ = child.kill().await;
     }
     
-    *active_model = None;
+    *process_lock = None;
+    *model_lock = None;
+    *ready_lock = false;
     
     Json(StartResponse {
         success: true,
-        message: "llama-server forcefully stopped.".to_string(),
+        message: "Server stopped successfully".to_string(),
+    })
+}
+
+async fn get_benchmark_status(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<BenchmarkStatus> {
+    Json(BenchmarkStatus {
+        is_running: *state.benchmark_running.lock().await,
+        logs: state.benchmark_logs.lock().await.clone(),
+        pp: *state.benchmark_pp.lock().await,
+        tg: *state.benchmark_tg.lock().await,
+    })
+}
+
+async fn run_benchmark(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<ServerConfig>,
+) -> Json<StartResponse> {
+    
+    {
+        let mut is_running = state.benchmark_running.lock().await;
+        if *is_running {
+            return Json(StartResponse {
+                success: false,
+                message: "Benchmark is already running".to_string(),
+            });
+        }
+        *is_running = true;
+    }
+    
+    // Clean up previous results
+    state.benchmark_logs.lock().await.clear();
+    *state.benchmark_pp.lock().await = None;
+    *state.benchmark_tg.lock().await = None;
+
+    // Shutdown active server safely
+    {
+        let mut process_lock = state.server_process.lock().await;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "llama-server.exe", "/T"])
+            .output();
+        if let Some(mut child) = process_lock.take() {
+            let _ = child.kill().await;
+        }
+        *state.active_model_id.lock().await = None;
+        *state.is_model_ready.lock().await = false;
+    }
+
+    let model_path = format!("../models/{}", payload.model_id);
+    let binary_path = "../bin/llama-bench.exe";
+    
+    let mut args = vec![
+        "-m".to_string(), model_path,
+        "-c".to_string(), payload.ctx_size.to_string(),
+        "-ngl".to_string(), payload.gpu_layers.to_string(),
+        "-t".to_string(), payload.threads.to_string(),
+        "-b".to_string(), payload.eval_batch_size.to_string(),
+        "-ub".to_string(), payload.physical_batch_size.to_string(),
+        "-np".to_string(), payload.concurrency.to_string(),
+        "--cache-type-k".to_string(), payload.k_cache_quant.clone(),
+        "--cache-type-v".to_string(), payload.v_cache_quant.clone(),
+        "-p".to_string(), "512".to_string(),
+        "-n".to_string(), "128".to_string(),
+    ];
+
+    if let Some(servers) = &payload.rpc_servers {
+        let active_servers: Vec<String> = servers.iter()
+            .filter(|s| s.active)
+            .map(|s| s.address.clone())
+            .collect();
+            
+        if !active_servers.is_empty() {
+            args.push("--rpc".to_string());
+            args.push(active_servers.join(","));
+        }
+    }
+
+    if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
+    if payload.keep_in_memory { args.push("-lm".to_string()); args.push("mlock".to_string()); }
+    else if !payload.mmap { args.push("-lm".to_string()); args.push("none".to_string()); }
+    if payload.flash_attention { args.push("-fa".to_string()); args.push("1".to_string()); }
+
+    let shared_state = state.clone();
+    
+    tokio::spawn(async move {
+        let mut child = Command::new(binary_path)
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to start llama-bench");
+
+        let stdout = child.stdout.take().expect("Failed to open stdout");
+        let stderr = child.stderr.take().expect("Failed to open stderr");
+
+        let state_clone_out = shared_state.clone();
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                let mut logs = state_clone_out.benchmark_logs.lock().await;
+                logs.push(line.clone());
+                
+                // Parse for pp and tg
+                if line.contains("|") && (line.contains("pp512") || line.contains("tg128")) {
+                    let parts: Vec<&str> = line.split('|').collect();
+                    if parts.len() > 6 {
+                        if let Ok(val) = parts[parts.len()-2].trim().parse::<f32>() {
+                            if line.contains("pp512") {
+                                *state_clone_out.benchmark_pp.lock().await = Some(val);
+                            } else if line.contains("tg128") {
+                                *state_clone_out.benchmark_tg.lock().await = Some(val);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let state_clone_err = shared_state.clone();
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                let mut logs = state_clone_err.benchmark_logs.lock().await;
+                logs.push(line);
+            }
+        });
+
+        let _ = child.wait().await;
+        *shared_state.benchmark_running.lock().await = false;
+    });
+
+    Json(StartResponse {
+        success: true,
+        message: "Benchmark started".to_string(),
     })
 }
 
@@ -481,6 +621,10 @@ async fn main() {
         sys: Mutex::new(sys),
         proxy_task: Mutex::new(None),
         proxy_addr: Mutex::new(None),
+        benchmark_running: Mutex::new(false),
+        benchmark_logs: Mutex::new(Vec::new()),
+        benchmark_pp: Mutex::new(None),
+        benchmark_tg: Mutex::new(None),
     });
 
     let app = Router::new()
@@ -493,6 +637,8 @@ async fn main() {
         .route("/api/server/network", post(update_network_config))
         .route("/api/server/start", post(start_server))
         .route("/api/server/stop", post(stop_server))
+        .route("/api/server/benchmark/start", post(run_benchmark))
+        .route("/api/server/benchmark/status", get(get_benchmark_status))
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 

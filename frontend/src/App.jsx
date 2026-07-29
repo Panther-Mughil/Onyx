@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity, Trash2, Network, Plus } from 'lucide-react';
+import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity, Trash2, Network, Plus, Gauge } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -28,6 +28,7 @@ function App() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [appliedConfig, setAppliedConfig] = useState(null);
   const [newRpcInput, setNewRpcInput] = useState("");
+  const [benchmarkStatus, setBenchmarkStatus] = useState({ isRunning: false, logs: [], pp: null, tg: null });
 
   const [config, setConfig] = useState({
     ctxSize: 2048,
@@ -118,6 +119,21 @@ function App() {
        };
        fetchTelemetry();
        interval = setInterval(fetchTelemetry, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  useEffect(() => {
+    let interval;
+    if (activeTab === 'benchmark') {
+       const fetchBench = () => {
+         fetch('http://127.0.0.1:3001/api/server/benchmark/status')
+           .then(res => res.json())
+           .then(data => setBenchmarkStatus({ isRunning: data.is_running, logs: data.logs, pp: data.pp, tg: data.tg }))
+           .catch(() => {});
+       };
+       fetchBench();
+       interval = setInterval(fetchBench, 1000);
     }
     return () => clearInterval(interval);
   }, [activeTab]);
@@ -340,6 +356,9 @@ function App() {
             <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')} title="Monitoring">
               <Activity size={16} /> <span className="tab-label">Monitoring</span>
             </div>
+            <div className={`tab-btn ${activeTab === 'benchmark' ? 'active' : ''}`} onClick={() => setActiveTab('benchmark')} title="Benchmark">
+              <Gauge size={16} /> <span className="tab-label">Benchmark</span>
+            </div>
           </div>
 
           {/* Tab Contents */}
@@ -527,6 +546,57 @@ function App() {
                 </div>
               ) : (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure RPC workers.</div>
+              )
+            )}
+
+            {activeTab === 'benchmark' && (
+              selectedModel ? (
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="form-section-title" style={{ padding: 0, border: 'none' }}><Gauge size={16}/> Hardware Benchmark</div>
+                    <button className="primary-btn" disabled={benchmarkStatus.isRunning} onClick={() => {
+                      fetch('http://127.0.0.1:3001/api/server/benchmark/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...config, modelId: selectedModel.id })
+                      }).then(() => {
+                        setBenchmarkStatus(prev => ({ ...prev, isRunning: true, logs: [], pp: null, tg: null }));
+                      });
+                    }}>
+                      {benchmarkStatus.isRunning ? 'Running...' : 'Run Benchmark'}
+                    </button>
+                  </div>
+                  
+                  <div className="box" style={{ flex: 1, minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600' }}>
+                      Terminal Output
+                    </div>
+                    <div className="terminal" style={{ margin: 0, borderRadius: '0 0 12px 12px', border: 'none', borderTop: 'none', flex: 1, minHeight: 0 }}>
+                      {benchmarkStatus.logs.length === 0 ? (
+                        <div style={{ color: '#555' }}>Ready to benchmark...</div>
+                      ) : (
+                        benchmarkStatus.logs.map((l, i) => <div key={i} className="log-line">{l}</div>)
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <div className="box" style={{ flex: 1, padding: '20px', textAlign: 'center', background: 'var(--bg-input)' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Prompt Processing (PP)</div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: benchmarkStatus.pp ? 'var(--ready-green)' : 'var(--text-main)' }}>
+                        {benchmarkStatus.pp ? `${benchmarkStatus.pp.toFixed(2)} t/s` : '--'}
+                      </div>
+                    </div>
+                    <div className="box" style={{ flex: 1, padding: '20px', textAlign: 'center', background: 'var(--bg-input)' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Token Generation (TG)</div>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: benchmarkStatus.tg ? 'var(--ready-green)' : 'var(--text-main)' }}>
+                        {benchmarkStatus.tg ? `${benchmarkStatus.tg.toFixed(2)} t/s` : '--'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to run hardware benchmarks.</div>
               )
             )}
 
