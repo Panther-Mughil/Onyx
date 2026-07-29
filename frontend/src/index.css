@@ -192,6 +192,14 @@ button {
   font-size: 13px;
 }
 
+.form-row > span:first-child {
+  color: #d4d4d8;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 .num-input {
   background: var(--bg-input);
   border: 1px solid var(--border-color);
