@@ -241,6 +241,7 @@ button {
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #52525b; }
 
+
 /* Select boxes */
 .select-input {
   width: 100%;
@@ -253,3 +254,22 @@ button {
   font-size: 13px;
 }
 .select-input:focus { outline: none; border-color: var(--accent); }
+
+/* Animations */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.indeterminate-progress {
+  width: 50%;
+  height: 100%;
+  background: #eab308;
+  animation: indeterminate 1.5s infinite ease-in-out;
+}

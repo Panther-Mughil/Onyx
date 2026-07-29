@@ -35,7 +35,7 @@ function App() {
   const fetchStatusAndLogs = () => {
     fetch('http://127.0.0.1:3001/api/server/status')
       .then(res => res.json())
-      .then(data => setActiveServer({ isRunning: data.is_running, modelId: data.model_id }))
+      .then(data => setActiveServer({ isRunning: data.is_running, modelId: data.model_id, isReady: data.is_ready }))
       .catch(() => {});
 
     fetch('http://127.0.0.1:3001/api/server/logs')
@@ -145,9 +145,31 @@ function App() {
             <div className="box" style={{ padding: '16px', minHeight: '100px' }}>
               {activeModelDetails ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ alignSelf: 'flex-start', border: '1px solid var(--ready-green)', color: 'var(--ready-green)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
-                    READY
+                  
+                  <div style={{ 
+                      alignSelf: 'flex-start', 
+                      border: `1px solid ${activeServer.isReady ? 'var(--ready-green)' : '#eab308'}`, 
+                      color: activeServer.isReady ? 'var(--ready-green)' : '#eab308', 
+                      padding: '2px 8px', 
+                      borderRadius: '4px', 
+                      fontSize: '10px', 
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                    {!activeServer.isReady && (
+                       <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    )}
+                    {activeServer.isReady ? 'READY' : 'LOADING...'}
                   </div>
+
+                  {!activeServer.isReady && (
+                    <div style={{ width: '100%', height: '4px', background: 'var(--bg-input)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px', marginBottom: '8px' }}>
+                       <div className="indeterminate-progress"></div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ color: 'var(--text-muted)' }}>llm</span> {activeModelDetails.name}

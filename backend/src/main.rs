@@ -59,12 +59,14 @@ struct StartResponse {
 struct StatusResponse {
     is_running: bool,
     model_id: Option<String>,
+    is_ready: bool,
 }
 
 struct AppState {
     server_process: Mutex<Option<Child>>,
     active_model_id: Mutex<Option<String>>,
     server_logs: Mutex<Vec<String>>,
+    is_model_ready: Mutex<bool>,
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -118,12 +120,14 @@ async fn get_server_status(
 ) -> Json<StatusResponse> {
     let process_lock = state.server_process.lock().await;
     let model_lock = state.active_model_id.lock().await;
+    let ready_lock = state.is_model_ready.lock().await;
     
     let is_running = process_lock.is_some();
     
     Json(StatusResponse {
         is_running,
         model_id: model_lock.clone(),
+        is_ready: *ready_lock,
     })
 }
 
@@ -140,6 +144,7 @@ async fn start_server(
 ) -> Json<StartResponse> {
     
     let mut process_lock = state.server_process.lock().await;
+    *state.is_model_ready.lock().await = false;
     
     // Aggressive Windows cleanup for zombie processes
     let _ = std::process::Command::new("taskkill")
@@ -204,8 +209,13 @@ async fn start_server(
                 let mut reader = BufReader::new(stdout).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
                     let mut logs = state1.server_logs.lock().await;
-                    logs.push(line);
-                    if logs.len() > 1000 { logs.remove(0); } // Retain last 1000 lines
+                    logs.push(line.clone());
+                    if logs.len() > 1000 { logs.remove(0); }
+                    
+                    if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                        let mut ready = state1.is_model_ready.lock().await;
+                        *ready = true;
+                    }
                 }
             });
 
@@ -214,8 +224,13 @@ async fn start_server(
                 let mut reader = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
                     let mut logs = state2.server_logs.lock().await;
-                    logs.push(line);
+                    logs.push(line.clone());
                     if logs.len() > 1000 { logs.remove(0); }
+                    
+                    if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                        let mut ready = state2.is_model_ready.lock().await;
+                        *ready = true;
+                    }
                 }
             });
 
@@ -242,6 +257,7 @@ async fn stop_server(
 ) -> Json<StartResponse> {
     let mut process_lock = state.server_process.lock().await;
     let mut active_model = state.active_model_id.lock().await;
+    *state.is_model_ready.lock().await = false;
     
     // Aggressive Windows cleanup
     let _ = std::process::Command::new("taskkill")
@@ -268,6 +284,7 @@ async fn main() {
         server_process: Mutex::new(None),
         active_model_id: Mutex::new(None),
         server_logs: Mutex::new(Vec::new()),
+        is_model_ready: Mutex::new(false),
     });
 
     let app = Router::new()
