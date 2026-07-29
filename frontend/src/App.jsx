@@ -3,7 +3,7 @@ import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizont
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import './index.css';
 
-const OnyxLogo = ({ size = 20, color = "var(--primary-color)" }) => (
+const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2L2 12l10 10 10-10Z" />
     <path d="M2 12h20" />
@@ -326,7 +326,10 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <div style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: '24px' }}>No models currently loaded.</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--border-color)', gap: '16px' }}>
+                  <OnyxLogo size={80} color="var(--border-color)" />
+                  <div style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: '500' }}>No active engine. Select a model to begin.</div>
+                </div>
               )}
             </div>
           </div>
