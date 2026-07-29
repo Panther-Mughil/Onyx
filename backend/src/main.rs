@@ -492,6 +492,7 @@ async fn run_benchmark(
         "-ctv".to_string(), payload.v_cache_quant.clone(),
         "-p".to_string(), "512".to_string(),
         "-n".to_string(), "128".to_string(),
+        "--progress".to_string(),
     ];
 
     if let Some(servers) = &payload.rpc_servers {
@@ -535,7 +536,9 @@ async fn run_benchmark(
                 if line.contains("|") && (line.contains("pp512") || line.contains("tg128")) {
                     let parts: Vec<&str> = line.split('|').collect();
                     if parts.len() > 6 {
-                        if let Ok(val) = parts[parts.len()-2].trim().parse::<f32>() {
+                        let val_str = parts[parts.len()-2].trim();
+                        let clean_val = val_str.split_whitespace().next().unwrap_or("");
+                        if let Ok(val) = clean_val.parse::<f32>() {
                             if line.contains("pp512") {
                                 *state_clone_out.benchmark_pp.lock().await = Some(val);
                             } else if line.contains("tg128") {
