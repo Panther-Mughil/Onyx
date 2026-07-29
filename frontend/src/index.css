@@ -1,14 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+
 :root {
-  --bg-main: #131314;
-  --bg-panel: #1e1e20;
-  --bg-input: #27272a;
-  --border-color: #3f3f46;
-  --text-main: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
+  --bg-main: #0c0c0e;
+  --bg-panel: #141417;
+  --bg-input: #1f1f23;
+  --border-color: #2a2a30;
+  --text-main: #fcfcfd;
+  --text-muted: #8b8b93;
+  --accent: #4f46e5;
+  --accent-hover: #6366f1;
   --danger: #ef4444;
-  --ready-green: #22c55e;
+  --ready-green: #10b981;
 }
 
 * {
@@ -20,16 +22,17 @@
 body {
   background: var(--bg-main);
   color: var(--text-main);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Outfit', system-ui, sans-serif;
   overflow: hidden;
   font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
 button {
   cursor: pointer;
   border: none;
   font-family: inherit;
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app-container {
@@ -42,28 +45,41 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
-  background: var(--bg-main);
+  padding: 12px 24px;
+  background: var(--bg-panel);
   border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 10;
 }
 
 .primary-btn {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
   color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
   font-weight: 500;
+  box-shadow: 0 2px 10px rgba(79, 70, 229, 0.2);
 }
-.primary-btn:hover { background: var(--accent-hover); }
+.primary-btn:hover {
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+  transform: translateY(-1px);
+}
+.primary-btn:active {
+  transform: translateY(0);
+}
 
 .secondary-btn {
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   color: var(--text-main);
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-weight: 400;
 }
-.secondary-btn:hover { background: #3f3f46; }
+.secondary-btn:hover {
+  background: #2a2a30;
+  border-color: #3f3f46;
+}
 
 .main-content {
   display: flex;
@@ -75,43 +91,51 @@ button {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 24px;
   overflow: hidden;
+  gap: 24px;
 }
 
 .right-pane {
-  width: 360px;
+  width: 380px;
   background: var(--bg-panel);
   border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+  z-index: 5;
 }
 
 /* Panel Boxes */
 .box {
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
+  transition: border-color 0.3s;
+}
+.box:hover {
+  border-color: #3f3f46;
 }
 
 /* Terminal */
 .terminal {
   flex: 1;
-  background: #09090b;
-  color: #d4d4d8;
+  background: #050505;
+  color: #a1a1aa;
   font-family: 'Fira Code', 'Consolas', monospace;
-  font-size: 12px;
-  padding: 16px;
+  font-size: 13px;
+  padding: 16px 20px;
   overflow-y: auto;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  line-height: 1.5;
+  border-radius: 12px;
+  border: 1px solid #1f1f23;
+  line-height: 1.6;
+  box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-.log-line { white-space: pre-wrap; word-break: break-all; }
-.log-info { color: #93c5fd; }
+.log-line { white-space: pre-wrap; word-break: break-all; margin-bottom: 2px; }
+.log-info { color: #60a5fa; }
 .log-warn { color: #fde047; }
 .log-err { color: #fca5a5; }
 
@@ -119,7 +143,7 @@ button {
 .tab-header {
   display: flex;
   gap: 8px;
-  padding: 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-panel);
 }
@@ -129,7 +153,7 @@ button {
   padding: 8px;
   background: transparent;
   color: var(--text-muted);
-  border-radius: 6px;
+  border-radius: 8px;
   text-align: center;
   font-size: 13px;
   font-weight: 500;
@@ -137,11 +161,13 @@ button {
   justify-content: center;
   align-items: center;
   gap: 6px;
+  transition: all 0.2s;
 }
-.tab-btn:hover { color: var(--text-main); }
+.tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.03); }
 .tab-btn.active {
   background: var(--bg-input);
   color: var(--text-main);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* Forms */

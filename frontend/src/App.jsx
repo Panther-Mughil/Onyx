@@ -280,7 +280,7 @@ function App() {
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginTop: '24px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div style={{ display: 'flex', gap: '16px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: '600', paddingBottom: '8px', borderBottom: '2px solid var(--text-muted)' }}>Developer Logs</h3>
+                <h3 style={{ fontSize: '14px', fontWeight: '600' }}>Developer Logs</h3>
               </div>
               <button className="secondary-btn" onClick={handleClearLogs} style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Trash2 size={12} /> Clear Logs
