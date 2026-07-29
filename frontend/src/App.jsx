@@ -1,3 +1,4 @@
+import { useEffect, useState, useRef } from 'react';
 import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity } from 'lucide-react';
 import './index.css';
 
