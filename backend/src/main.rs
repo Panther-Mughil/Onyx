@@ -139,11 +139,23 @@ async fn get_local_models() -> Json<Vec<Model>> {
 async fn get_server_status(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<StatusResponse> {
-    let process_lock = state.server_process.lock().await;
-    let model_lock = state.active_model_id.lock().await;
-    let ready_lock = state.is_model_ready.lock().await;
+    let mut process_lock = state.server_process.lock().await;
+    let mut model_lock = state.active_model_id.lock().await;
+    let mut ready_lock = state.is_model_ready.lock().await;
     
-    let is_running = process_lock.is_some();
+    let mut is_running = false;
+    
+    if let Some(child) = process_lock.as_mut() {
+        if let Ok(Some(_)) = child.try_wait() {
+            // Process crashed or exited (e.g. Out of Memory error)
+            // Auto-eject and clean up the state
+            *process_lock = None;
+            *model_lock = None;
+            *ready_lock = false;
+        } else {
+            is_running = true;
+        }
+    }
     
     Json(StatusResponse {
         is_running,
