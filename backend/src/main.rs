@@ -297,6 +297,13 @@ async fn stop_server(
     })
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+#[allow(non_snake_case)]
+struct ThermalZone {
+    CurrentTemperature: u32,
+}
+
 async fn get_telemetry(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<TelemetryResponse> {
@@ -307,7 +314,19 @@ async fn get_telemetry(
     let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
     let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
     
-    let cpu_temp_c = 0.0; 
+    let cpu_temp_c = tokio::task::spawn_blocking(|| {
+        let mut temp_c = 0.0;
+        if let Ok(com_con) = wmi::COMLibrary::new() {
+            if let Ok(wmi_con) = wmi::WMIConnection::with_namespace_path("ROOT\\WMI", com_con.into()) {
+                if let Ok(results) = wmi_con.raw_query::<ThermalZone>("SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature") {
+                    if let Some(zone) = results.first() {
+                        temp_c = (zone.CurrentTemperature as f32 / 10.0) - 273.15;
+                    }
+                }
+            }
+        }
+        temp_c
+    }).await.unwrap_or(0.0);
 
     let ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
     let ram_total_gb = sys.total_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
@@ -351,6 +370,13 @@ async fn main() {
 
     let mut sys = System::new_all();
     sys.refresh_all(); // Initial warm-up for accurate usage
+
+    let mut components = sysinfo::Components::new();
+    components.refresh_list();
+    println!("Found {} thermal components natively", components.list().len());
+    for component in components.list() {
+        println!("Thermal Sensor: {:?} -> {:?}", component.label(), component.temperature());
+    }
 
     let shared_state = Arc::new(AppState {
         server_process: Mutex::new(None),
