@@ -171,6 +171,17 @@ async fn get_server_logs(
     Json(logs.clone())
 }
 
+async fn clear_server_logs(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<StartResponse> {
+    let mut logs = state.server_logs.lock().await;
+    logs.clear();
+    Json(StartResponse {
+        success: true,
+        message: "Logs cleared".to_string(),
+    })
+}
+
 async fn start_server(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<ServerConfig>,
@@ -377,6 +388,7 @@ async fn main() {
         .route("/api/models", get(get_local_models))
         .route("/api/server/status", get(get_server_status))
         .route("/api/server/logs", get(get_server_logs))
+        .route("/api/server/logs/clear", post(clear_server_logs))
         .route("/api/server/telemetry", get(get_telemetry))
         .route("/api/server/start", post(start_server))
         .route("/api/server/stop", post(stop_server))

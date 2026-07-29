@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity } from 'lucide-react';
+import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity, Trash2 } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -174,6 +174,13 @@ function App() {
     } catch(e) { console.error(e); }
   };
 
+  const handleClearLogs = async () => {
+    setLogs([]);
+    try {
+      await fetch('http://127.0.0.1:3001/api/server/logs/clear', { method: 'POST' });
+    } catch(e) { console.error(e); }
+  };
+
   const formatLog = (line) => {
     if (line.includes(" W ")) return "log-warn";
     if (line.includes(" E ") || line.includes("error")) return "log-err";
@@ -275,6 +282,9 @@ function App() {
               <div style={{ display: 'flex', gap: '16px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: '600', paddingBottom: '8px', borderBottom: '2px solid var(--text-muted)' }}>Developer Logs</h3>
               </div>
+              <button className="secondary-btn" onClick={handleClearLogs} style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Trash2 size={12} /> Clear Logs
+              </button>
             </div>
             <div className="terminal">
               {logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)}
