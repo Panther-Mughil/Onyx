@@ -1,26 +1,30 @@
 import { useEffect, useState, useRef } from 'react';
-import { Server, Activity, Settings, LayoutDashboard, X, Cpu, HardDrive, ArrowLeft, Play, Settings2, Square, Terminal } from 'lucide-react';
+import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen } from 'lucide-react';
 import './index.css';
 
 function App() {
   const [backendStatus, setBackendStatus] = useState({ status: 'checking', message: '' });
   const [activeServer, setActiveServer] = useState({ isRunning: false, modelId: null });
   const [logs, setLogs] = useState([]);
+  
+  // Modals & Navigation
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null);
+  const [selectedModel, setSelectedModel] = useState(null); // The model currently selected in the right pane
+  const [activeTab, setActiveTab] = useState('load'); // 'info', 'load', 'inference'
+
   const logsEndRef = useRef(null);
 
   const [config, setConfig] = useState({
-    ctxSize: 4096,
-    gpuLayers: 99,
+    ctxSize: 2048,
+    gpuLayers: 28,
     threads: 4,
-    evalBatchSize: 512,
-    physicalBatchSize: 512,
+    evalBatchSize: 4096,
+    physicalBatchSize: 1024,
     concurrency: 1,
     unifiedKv: true,
     offloadKv: true,
-    keepInMemory: false,
+    keepInMemory: true,
     mmap: true,
     flashAttention: false,
     kCacheQuant: 'f16',
@@ -70,7 +74,13 @@ function App() {
     }));
   };
 
+  // Toggle helper
+  const handleToggle = (name) => {
+    setConfig(prev => ({ ...prev, [name]: !prev[name] }));
+  };
+
   const handleStartServer = async () => {
+    if (!selectedModel) return;
     try {
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
@@ -82,8 +92,6 @@ function App() {
     } catch (err) {
       alert("Failed to reach backend.");
     }
-    setIsModalOpen(false);
-    setSelectedModel(null);
   };
 
   const handleStopServer = async () => {
@@ -92,7 +100,6 @@ function App() {
     } catch(e) { console.error(e); }
   };
 
-  // Helper for log coloring
   const formatLog = (line) => {
     if (line.includes(" W ")) return "log-warn";
     if (line.includes(" E ") || line.includes("error")) return "log-err";
@@ -100,199 +107,269 @@ function App() {
     return "";
   };
 
+  // Find the details of the active model
+  const activeModelDetails = activeServer.isRunning ? models.find(m => m.id === activeServer.modelId) : null;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="app-container">
       
       {/* Top Navbar */}
-      <header className="glass-header" style={{ padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: 'var(--accent-color)', padding: '8px', borderRadius: '8px' }}>
-            <Server size={20} color="white" />
+      <div className="top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-input)', padding: '4px 12px', borderRadius: '16px', fontSize: '12px' }}>
+            Status: {activeServer.isRunning ? 'Running' : 'Stopped'}
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeServer.isRunning ? 'var(--ready-green)' : 'var(--border-color)', marginLeft: '4px' }}></div>
           </div>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: '700', letterSpacing: '0.5px' }}>PANTHER LLM</h1>
-          
-          <div style={{ marginLeft: '24px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', padding: '6px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: backendStatus.status === 'ok' ? 'var(--success-color)' : 'var(--danger-color)' }}></div>
-            {backendStatus.status === 'ok' ? 'Connected to Rust Daemon' : 'Daemon Offline'}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {activeServer.isRunning && (
-            <button onClick={handleStopServer} style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--danger-color)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Square size={16} fill="currentColor" /> Eject Model
-            </button>
-          )}
-          <button onClick={() => setIsModalOpen(true)} style={{ padding: '8px 20px', borderRadius: '8px', background: 'var(--accent-color)', color: 'white', fontWeight: '600', boxShadow: '0 4px 14px 0 rgba(79, 70, 229, 0.39)' }}>
-            Load Model
+          <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Settings2 size={14} /> Server Settings
           </button>
         </div>
-      </header>
 
-      {/* Main Dashboard Grid */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '24px', gap: '24px' }}>
-        
-        {/* Left Column: Active Model & Telemetry */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px', minWidth: '400px' }}>
-          
-          {/* Active Model Card */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', color: 'var(--text-muted)' }}>
-              <LayoutDashboard size={18} />
-              <h2 style={{ fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Model</h2>
-            </div>
-            
-            {activeServer.isRunning && activeServer.modelId ? (
-              (() => {
-                const model = models.find(m => m.id === activeServer.modelId);
-                if (!model) return <div style={{ color: 'var(--text-muted)' }}>Loading details...</div>;
-                
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'var(--success-color)', boxShadow: '0 0 12px var(--success-color)' }}></div>
-                      <h3 style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>{model.name}</h3>
-                    </div>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--panel-border)' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Quantization</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}><Cpu size={16} color="var(--accent-color)"/> {model.quantization}</div>
-                      </div>
-                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--panel-border)' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>File Size</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}><HardDrive size={16} color="var(--accent-color)"/> {model.size_gb.toFixed(2)} GB</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', color: 'var(--text-muted)', padding: '40px 0' }}>
-                <HardDrive size={48} style={{ opacity: 0.2 }} />
-                <p style={{ fontWeight: '500' }}>No model currently loaded in memory.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Telemetry Card (Placeholder for now) */}
-          <div className="glass-panel" style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', color: 'var(--text-muted)' }}>
-              <Activity size={18} />
-              <h2 style={{ fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Hardware Telemetry</h2>
-            </div>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--panel-border)', borderRadius: '8px', color: 'var(--text-muted)' }}>
-              Real-time graphs will appear here.
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Server Terminal */}
-        <div className="glass-panel" style={{ flex: 2, padding: '24px', display: 'flex', flexDirection: 'column', minWidth: '500px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', color: 'var(--text-muted)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Terminal size={18} />
-              <h2 style={{ fontSize: '0.9rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>llama-server Output</h2>
-            </div>
-            {activeServer.isRunning && (
-              <span style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success-color)', animation: 'pulse 2s infinite' }}></span>
-                Live Stream
-              </span>
-            )}
-          </div>
-          
-          <div className="terminal-window">
-            {logs.length === 0 ? (
-              <div style={{ color: '#525252', fontStyle: 'italic' }}>Waiting for server output...</div>
-            ) : (
-              logs.map((line, idx) => (
-                <div key={idx} className={`log-line ${formatLog(line)}`}>{line}</div>
-              ))
-            )}
-            <div ref={logsEndRef} />
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            {activeServer.isRunning ? 'Server running on port 8080' : 'Server not running'}
+          </span>
+          <button className="primary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsModalOpen(true)}>
+            + Load Model
+          </button>
         </div>
       </div>
 
-      {/* Model Configuration Modal */}
-      {isModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div className="glass-panel" style={{ width: '850px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'rgba(15, 15, 20, 0.95)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            
-            {!selectedModel ? (
-              <>
-                <div style={{ padding: '24px', borderBottom: '1px solid var(--panel-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Select a Model</h2>
-                  <button onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
-                </div>
-                
-                <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {models.map((model) => (
-                    <div key={model.id} style={{ padding: '20px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => setSelectedModel(model)} onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.background = 'rgba(79, 70, 229, 0.05)' }} onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--panel-border)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.15rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '8px' }}>{model.name}</h3>
-                        <div style={{ display: 'flex', gap: '16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Cpu size={14}/> {model.quantization}</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><HardDrive size={14}/> {model.size_gb.toFixed(2)} GB</span>
-                        </div>
-                      </div>
-                      <button style={{ padding: '10px 20px', borderRadius: '8px', background: 'var(--accent-color)', color: 'white', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', pointerEvents: 'none' }}>
-                        <Settings2 size={16} /> Configure
+      {/* Main Split View */}
+      <div className="main-content">
+        
+        {/* LEFT PANE: Loaded Models & Developer Logs */}
+        <div className="left-pane">
+          <div>
+            <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '600' }}>Loaded Models</h3>
+            <div className="box" style={{ padding: '16px', minHeight: '100px' }}>
+              {activeModelDetails ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ alignSelf: 'flex-start', border: '1px solid var(--ready-green)', color: 'var(--ready-green)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                    READY
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>llm</span> {activeModelDetails.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Size <strong style={{color: 'var(--text-main)', marginLeft: '4px'}}>{activeModelDetails.size_gb.toFixed(2)} GB</strong></span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Parallel <strong style={{color: 'var(--text-main)', marginLeft: '4px'}}>1</strong></span>
+                      <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleStopServer}>
+                        <Square size={14} /> Eject
                       </button>
                     </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ padding: '24px', borderBottom: '1px solid var(--panel-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <button onClick={() => setSelectedModel(null)} style={{ background: 'transparent', color: 'var(--text-muted)' }}><ArrowLeft size={20} /></button>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Configure: <span style={{ color: 'var(--accent-color)' }}>{selectedModel.name}</span></h2>
                   </div>
-                  <button onClick={() => { setIsModalOpen(false); setSelectedModel(null); }} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
                 </div>
+              ) : (
+                <div style={{ color: 'var(--text-muted)', textAlign: 'center', paddingTop: '24px' }}>No models currently loaded.</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginTop: '24px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', paddingBottom: '8px', borderBottom: '2px solid var(--text-muted)' }}>Developer Logs</h3>
+              </div>
+            </div>
+            <div className="terminal">
+              {logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)}
+              <div ref={logsEndRef} />
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT PANE: Side panel for configuration */}
+        <div className="right-pane">
+          {selectedModel ? (
+            <>
+              {/* Header */}
+              <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                <Cpu size={20} color="var(--text-muted)" />
+                <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>{selectedModel.name}</h2>
+              </div>
+              
+              {/* Tabs */}
+              <div className="tab-header">
+                <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>
+                  <Info size={16} /> Info
+                </div>
+                <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')}>
+                  <Download size={16} /> Load
+                </div>
+                <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
+                  <Zap size={16} /> Inference
+                </div>
+              </div>
+
+              {/* Tab Contents */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
                 
-                <div style={{ padding: '32px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                    <div><label className="form-label">Context Size</label><input type="number" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} className="glass-input" /></div>
-                    <div><label className="form-label">GPU Offload Layers</label><input type="number" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} className="glass-input" /></div>
-                    <div><label className="form-label">CPU Threads</label><input type="number" name="threads" value={config.threads} onChange={handleConfigChange} className="glass-input" /></div>
-                    <div><label className="form-label">Concurrency</label><input type="number" name="concurrency" value={config.concurrency} onChange={handleConfigChange} className="glass-input" /></div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', padding: '24px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
-                    <div>
-                      <label className="form-label">K Cache Quantization</label>
-                      <select name="kCacheQuant" value={config.kCacheQuant} onChange={handleConfigChange} className="glass-select">
-                        <option value="f16">F16 (Default)</option><option value="q8_0">Q8_0</option><option value="q4_0">Q4_0</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="form-label">V Cache Quantization</label>
-                      <select name="vCacheQuant" value={config.vCacheQuant} onChange={handleConfigChange} className="glass-select">
-                        <option value="f16">F16 (Default)</option><option value="q8_0">Q8_0</option><option value="q4_0">Q4_0</option>
-                      </select>
+                {activeTab === 'info' && (
+                  <div style={{ padding: '16px' }}>
+                    <div className="form-section-title"><Info size={16}/> Model Information</div>
+                    <div style={{ background: 'var(--bg-input)', borderRadius: '8px', padding: '0 16px' }}>
+                      <div className="info-row"><span>Model</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.name}</span></div>
+                      <div className="info-row"><span>File</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.id.substring(0, 20)}...</span></div>
+                      <div className="info-row"><span>Format</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>GGUF</span></div>
+                      <div className="info-row"><span>Quantization</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.quantization}</span></div>
+                      <div className="info-row"><span>Domain</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>llm</span></div>
+                      <div className="info-row"><span>Size on disk</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.size_gb.toFixed(2)} GB</span></div>
                     </div>
                   </div>
+                )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    {['unifiedKv', 'offloadKv', 'keepInMemory', 'mmap', 'flashAttention'].map(key => (
-                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                        <input type="checkbox" name={key} checked={config[key]} onChange={handleConfigChange} style={{ width: '18px', height: '18px', accentColor: 'var(--accent-color)' }} />
-                        <span style={{ color: 'var(--text-main)', fontSize: '0.95rem' }}>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-                      </label>
-                    ))}
-                  </div>
+                {activeTab === 'load' && (
+                  <>
+                    <div className="form-section">
+                      <div className="form-section-title"><Settings size={16}/> Context and Offload</div>
+                      
+                      <div style={{ marginBottom: '20px' }}>
+                        <div className="form-row">
+                          <span>Context Length</span>
+                          <input type="number" className="num-input" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                        </div>
+                        <input type="range" className="range-slider" min="256" max="128000" step="256" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                      </div>
 
-                  <button onClick={handleStartServer} style={{ marginTop: '16px', padding: '16px', borderRadius: '12px', background: 'var(--accent-color)', color: 'white', fontSize: '1.1rem', fontWeight: '600', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)' }}>
-                    <Play size={22} fill="currentColor" /> Initialize Server
+                      <div>
+                        <div className="form-row">
+                          <span>GPU Offload</span>
+                          <input type="number" className="num-input" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+                        </div>
+                        <input type="range" className="range-slider" min="0" max="99" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
+                          <Info size={14}/> <span>Model offload limited to dedicated GPU memory.</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-section">
+                      <div className="form-section-title"><BookOpen size={16}/> Advanced</div>
+                      
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>CPU Thread Pool Size</span>
+                        <input type="number" className="num-input" name="threads" value={config.threads} onChange={handleConfigChange} />
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Evaluation Batch Size</span>
+                        <input type="number" className="num-input" name="evalBatchSize" value={config.evalBatchSize} onChange={handleConfigChange} />
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Physical Batch Size</span>
+                        <input type="number" className="num-input" name="physicalBatchSize" value={config.physicalBatchSize} onChange={handleConfigChange} />
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span style={{display: 'flex', alignItems: 'center', gap: '6px'}}>Max Concurrency <span style={{fontSize: '9px', border: '1px solid var(--border-color)', padding: '2px 4px', borderRadius: '4px'}}>Experimental</span></span>
+                        <input type="number" className="num-input" name="concurrency" value={config.concurrency} onChange={handleConfigChange} />
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span style={{display: 'flex', alignItems: 'center', gap: '6px'}}>Unified KV Cache <span style={{fontSize: '9px', border: '1px solid var(--border-color)', padding: '2px 4px', borderRadius: '4px'}}>Experimental</span></span>
+                        <div className={`toggle-switch ${config.unifiedKv ? 'active' : ''}`} onClick={() => handleToggle('unifiedKv')}></div>
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Offload KV Cache to GPU Memory</span>
+                        <div className={`toggle-switch ${config.offloadKv ? 'active' : ''}`} onClick={() => handleToggle('offloadKv')}></div>
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Keep Model in Memory</span>
+                        <div className={`toggle-switch ${config.keepInMemory ? 'active' : ''}`} onClick={() => handleToggle('keepInMemory')}></div>
+                      </div>
+
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Try mmap()</span>
+                        <div className={`toggle-switch ${config.mmap ? 'active' : ''}`} onClick={() => handleToggle('mmap')}></div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'inference' && (
+                  <>
+                    <div className="form-section">
+                      <div className="form-section-title"><Settings size={16}/> Settings</div>
+                      <div style={{ marginBottom: '20px' }}>
+                        <div className="form-row">
+                          <span>Temperature</span>
+                          <input type="number" className="num-input" defaultValue="0.1" step="0.1" />
+                        </div>
+                        <input type="range" className="range-slider" min="0" max="2" step="0.1" defaultValue="0.1" />
+                      </div>
+                      
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Limit Response Length</span>
+                        <div className="toggle-switch" ></div>
+                      </div>
+                    </div>
+
+                    <div className="form-section">
+                      <div className="form-section-title"><SlidersHorizontal size={16}/> Sampling</div>
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Top K Sampling</span>
+                        <input type="number" className="num-input" defaultValue="40" />
+                      </div>
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Repeat Penalty</span>
+                        <input type="number" className="num-input" defaultValue="1.1" step="0.1" />
+                      </div>
+                      <div className="form-row" style={{marginBottom: '16px'}}>
+                        <span>Top P Sampling</span>
+                        <input type="number" className="num-input" defaultValue="0.95" step="0.05" />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Start Server Button */}
+              {activeTab === 'load' && (
+                <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
+                  <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>
+                    Load Model
                   </button>
                 </div>
-              </>
-            )}
+              )}
+            </>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '32px', textAlign: 'center' }}>
+              Select a model from the "Load Model" menu to view properties and start the server.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Model Selection Modal */}
+      {isModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="box" style={{ width: '600px', maxHeight: '70vh', background: 'var(--bg-main)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Select a Model</h2>
+              <button style={{ background: 'transparent', color: 'var(--text-muted)' }} onClick={() => setIsModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
             
+            <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {models.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>No models found.</div>
+              ) : (
+                models.map(model => (
+                  <div key={model.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }} onClick={() => { setSelectedModel(model); setIsModalOpen(false); }}>
+                    <div>
+                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>{model.name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{model.quantization} • {model.size_gb.toFixed(2)} GB</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
