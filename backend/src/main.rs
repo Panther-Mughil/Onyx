@@ -174,12 +174,22 @@ async fn update_network_config(
                 }
             });
             *proxy_lock = Some(task);
+            
+            {
+                let mut logs = state.server_logs.lock().await;
+                logs.push(format!(" I  TCP Reverse Proxy dynamically re-routed: now serving on {}", bind_addr));
+            }
+            
             Json(StartResponse {
                 success: true,
                 message: format!("Proxy running on {}", bind_addr),
             })
         },
         Err(e) => {
+            {
+                let mut logs = state.server_logs.lock().await;
+                logs.push(format!(" E  Failed to bind TCP proxy to {}: {}", bind_addr, e));
+            }
             Json(StartResponse {
                 success: false,
                 message: format!("Failed to bind {}: {}", bind_addr, e),

@@ -217,7 +217,7 @@ function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            {activeServer.isRunning ? 'Server running on port 8080' : 'Server not running'}
+            {activeServer.isRunning ? `Server running on ${serverSettings.networkHost ? '0.0.0.0' : '127.0.0.1'}:${serverSettings.port}` : 'Server not running'}
           </span>
           <button className="primary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsModalOpen(true)}>
             + Load Model
