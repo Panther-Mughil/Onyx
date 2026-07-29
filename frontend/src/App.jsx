@@ -318,7 +318,7 @@ function App() {
               <Info size={16} /> Info
             </div>
             <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')}>
-              <Download size={16} /> Load
+              <SlidersHorizontal size={16} /> Options
             </div>
             <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
               <Zap size={16} /> Inference
@@ -569,7 +569,7 @@ function App() {
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>No models found.</div>
               ) : (
                 models.map(model => (
-                  <div key={model.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }} onClick={() => { setSelectedModel(model); setIsModalOpen(false); }}>
+                  <div key={model.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }} onClick={() => { setSelectedModel(model); setIsModalOpen(false); setActiveTab('load'); }}>
                     <div>
                       <div style={{ fontWeight: '600', marginBottom: '4px' }}>{model.name}</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{model.quantization} • {model.size_gb.toFixed(2)} GB</div>
