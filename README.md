@@ -1,8 +1,6 @@
-# Onyx
+# <img src="frontend/public/favicon.svg" width="32" height="32" valign="bottom" /> Onyx
 
 A high-performance, ultra-sleek, locally hosted web dashboard for managing and running `llama.cpp` models. Built with a lightning-fast Rust backend and a modern React frontend.
-
-![Onyx Dashboard](https://github.com/Panther-Mughil/Onyx/assets/placeholder)
 
 ## ✨ Features
 
