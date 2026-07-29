@@ -342,12 +342,12 @@ function App() {
                       </div>
 
                       <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span style={{display: 'flex', alignItems: 'center', gap: '6px'}}>Max Concurrency <span style={{fontSize: '9px', border: '1px solid var(--border-color)', padding: '2px 4px', borderRadius: '4px'}}>Experimental</span></span>
+                        <span>Max Concurrency</span>
                         <input type="number" className="num-input" name="concurrency" value={config.concurrency} onChange={handleConfigChange} />
                       </div>
 
                       <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span style={{display: 'flex', alignItems: 'center', gap: '6px'}}>Unified KV Cache <span style={{fontSize: '9px', border: '1px solid var(--border-color)', padding: '2px 4px', borderRadius: '4px'}}>Experimental</span></span>
+                        <span>Unified KV Cache</span>
                         <div className={`toggle-switch ${config.unifiedKv ? 'active' : ''}`} onClick={() => handleToggle('unifiedKv')}></div>
                       </div>
 

@@ -178,6 +178,16 @@ button {
 }
 .num-input:focus { outline: none; border-color: var(--accent); }
 
+/* Hide spin buttons for number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .range-slider {
   width: 100%;
   accent-color: var(--text-muted);
