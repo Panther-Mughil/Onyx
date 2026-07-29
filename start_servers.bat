@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 echo Starting LocalLLM Dashboard Servers...
 
 :: Try to use Windows Terminal (wt.exe) to open both processes in multiple tabs
