@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity, Trash2 } from 'lucide-react';
+import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity, Trash2, Network, Plus } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -27,6 +27,7 @@ function App() {
 
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [appliedConfig, setAppliedConfig] = useState(null);
+  const [newRpcInput, setNewRpcInput] = useState("");
 
   const [config, setConfig] = useState({
     ctxSize: 2048,
@@ -42,7 +43,8 @@ function App() {
     flashAttention: false,
     kCacheQuant: 'f16',
     vCacheQuant: 'f16',
-    cpuMoe: false
+    cpuMoe: false,
+    rpcServers: []
   });
 
   const fetchStatusAndLogs = () => {
@@ -155,6 +157,15 @@ function App() {
   const isConfigDirty = () => {
     if (!appliedConfig) return false;
     return JSON.stringify(config) !== JSON.stringify(appliedConfig);
+  };
+
+  const handleAddRpc = () => {
+    if (!newRpcInput.trim()) return;
+    setConfig(prev => ({
+      ...prev,
+      rpcServers: [...prev.rpcServers, { address: newRpcInput.trim(), active: false }]
+    }));
+    setNewRpcInput("");
   };
 
   const handleStartServer = async () => {
@@ -320,6 +331,9 @@ function App() {
             <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')}>
               <SlidersHorizontal size={16} /> Options
             </div>
+            <div className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')}>
+              <Network size={16} /> RPC
+            </div>
             <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
               <Zap size={16} /> Inference
             </div>
@@ -464,6 +478,58 @@ function App() {
               )
             )}
 
+            {activeTab === 'rpc' && (
+              selectedModel ? (
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div className="form-section">
+                    <div className="form-section-title"><Network size={16}/> RPC Workers</div>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>Add remote llama-rpc-server endpoints to distribute inference.</p>
+                    
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                      <input 
+                        type="text" 
+                        className="select-input" 
+                        placeholder="e.g. 192.168.1.50:50052" 
+                        value={newRpcInput}
+                        onChange={(e) => setNewRpcInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddRpc(); }}
+                      />
+                      <button className="primary-btn" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={handleAddRpc}>
+                        <Plus size={14} /> Add
+                      </button>
+                    </div>
+
+                    {config.rpcServers.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No RPC workers added yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {config.rpcServers.map((server, idx) => (
+                          <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
+                            <span style={{ color: 'var(--text-main)' }}>{server.address}</span>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                              <div className={`toggle-switch ${server.active ? 'active' : ''}`} onClick={() => {
+                                const newServers = [...config.rpcServers];
+                                newServers[idx] = { ...newServers[idx], active: !newServers[idx].active };
+                                setConfig({ ...config, rpcServers: newServers });
+                              }}></div>
+                              <button style={{ background: 'transparent', color: 'var(--danger)', display: 'flex' }} onClick={() => {
+                                const newServers = config.rpcServers.filter((_, i) => i !== idx);
+                                setConfig({ ...config, rpcServers: newServers });
+                              }}>
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure RPC workers.</div>
+              )
+            )}
+
             {activeTab === 'monitoring' && (
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
@@ -535,7 +601,7 @@ function App() {
           </div>
 
           {/* Start Server Button */}
-          {activeTab === 'load' && selectedModel && (
+          {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && (
             (!activeServer.isRunning) ? (
               <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
                 <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>

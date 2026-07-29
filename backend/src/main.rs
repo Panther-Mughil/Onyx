@@ -31,6 +31,13 @@ struct Model {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+struct RpcServer {
+    address: String,
+    active: bool,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct ServerConfig {
     model_id: String,
@@ -48,6 +55,7 @@ struct ServerConfig {
     k_cache_quant: String,
     v_cache_quant: String,
     cpu_moe: bool,
+    rpc_servers: Option<Vec<RpcServer>>,
 }
 
 #[derive(Serialize)]
@@ -300,6 +308,18 @@ async fn start_server(
         "--host".to_string(), "127.0.0.1".to_string(),
         "--port".to_string(), "8080".to_string(),
     ];
+
+    if let Some(servers) = &payload.rpc_servers {
+        let active_servers: Vec<String> = servers.iter()
+            .filter(|s| s.active)
+            .map(|s| s.address.clone())
+            .collect();
+            
+        if !active_servers.is_empty() {
+            args.push("--rpc".to_string());
+            args.push(active_servers.join(","));
+        }
+    }
 
     if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
     if payload.keep_in_memory { args.push("--mlock".to_string()); }
