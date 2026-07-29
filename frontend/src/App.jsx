@@ -325,20 +325,20 @@ function App() {
           
           {/* Tabs */}
           <div className="tab-header">
-            <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>
-              <Info size={16} /> Info
+            <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')} title="Info">
+              <Info size={16} /> <span className="tab-label">Info</span>
             </div>
-            <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')}>
-              <SlidersHorizontal size={16} /> Options
+            <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')} title="Options">
+              <SlidersHorizontal size={16} /> <span className="tab-label">Options</span>
             </div>
-            <div className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')}>
-              <Network size={16} /> RPC
+            <div className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')} title="RPC Workers">
+              <Network size={16} /> <span className="tab-label">RPC</span>
             </div>
-            <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
-              <Zap size={16} /> Inference
+            <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')} title="Inference">
+              <Zap size={16} /> <span className="tab-label">Inference</span>
             </div>
-            <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
-              <Activity size={16} /> Monitoring
+            <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')} title="Monitoring">
+              <Activity size={16} /> <span className="tab-label">Monitoring</span>
             </div>
           </div>
 

@@ -165,8 +165,21 @@ button {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.tab-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  margin-left: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tab-btn.active .tab-label {
+  max-width: 80px;
+  opacity: 1;
+  margin-left: 6px;
 }
 .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.03); }
 .tab-btn.active {
