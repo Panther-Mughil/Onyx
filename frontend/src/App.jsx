@@ -26,6 +26,7 @@ function App() {
   const logsEndRef = useRef(null);
 
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [appliedConfig, setAppliedConfig] = useState(null);
 
   const [config, setConfig] = useState({
     ctxSize: 2048,
@@ -47,7 +48,14 @@ function App() {
   const fetchStatusAndLogs = () => {
     fetch('http://127.0.0.1:3001/api/server/status')
       .then(res => res.json())
-      .then(data => setActiveServer({ isRunning: data.is_running, modelId: data.model_id, isReady: data.is_ready }))
+      .then(data => {
+         setActiveServer({ isRunning: data.is_running, modelId: data.model_id, isReady: data.is_ready });
+         if (data.is_running) {
+             setAppliedConfig(prev => prev || { ...config });
+         } else {
+             setAppliedConfig(null);
+         }
+      })
       .catch(() => {});
 
     fetch('http://127.0.0.1:3001/api/server/logs')
@@ -125,6 +133,11 @@ function App() {
     setConfig(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
+  const isConfigDirty = () => {
+    if (!appliedConfig) return false;
+    return JSON.stringify(config) !== JSON.stringify(appliedConfig);
+  };
+
   const handleStartServer = async () => {
     if (!selectedModel) return;
     try {
@@ -134,7 +147,11 @@ function App() {
         body: JSON.stringify({ modelId: selectedModel.id, ...config })
       });
       const result = await response.json();
-      if (!result.success) alert("Error starting server: " + result.message);
+      if (!result.success) {
+        alert("Error starting server: " + result.message);
+      } else {
+        setAppliedConfig({ ...config });
+      }
     } catch (err) {
       alert("Failed to reach backend.");
     }
@@ -143,6 +160,7 @@ function App() {
   const handleStopServer = async () => {
     try {
       await fetch('http://127.0.0.1:3001/api/server/stop', { method: 'POST' });
+      setAppliedConfig(null);
     } catch(e) { console.error(e); }
   };
 
@@ -488,12 +506,20 @@ function App() {
           </div>
 
           {/* Start Server Button */}
-          {activeTab === 'load' && selectedModel && !activeServer.isRunning && (
-            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
-              <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>
-                Load Model
-              </button>
-            </div>
+          {activeTab === 'load' && selectedModel && (
+            (!activeServer.isRunning) ? (
+              <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
+                <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>
+                  Load Model
+                </button>
+              </div>
+            ) : (isConfigDirty() ? (
+              <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
+                <button className="primary-btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-hover)' }} onClick={handleStartServer}>
+                  Reload to Apply Changes
+                </button>
+              </div>
+            ) : null)
           )}
         </div>
       </div>
