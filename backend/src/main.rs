@@ -13,6 +13,7 @@ use tokio::process::{Child, Command};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tower_http::cors::CorsLayer;
+use sysinfo::System;
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -62,11 +63,31 @@ struct StatusResponse {
     is_ready: bool,
 }
 
+#[derive(Serialize, Clone)]
+struct GpuTelemetry {
+    name: String,
+    gpu_usage_pct: u32,
+    temp_c: u32,
+    vram_used_mb: u64,
+    vram_total_mb: u64,
+}
+
+#[derive(Serialize, Clone)]
+struct TelemetryResponse {
+    cpu_name: String,
+    cpu_usage_pct: f32,
+    cpu_temp_c: f32,
+    ram_used_gb: f32,
+    ram_total_gb: f32,
+    gpus: Vec<GpuTelemetry>,
+}
+
 struct AppState {
     server_process: Mutex<Option<Child>>,
     active_model_id: Mutex<Option<String>>,
     server_logs: Mutex<Vec<String>>,
     is_model_ready: Mutex<bool>,
+    sys: Mutex<System>,
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -276,15 +297,67 @@ async fn stop_server(
     })
 }
 
+async fn get_telemetry(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<TelemetryResponse> {
+    let mut sys = state.sys.lock().await;
+    sys.refresh_cpu_usage();
+    sys.refresh_memory();
+    
+    let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
+    let cpu_usage_pct = sys.global_cpu_usage();
+    
+    let cpu_temp_c = 0.0; 
+
+    let ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
+    let ram_total_gb = sys.total_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
+
+    let mut gpus = Vec::new();
+    
+    if let Ok(nvml) = nvml_wrapper::Nvml::init() {
+        if let Ok(device_count) = nvml.device_count() {
+            for i in 0..device_count {
+                if let Ok(device) = nvml.device_by_index(i) {
+                    let name = device.name().unwrap_or_else(|_| "Unknown GPU".to_string());
+                    let util = device.utilization_rates().unwrap_or(nvml_wrapper::struct_wrappers::device::Utilization { gpu: 0, memory: 0 });
+                    let temp = device.temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu).unwrap_or(0);
+                    let memory = device.memory_info().unwrap_or(nvml_wrapper::struct_wrappers::device::MemoryInfo { free: 0, total: 0, used: 0 });
+                    
+                    gpus.push(GpuTelemetry {
+                        name,
+                        gpu_usage_pct: util.gpu,
+                        temp_c: temp,
+                        vram_used_mb: memory.used / (1024 * 1024),
+                        vram_total_mb: memory.total / (1024 * 1024),
+                    });
+                }
+            }
+        }
+    }
+
+    Json(TelemetryResponse {
+        cpu_name,
+        cpu_usage_pct,
+        cpu_temp_c,
+        ram_used_gb,
+        ram_total_gb,
+        gpus,
+    })
+}
+
 #[tokio::main]
 async fn main() {
     let _ = fs::create_dir_all("../models");
+
+    let mut sys = System::new_all();
+    sys.refresh_all(); // Initial warm-up for accurate usage
 
     let shared_state = Arc::new(AppState {
         server_process: Mutex::new(None),
         active_model_id: Mutex::new(None),
         server_logs: Mutex::new(Vec::new()),
         is_model_ready: Mutex::new(false),
+        sys: Mutex::new(sys),
     });
 
     let app = Router::new()
@@ -292,6 +365,7 @@ async fn main() {
         .route("/api/models", get(get_local_models))
         .route("/api/server/status", get(get_server_status))
         .route("/api/server/logs", get(get_server_logs))
+        .route("/api/server/telemetry", get(get_telemetry))
         .route("/api/server/start", post(start_server))
         .route("/api/server/stop", post(stop_server))
         .with_state(shared_state)

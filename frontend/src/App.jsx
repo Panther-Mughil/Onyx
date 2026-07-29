@@ -1,5 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
-import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen } from 'lucide-react';
+import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity } from 'lucide-react';
 import './index.css';
 
 function App() {
@@ -11,7 +10,8 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null); // The model currently selected in the right pane
-  const [activeTab, setActiveTab] = useState('load'); // 'info', 'load', 'inference'
+  const [activeTab, setActiveTab] = useState('load'); // 'info', 'load', 'inference', 'monitoring'
+  const [telemetry, setTelemetry] = useState(null);
 
   const logsEndRef = useRef(null);
 
@@ -86,6 +86,21 @@ function App() {
     }
     return () => clearInterval(interval);
   }, [activeServer.isRunning, activeServer.isReady]);
+
+  useEffect(() => {
+    let interval;
+    if (activeTab === 'monitoring') {
+       const fetchTelemetry = () => {
+           fetch('http://127.0.0.1:3001/api/server/telemetry')
+             .then(res => res.json())
+             .then(data => setTelemetry(data))
+             .catch(() => {});
+       };
+       fetchTelemetry();
+       interval = setInterval(fetchTelemetry, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab]);
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -251,6 +266,9 @@ function App() {
                 <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
                   <Zap size={16} /> Inference
                 </div>
+                <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
+                  <Activity size={16} /> Monitoring
+                </div>
               </div>
 
               {/* Tab Contents */}
@@ -375,6 +393,75 @@ function App() {
                       </div>
                     </div>
                   </>
+                )}
+
+                {activeTab === 'monitoring' && (
+                  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    
+                    {!telemetry ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>Fetching telemetry...</div>
+                    ) : (
+                      <>
+                        {/* CPU Card */}
+                        <div className="box" style={{ padding: '16px' }}>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.cpu_name}</h4>
+                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_usage_pct.toFixed(1)}%</div>
+                              </div>
+                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_temp_c > 0 ? `${telemetry.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                              </div>
+                           </div>
+                        </div>
+
+                        {/* RAM Card */}
+                        <div className="box" style={{ padding: '16px' }}>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
+                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div className="info-row" style={{ padding: '4px 0' }}><span>Used Memory</span> <span>{telemetry.ram_used_gb.toFixed(2)} GB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.ram_total_gb - telemetry.ram_used_gb).toFixed(2)} GB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Total Memory</span> <span>{telemetry.ram_total_gb.toFixed(2)} GB</span></div>
+                           </div>
+                        </div>
+
+                        {/* GPU Cards */}
+                        {telemetry.gpus.length === 0 ? (
+                           <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
+                        ) : (
+                          telemetry.gpus.map((gpu, idx) => (
+                            <div key={idx} className="box" style={{ padding: '16px' }}>
+                               <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
+                               
+                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                  <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
+                                     <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
+                                  </div>
+                                  <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
+                                     <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
+                                  </div>
+                               </div>
+
+                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                     <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                     <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                                  </div>
+                               </div>
+                            </div>
+                          ))
+                        )}
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
 
