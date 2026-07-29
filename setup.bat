@@ -1,5 +1,5 @@
 @echo off
-echo Setting up Panther Dashboard environment...
+echo Setting up Onyx environment...
 echo.
 
 echo Checking Node.js installation...
@@ -25,5 +25,5 @@ call npm install
 cd ..
 
 echo.
-echo Setup Complete! You can now run start.bat to launch the Panther Dashboard.
+echo Setup Complete! You can now run start.bat to launch Onyx.
 pause

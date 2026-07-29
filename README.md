@@ -1,6 +1,8 @@
-# Panther Dashboard
+# Onyx
 
 A high-performance, ultra-sleek, locally hosted web dashboard for managing and running `llama.cpp` models. Built with a lightning-fast Rust backend and a modern React frontend.
+
+![Onyx Dashboard](https://github.com/Panther-Mughil/Onyx/assets/placeholder)
 
 ## ✨ Features
 
@@ -20,8 +22,8 @@ A high-performance, ultra-sleek, locally hosted web dashboard for managing and r
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Panther-Mughil/Panther_LLM_Dashboard.git
-   cd Panther_LLM_Dashboard
+   git clone https://github.com/Panther-Mughil/Onyx.git
+   cd Onyx
    ```
 2. Place your downloaded `.gguf` models into the `models/` folder.
 3. Make sure the official `llama.cpp` binaries (`llama-server.exe`, `llama-bench.exe`, etc.) are placed inside the `bin/` folder.
@@ -38,7 +40,7 @@ start.bat
 The dashboard will automatically open in your browser at `http://localhost:5173`.
 
 ## 📡 API Integration
-Panther Dashboard acts strictly as a model host. It exposes your active model as a standard OpenAI-compatible API on your selected port.
+Onyx acts strictly as a model host. It exposes your active model as a standard OpenAI-compatible API on your selected port.
 You can connect external frontends (like JanitorAI, SillyTavern, or your own scripts) by pointing them to:
 `http://127.0.0.1:<PORT>/v1`
 
