@@ -1,27 +1,48 @@
-# LocalLLM Web Interface
+# Panther Dashboard
 
-A comprehensive, premium web-based user interface for `llama.cpp`, designed to give you complete control over your local AI models. Unlike other tools that hide advanced settings, this project exposes the full power of `llama.cpp` through an intuitive, modern, and highly responsive single-page application.
+A high-performance, ultra-sleek, locally hosted web dashboard for managing and running `llama.cpp` models. Built with a lightning-fast Rust backend and a modern React frontend.
 
 ## ✨ Features
 
-- **Total Parameter Control**: Access almost all `llama.cpp` options directly from the UI (Context size, offload layers, flash attention, KV cache quantization, CPU MoE, and more).
-- **Real-time System Monitoring**: Track CPU, RAM, GPU, and VRAM usage and temperatures in real-time, with full support for multi-GPU setups.
-- **Distributed Inference**: Built-in RPC worker management to spread inference across multiple machines.
-- **Advanced Inference Settings**: Control speculative decoding, context overflow strategies (Truncate middle, Rolling window, Stop at limit), and all standard sampling parameters.
-- **Sleek, Premium UI**: Modern design featuring dark mode, smooth micro-animations, glassmorphism, and a highly responsive layout.
-- **Integrated Log Viewer**: Monitor `llama.cpp` server logs in real-time directly from the dashboard.
+- **Zero-Downtime Networking**: Features a built-in Rust TCP reverse-proxy. Change ports and expose your API to your local network on the fly without restarting the heavy `llama-server` process.
+- **Hardware Benchmarking**: Built-in VRAM-safe hardware benchmarking using `llama-bench`. Accurately test Token Generation (TG) and Prompt Processing (PP) speeds based on your exact UI configurations.
+- **Distributed RPC Workers**: Seamlessly add and toggle remote `llama-rpc-server` nodes to offload tensor computations across multiple machines on your network.
+- **Live Telemetry & Diagnostics**: Real-time CPU, RAM, and GPU monitoring directly inside the browser using direct NVML polling (no heavy `nvidia-smi` wrappers).
+- **Premium UI/UX**: Designed with sleek glassmorphism, dynamic expanding tabs, smooth micro-animations, and a highly responsive layout.
+- **Incredibly Lightweight**: By ditching Electron in favor of a native Rust backend + Web SPA, background RAM usage sits at a mere ~15MB instead of 300MB+.
 
-## 📂 Project Structure
+## 🚀 Quick Start
 
-- `frontend/` - The modern Web UI (React/Vite or Next.js).
-- `backend/` - Middleware (Node.js/Python) to manage `llama.cpp` processes, fetch hardware metrics, and serve the API.
-- `models/` - Directory for storing your GGUF models.
-- `bin/` - Contains the compiled `llama.cpp` binaries (`llama-server`, `llama-rpc-server`, etc.).
+### Prerequisites
+- [Node.js](https://nodejs.org/) (For the React Frontend)
+- [Rust & Cargo](https://rustup.rs/) (For the Backend middleware)
 
-## 🚀 Getting Started
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Panther-Mughil/Panther_LLM_Dashboard.git
+   cd Panther_LLM_Dashboard
+   ```
+2. Place your downloaded `.gguf` models into the `models/` folder.
+3. Make sure the official `llama.cpp` binaries (`llama-server.exe`, `llama-bench.exe`, etc.) are placed inside the `bin/` folder.
+4. Run the setup script to install dependencies:
+   ```cmd
+   setup.bat
+   ```
 
-*(Instructions for setting up the project will be added as development progresses.)*
+### Launch
+Run the start script to boot both the Rust backend and the React frontend simultaneously:
+```cmd
+start.bat
+```
+The dashboard will automatically open in your browser at `http://localhost:5173`.
 
-## 🛠️ Development
+## 📡 API Integration
+Panther Dashboard acts strictly as a model host. It exposes your active model as a standard OpenAI-compatible API on your selected port.
+You can connect external frontends (like JanitorAI, SillyTavern, or your own scripts) by pointing them to:
+`http://127.0.0.1:<PORT>/v1`
 
-This project heavily utilizes AI coding agents for development. Please refer to `AI_DEVELOPMENT_GUIDE.md` for context, styling rules, and architectural guidelines.
+## 🛠 Tech Stack
+- **Backend**: Rust (Axum, Tokio, sysinfo, nvml-wrapper)
+- **Frontend**: React (Vite, Lucide-React, Recharts)
+- **Core Engine**: llama.cpp

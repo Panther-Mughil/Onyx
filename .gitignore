@@ -12,3 +12,7 @@ frontend/dist/
 .env.*
 !.env.example
 .DS_Store
+
+# Documentation
+PRD.md
+AI_DEVELOPMENT_GUIDE.md
