@@ -257,236 +257,242 @@ function App() {
 
         {/* RIGHT PANE: Side panel for configuration */}
         <div className="right-pane">
-          {selectedModel ? (
-            <>
-              {/* Header */}
-              <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
-                <Cpu size={20} color="var(--text-muted)" />
-                <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>{selectedModel.name}</h2>
-              </div>
-              
-              {/* Tabs */}
-              <div className="tab-header">
-                <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>
-                  <Info size={16} /> Info
-                </div>
-                <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')}>
-                  <Download size={16} /> Load
-                </div>
-                <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
-                  <Zap size={16} /> Inference
-                </div>
-                <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
-                  <Activity size={16} /> Monitoring
-                </div>
-              </div>
+          {/* Header */}
+          <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+            <Cpu size={20} color="var(--text-muted)" />
+            <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
+              {selectedModel ? selectedModel.name : 'System & Settings'}
+            </h2>
+          </div>
+          
+          {/* Tabs */}
+          <div className="tab-header">
+            <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>
+              <Info size={16} /> Info
+            </div>
+            <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')}>
+              <Download size={16} /> Load
+            </div>
+            <div className={`tab-btn ${activeTab === 'inference' ? 'active' : ''}`} onClick={() => setActiveTab('inference')}>
+              <Zap size={16} /> Inference
+            </div>
+            <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>
+              <Activity size={16} /> Monitoring
+            </div>
+          </div>
 
-              {/* Tab Contents */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                
-                {activeTab === 'info' && (
-                  <div style={{ padding: '16px' }}>
-                    <div className="form-section-title"><Info size={16}/> Model Information</div>
-                    <div style={{ background: 'var(--bg-input)', borderRadius: '8px', padding: '0 16px' }}>
-                      <div className="info-row"><span>Model</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.name}</span></div>
-                      <div className="info-row"><span>File</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.id.substring(0, 20)}...</span></div>
-                      <div className="info-row"><span>Format</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>GGUF</span></div>
-                      <div className="info-row"><span>Quantization</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.quantization}</span></div>
-                      <div className="info-row"><span>Domain</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>llm</span></div>
-                      <div className="info-row"><span>Size on disk</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.size_gb.toFixed(2)} GB</span></div>
+          {/* Tab Contents */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            
+            {activeTab === 'info' && (
+              selectedModel ? (
+                <div style={{ padding: '16px' }}>
+                  <div className="form-section-title"><Info size={16}/> Model Information</div>
+                  <div style={{ background: 'var(--bg-input)', borderRadius: '8px', padding: '0 16px' }}>
+                    <div className="info-row"><span>Model</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.name}</span></div>
+                    <div className="info-row"><span>File</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.id.substring(0, 20)}...</span></div>
+                    <div className="info-row"><span>Format</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>GGUF</span></div>
+                    <div className="info-row"><span>Quantization</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.quantization}</span></div>
+                    <div className="info-row"><span>Domain</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>llm</span></div>
+                    <div className="info-row"><span>Size on disk</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.size_gb.toFixed(2)} GB</span></div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu to view information.</div>
+              )
+            )}
+
+            {activeTab === 'load' && (
+              selectedModel ? (
+                <>
+                  <div className="form-section">
+                    <div className="form-section-title"><Settings size={16}/> Context and Offload</div>
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                      <div className="form-row">
+                        <span>Context Length</span>
+                        <input type="number" className="num-input" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                      </div>
+                      <input type="range" className="range-slider" min="256" max="128000" step="256" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                    </div>
+
+                    <div>
+                      <div className="form-row">
+                        <span>GPU Offload</span>
+                        <input type="number" className="num-input" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+                      </div>
+                      <input type="range" className="range-slider" min="0" max="99" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
+                        <Info size={14}/> <span>Model offload limited to dedicated GPU memory.</span>
+                      </div>
                     </div>
                   </div>
-                )}
 
-                {activeTab === 'load' && (
-                  <>
-                    <div className="form-section">
-                      <div className="form-section-title"><Settings size={16}/> Context and Offload</div>
-                      
-                      <div style={{ marginBottom: '20px' }}>
-                        <div className="form-row">
-                          <span>Context Length</span>
-                          <input type="number" className="num-input" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
-                        </div>
-                        <input type="range" className="range-slider" min="256" max="128000" step="256" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
-                      </div>
-
-                      <div>
-                        <div className="form-row">
-                          <span>GPU Offload</span>
-                          <input type="number" className="num-input" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
-                        </div>
-                        <input type="range" className="range-slider" min="0" max="99" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
-                          <Info size={14}/> <span>Model offload limited to dedicated GPU memory.</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="form-section">
-                      <div className="form-section-title"><BookOpen size={16}/> Advanced</div>
-                      
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>CPU Thread Pool Size</span>
-                        <input type="number" className="num-input" name="threads" value={config.threads} onChange={handleConfigChange} />
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Evaluation Batch Size</span>
-                        <input type="number" className="num-input" name="evalBatchSize" value={config.evalBatchSize} onChange={handleConfigChange} />
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Physical Batch Size</span>
-                        <input type="number" className="num-input" name="physicalBatchSize" value={config.physicalBatchSize} onChange={handleConfigChange} />
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Max Concurrency</span>
-                        <input type="number" className="num-input" name="concurrency" value={config.concurrency} onChange={handleConfigChange} />
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Unified KV Cache</span>
-                        <div className={`toggle-switch ${config.unifiedKv ? 'active' : ''}`} onClick={() => handleToggle('unifiedKv')}></div>
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Offload KV Cache to GPU Memory</span>
-                        <div className={`toggle-switch ${config.offloadKv ? 'active' : ''}`} onClick={() => handleToggle('offloadKv')}></div>
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Keep Model in Memory</span>
-                        <div className={`toggle-switch ${config.keepInMemory ? 'active' : ''}`} onClick={() => handleToggle('keepInMemory')}></div>
-                      </div>
-
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Try mmap()</span>
-                        <div className={`toggle-switch ${config.mmap ? 'active' : ''}`} onClick={() => handleToggle('mmap')}></div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {activeTab === 'inference' && (
-                  <>
-                    <div className="form-section">
-                      <div className="form-section-title"><Settings size={16}/> Settings</div>
-                      <div style={{ marginBottom: '20px' }}>
-                        <div className="form-row">
-                          <span>Temperature</span>
-                          <input type="number" className="num-input" defaultValue="0.1" step="0.1" />
-                        </div>
-                        <input type="range" className="range-slider" min="0" max="2" step="0.1" defaultValue="0.1" />
-                      </div>
-                      
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Limit Response Length</span>
-                        <div className="toggle-switch" ></div>
-                      </div>
-                    </div>
-
-                    <div className="form-section">
-                      <div className="form-section-title"><SlidersHorizontal size={16}/> Sampling</div>
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Top K Sampling</span>
-                        <input type="number" className="num-input" defaultValue="40" />
-                      </div>
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Repeat Penalty</span>
-                        <input type="number" className="num-input" defaultValue="1.1" step="0.1" />
-                      </div>
-                      <div className="form-row" style={{marginBottom: '16px'}}>
-                        <span>Top P Sampling</span>
-                        <input type="number" className="num-input" defaultValue="0.95" step="0.05" />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {activeTab === 'monitoring' && (
-                  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div className="form-section">
+                    <div className="form-section-title"><BookOpen size={16}/> Advanced</div>
                     
-                    {!telemetry ? (
-                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>Fetching telemetry...</div>
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>CPU Thread Pool Size</span>
+                      <input type="number" className="num-input" name="threads" value={config.threads} onChange={handleConfigChange} />
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Evaluation Batch Size</span>
+                      <input type="number" className="num-input" name="evalBatchSize" value={config.evalBatchSize} onChange={handleConfigChange} />
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Physical Batch Size</span>
+                      <input type="number" className="num-input" name="physicalBatchSize" value={config.physicalBatchSize} onChange={handleConfigChange} />
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Max Concurrency</span>
+                      <input type="number" className="num-input" name="concurrency" value={config.concurrency} onChange={handleConfigChange} />
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Unified KV Cache</span>
+                      <div className={`toggle-switch ${config.unifiedKv ? 'active' : ''}`} onClick={() => handleToggle('unifiedKv')}></div>
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Offload KV Cache to GPU Memory</span>
+                      <div className={`toggle-switch ${config.offloadKv ? 'active' : ''}`} onClick={() => handleToggle('offloadKv')}></div>
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Keep Model in Memory</span>
+                      <div className={`toggle-switch ${config.keepInMemory ? 'active' : ''}`} onClick={() => handleToggle('keepInMemory')}></div>
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Try mmap()</span>
+                      <div className={`toggle-switch ${config.mmap ? 'active' : ''}`} onClick={() => handleToggle('mmap')}></div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu to configure load settings.</div>
+              )
+            )}
+
+            {activeTab === 'inference' && (
+              selectedModel ? (
+                <>
+                  <div className="form-section">
+                    <div className="form-section-title"><Settings size={16}/> Settings</div>
+                    <div style={{ marginBottom: '20px' }}>
+                      <div className="form-row">
+                        <span>Temperature</span>
+                        <input type="number" className="num-input" defaultValue="0.1" step="0.1" />
+                      </div>
+                      <input type="range" className="range-slider" min="0" max="2" step="0.1" defaultValue="0.1" />
+                    </div>
+                    
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Limit Response Length</span>
+                      <div className="toggle-switch" ></div>
+                    </div>
+                  </div>
+
+                  <div className="form-section">
+                    <div className="form-section-title"><SlidersHorizontal size={16}/> Sampling</div>
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Top K Sampling</span>
+                      <input type="number" className="num-input" defaultValue="40" />
+                    </div>
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Repeat Penalty</span>
+                      <input type="number" className="num-input" defaultValue="1.1" step="0.1" />
+                    </div>
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Top P Sampling</span>
+                      <input type="number" className="num-input" defaultValue="0.95" step="0.05" />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu to view inference settings.</div>
+              )
+            )}
+
+            {activeTab === 'monitoring' && (
+              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {!telemetry ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>Fetching telemetry...</div>
+                ) : (
+                  <>
+                    {/* CPU Card */}
+                    <div className="box" style={{ padding: '16px' }}>
+                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.cpu_name}</h4>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
+                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_usage_pct.toFixed(1)}%</div>
+                          </div>
+                          <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
+                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_temp_c > 0 ? `${telemetry.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* RAM Card */}
+                    <div className="box" style={{ padding: '16px' }}>
+                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{telemetry.ram_total_gb.toFixed(2)} GB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.ram_total_gb - telemetry.ram_used_gb).toFixed(2)} GB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{telemetry.ram_used_gb.toFixed(2)} GB</span></div>
+                       </div>
+                    </div>
+
+                    {/* GPU Cards */}
+                    {telemetry.gpus.length === 0 ? (
+                       <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
                     ) : (
-                      <>
-                        {/* CPU Card */}
-                        <div className="box" style={{ padding: '16px' }}>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.cpu_name}</h4>
-                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      telemetry.gpus.map((gpu, idx) => (
+                        <div key={idx} className="box" style={{ padding: '16px' }}>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
+                           
+                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_usage_pct.toFixed(1)}%</div>
+                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
                               </div>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_temp_c > 0 ? `${telemetry.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
+                              </div>
+                           </div>
+
+                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
+                              </div>
+                              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                 <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
                               </div>
                            </div>
                         </div>
-
-                        {/* RAM Card */}
-                        <div className="box" style={{ padding: '16px' }}>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
-                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{telemetry.ram_total_gb.toFixed(2)} GB</span></div>
-                              <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.ram_total_gb - telemetry.ram_used_gb).toFixed(2)} GB</span></div>
-                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{telemetry.ram_used_gb.toFixed(2)} GB</span></div>
-                           </div>
-                        </div>
-
-                        {/* GPU Cards */}
-                        {telemetry.gpus.length === 0 ? (
-                           <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
-                        ) : (
-                          telemetry.gpus.map((gpu, idx) => (
-                            <div key={idx} className="box" style={{ padding: '16px' }}>
-                               <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
-                               
-                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                                  <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
-                                     <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
-                                  </div>
-                                  <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                     <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
-                                  </div>
-                               </div>
-
-                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                     <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
-                                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
-                                  </div>
-                                  <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                                     <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
-                                  </div>
-                               </div>
-                            </div>
-                          ))
-                        )}
-                      </>
+                      ))
                     )}
-                  </div>
+                  </>
                 )}
               </div>
+            )}
+          </div>
 
-              {/* Start Server Button */}
-              {activeTab === 'load' && (
-                <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
-                  <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>
-                    Load Model
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '32px', textAlign: 'center' }}>
-              Select a model from the "Load Model" menu to view properties and start the server.
+          {/* Start Server Button */}
+          {activeTab === 'load' && selectedModel && !activeServer.isRunning && (
+            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
+              <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>
+                Load Model
+              </button>
             </div>
           )}
         </div>
