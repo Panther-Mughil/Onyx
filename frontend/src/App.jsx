@@ -120,6 +120,16 @@ function App() {
     return () => clearInterval(interval);
   }, [activeTab]);
 
+  // Auto-restore selected model on page refresh if a model is currently running
+  useEffect(() => {
+    if (!selectedModel && activeServer.isRunning && activeServer.modelId && models.length > 0) {
+      const model = models.find(m => m.id === activeServer.modelId);
+      if (model) {
+        setSelectedModel(model);
+      }
+    }
+  }, [selectedModel, activeServer.isRunning, activeServer.modelId, models]);
+
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
     setConfig(prev => ({
