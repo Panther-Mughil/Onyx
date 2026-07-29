@@ -1,6 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
-import { Server, Settings, X, Cpu, HardDrive, Play, Settings2, Square, Info, Download, Zap, SlidersHorizontal, BookOpen, Activity, Trash2, Network, Plus, Gauge } from 'lucide-react';
+import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, ChevronRight, X, ChevronDown, CheckCircle2, Zap, Network, Plus, Gauge } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import './index.css';
+
+const OnyxLogo = ({ size = 20, color = "var(--primary-color)" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L2 12l10 10 10-10Z" />
+    <path d="M2 12h20" />
+    <path d="M12 2v20" />
+  </svg>
+);
 
 function App() {
   const [backendStatus, setBackendStatus] = useState({ status: 'checking', message: '' });
@@ -232,7 +241,16 @@ function App() {
       
       {/* Top Navbar */}
       <div className="top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none', marginRight: '8px' }}>
+            <OnyxLogo size={22} />
+            <span style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '0.5px' }}>Onyx</span>
+          </div>
+
+          <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-input)', padding: '4px 12px', borderRadius: '16px', fontSize: '12px' }}>
             Status: {activeServer.isRunning ? 'Running' : 'Stopped'}
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeServer.isRunning ? 'var(--ready-green)' : 'var(--border-color)', marginLeft: '4px' }}></div>
