@@ -435,6 +435,16 @@ async fn get_benchmark_status(
     })
 }
 
+async fn clear_benchmark_logs(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<StartResponse> {
+    state.benchmark_logs.lock().await.clear();
+    Json(StartResponse {
+        success: true,
+        message: "Benchmark logs cleared".to_string(),
+    })
+}
+
 async fn run_benchmark(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<ServerConfig>,
@@ -474,14 +484,12 @@ async fn run_benchmark(
     
     let mut args = vec![
         "-m".to_string(), model_path,
-        "-c".to_string(), payload.ctx_size.to_string(),
         "-ngl".to_string(), payload.gpu_layers.to_string(),
         "-t".to_string(), payload.threads.to_string(),
         "-b".to_string(), payload.eval_batch_size.to_string(),
         "-ub".to_string(), payload.physical_batch_size.to_string(),
-        "-np".to_string(), payload.concurrency.to_string(),
-        "--cache-type-k".to_string(), payload.k_cache_quant.clone(),
-        "--cache-type-v".to_string(), payload.v_cache_quant.clone(),
+        "-ctk".to_string(), payload.k_cache_quant.clone(),
+        "-ctv".to_string(), payload.v_cache_quant.clone(),
         "-p".to_string(), "512".to_string(),
         "-n".to_string(), "128".to_string(),
     ];
@@ -498,7 +506,7 @@ async fn run_benchmark(
         }
     }
 
-    if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
+    if !payload.offload_kv { args.push("-nkvo".to_string()); args.push("1".to_string()); }
     if payload.keep_in_memory { args.push("-lm".to_string()); args.push("mlock".to_string()); }
     else if !payload.mmap { args.push("-lm".to_string()); args.push("none".to_string()); }
     if payload.flash_attention { args.push("-fa".to_string()); args.push("1".to_string()); }
@@ -639,6 +647,7 @@ async fn main() {
         .route("/api/server/stop", post(stop_server))
         .route("/api/server/benchmark/start", post(run_benchmark))
         .route("/api/server/benchmark/status", get(get_benchmark_status))
+        .route("/api/server/benchmark/clear", post(clear_benchmark_logs))
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 
