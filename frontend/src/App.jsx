@@ -111,7 +111,7 @@ function App() {
 
   useEffect(() => {
     if (selectedModel) {
-      fetch(`http://127.0.0.1:3001/api/server/logs?modelId=${selectedModel.id}`)
+      fetch(`http://127.0.0.1:3001/api/server/logs?modelId=${selectedModel.id}`, { cache: 'no-store' })
         .then(res => res.json())
         .then(data => setLogs(data))
         .catch(() => {});
@@ -143,7 +143,7 @@ function App() {
 
   useEffect(() => {
     if (!selectedModel) {
-      fetch('http://127.0.0.1:3001/api/system/logs')
+      fetch('http://127.0.0.1:3001/api/system/logs', { cache: 'no-store' })
         .then(res => res.json())
         .then(data => setSystemLogs(data))
         .catch(() => {});
@@ -175,7 +175,7 @@ function App() {
 
   useEffect(() => {
     const fetchTelemetry = () => {
-        fetch('http://127.0.0.1:3001/api/server/telemetry')
+        fetch('http://127.0.0.1:3001/api/server/telemetry', { cache: 'no-store' })
           .then(res => res.json())
           .then(data => setTelemetry(data))
           .catch(() => {});
@@ -189,7 +189,7 @@ function App() {
     let interval;
     if (activeTab === 'benchmark') {
        const fetchBench = () => {
-         fetch('http://127.0.0.1:3001/api/server/benchmark/status')
+         fetch('http://127.0.0.1:3001/api/server/benchmark/status', { cache: 'no-store' })
            .then(res => res.json())
            .then(data => setBenchmarkStatus({ isRunning: data.is_running, logs: data.logs, pp: data.pp, tg: data.tg }))
            .catch(() => {});
