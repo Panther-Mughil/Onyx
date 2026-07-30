@@ -3,5 +3,5 @@
   "cors": true,
   "jitModelLoading": false,
   "networkHost": true,
-  "port": 12341
+  "port": 1234
 }

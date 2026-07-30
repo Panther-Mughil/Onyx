@@ -392,11 +392,15 @@ function App() {
                       {!server.isReady && (
                         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                            <span>Loading weights into VRAM...</span>
-                            <span>{Math.floor(server.progress || 0)}%</span>
+                            <span>Loading weights...</span>
+                            <span>{server.progress > 0 ? `${Math.floor(server.progress)}%` : 'Allocating...'}</span>
                           </div>
                           <div style={{ width: '100%', height: '4px', background: 'var(--bg-main)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${server.progress || 0}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.5s ease-out' }}></div>
+                            {server.progress > 0 ? (
+                              <div style={{ width: `${server.progress}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.5s ease-out' }}></div>
+                            ) : (
+                              <div className="indeterminate-progress"></div>
+                            )}
                           </div>
                         </div>
                       )}
