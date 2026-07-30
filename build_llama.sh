@@ -21,7 +21,7 @@ mkdir -p ../bin
 # Depending on the generator, binaries could be in build/bin or build/bin/Release
 cp build/bin/Release/llama-server ../bin/ 2>/dev/null || cp build/bin/llama-server ../bin/ 2>/dev/null
 cp build/bin/Release/llama-bench ../bin/ 2>/dev/null || cp build/bin/llama-bench ../bin/ 2>/dev/null
-cp build/bin/Release/llama-rpc-server ../bin/ 2>/dev/null || cp build/bin/llama-rpc-server ../bin/ 2>/dev/null
+cp build/bin/Release/ggml-rpc-server ../bin/ 2>/dev/null || cp build/bin/ggml-rpc-server ../bin/ 2>/dev/null
 
 # Grab any shared libraries (like ggml.so or metal.dylib)
 cp build/bin/Release/*.dylib ../bin/ 2>/dev/null || cp build/bin/*.dylib ../bin/ 2>/dev/null

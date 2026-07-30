@@ -42,10 +42,10 @@ if not exist ..\bin mkdir ..\bin
 :: Binaries could be in build\bin\Release or build\bin depending on the generator used
 copy build\bin\Release\llama-server.exe ..\bin\ >nul 2>&1
 copy build\bin\Release\llama-bench.exe ..\bin\ >nul 2>&1
-copy build\bin\Release\llama-rpc-server.exe ..\bin\ >nul 2>&1
+copy build\bin\Release\ggml-rpc-server.exe ..\bin\ >nul 2>&1
 copy build\bin\llama-server.exe ..\bin\ >nul 2>&1
 copy build\bin\llama-bench.exe ..\bin\ >nul 2>&1
-copy build\bin\llama-rpc-server.exe ..\bin\ >nul 2>&1
+copy build\bin\ggml-rpc-server.exe ..\bin\ >nul 2>&1
 
 :: Copy any required DLLs
 copy build\bin\Release\*.dll ..\bin\ >nul 2>&1

@@ -8,8 +8,8 @@ echo =======================================
 echo    Onyx RPC Worker Node (Windows)
 echo =======================================
 
-if not exist "bin\llama-rpc-server.exe" (
-    echo Error: bin\llama-rpc-server.exe not found!
+if not exist "bin\ggml-rpc-server.exe" (
+    echo Error: bin\ggml-rpc-server.exe not found!
     echo Please run build_llama.bat first to compile the binaries.
     pause
     exit /b 1
@@ -22,7 +22,7 @@ echo 2. Go to 'RPC ^& Devices' tab
 echo 3. Add a new RPC Server using this machine's local IP address and port %PORT%
 echo.
 
-bin\llama-rpc-server.exe -H %HOST% -p %PORT%
+bin\ggml-rpc-server.exe -H %HOST% -p %PORT%
 
 pause
 endlocal
