@@ -4,10 +4,12 @@ A high-performance, ultra-sleek, locally hosted web dashboard for managing and r
 
 ## ✨ Features
 
-- **Zero-Downtime Networking**: Features a built-in Rust TCP reverse-proxy. Change ports and expose your API to your local network on the fly without restarting the heavy `llama-server` process.
+- **Concurrent Multi-Model Execution**: Seamlessly load and manage multiple `llama-server` instances simultaneously. Easily switch between them, compare outputs, and manage distinct configurations without shutting down your workflow.
+- **Zero-Downtime Networking**: Features a built-in Rust TCP reverse-proxy. Change ports, configure CORS, and expose your API to your local network on the fly without restarting the heavy `llama-server` process.
 - **Hardware Benchmarking**: Built-in VRAM-safe hardware benchmarking using `llama-bench`. Accurately test Token Generation (TG) and Prompt Processing (PP) speeds based on your exact UI configurations.
-- **Distributed RPC Workers**: Seamlessly add and toggle remote `llama-rpc-server` nodes to offload tensor computations across multiple machines on your network.
 - **Live Telemetry & Diagnostics**: Real-time CPU, RAM, and GPU monitoring directly inside the browser using direct NVML polling (no heavy `nvidia-smi` wrappers).
+- **Persistent Configurations**: Say goodbye to browser caching issues. Onyx features a robust `settings.json` backend persistent storage system that safely stores your context lengths, thread counts, and network setups permanently.
+- **Distributed RPC Workers**: Seamlessly add and toggle remote `llama-rpc-server` nodes to offload tensor computations across multiple machines on your network.
 - **Premium UI/UX**: Designed with sleek glassmorphism, dynamic expanding tabs, smooth micro-animations, and a highly responsive layout.
 - **Incredibly Lightweight**: By ditching Electron in favor of a native Rust backend + Web SPA, background RAM usage sits at a mere ~15MB instead of 300MB+.
 
@@ -44,5 +46,5 @@ You can connect external frontends (like JanitorAI, SillyTavern, or your own scr
 
 ## 🛠 Tech Stack
 - **Backend**: Rust (Axum, Tokio, sysinfo, nvml-wrapper)
-- **Frontend**: React (Vite, Lucide-React, Recharts)
+- **Frontend**: React (Vite, Lucide-React)
 - **Core Engine**: llama.cpp
