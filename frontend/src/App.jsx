@@ -48,8 +48,13 @@ function App() {
   const handleSelectModel = (model) => {
     setSelectedModel(model);
     if (model) {
+      const applied = serverSettings.appliedConfigs?.[model.id];
       const savedConfig = serverSettings.savedModelConfigs?.[model.id];
-      if (savedConfig) {
+      
+      if (applied) {
+        setConfig(applied);
+        setRememberSettings(!!savedConfig);
+      } else if (savedConfig) {
         setConfig(savedConfig);
         setRememberSettings(true);
       } else {
