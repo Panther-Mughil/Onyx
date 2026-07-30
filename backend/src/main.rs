@@ -838,6 +838,16 @@ async fn get_telemetry(
     })
 }
 
+async fn clear_system_logs(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<StartResponse> {
+    state.system_logs.lock().await.clear();
+    Json(StartResponse {
+        success: true,
+        message: "System logs cleared".to_string(),
+    })
+}
+
 #[tokio::main]
 async fn main() {
     let _ = fs::create_dir_all("../models");
@@ -874,6 +884,7 @@ async fn main() {
         .route("/api/settings/save", post(save_settings))
         .route("/api/server/proxy/stop", post(stop_proxy))
         .route("/api/system/logs", get(get_system_logs))
+        .route("/api/system/logs/clear", post(clear_system_logs))
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 

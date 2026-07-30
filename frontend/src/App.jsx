@@ -171,7 +171,7 @@ function App() {
     if (logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [logs]);
+  }, [logs, systemLogs]);
 
   useEffect(() => {
     const fetchTelemetry = () => {
@@ -290,7 +290,13 @@ function App() {
   };
 
   const handleClearLogs = async () => {
-    if (!selectedModel) return;
+    if (!selectedModel) {
+      setSystemLogs([]);
+      try {
+        await fetch('http://127.0.0.1:3001/api/system/logs/clear', { method: 'POST' });
+      } catch(e) { console.error(e); }
+      return;
+    }
     setLogs([]);
     try {
       await fetch('http://127.0.0.1:3001/api/server/logs/clear', { 
