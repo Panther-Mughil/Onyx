@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, ChevronRight, X, ChevronDown, CheckCircle2, Zap, Network, Plus, Gauge, BookOpen, Server, Download } from 'lucide-react';
+import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, ChevronRight, X, ChevronDown, CheckCircle2, Zap, Network, Plus, Gauge, BookOpen, Server, Download, Power } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import './index.css';
 
@@ -134,6 +134,17 @@ function App() {
         setConfig(prev => ({ ...prev, localGpus: initGpus }));
     }
   }, [telemetry]);
+  useEffect(() => {
+    fetch('http://127.0.0.1:3001/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) {
+          setServerSettings(prev => ({ ...prev, ...data }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!selectedModel) {
       fetch('http://127.0.0.1:3001/api/system/logs')
