@@ -60,7 +60,14 @@ function App() {
 
   const logsEndRef = useRef(null);
 
-  const [appliedConfigs, setAppliedConfigs] = useState({});
+  const [appliedConfigs, setAppliedConfigs] = useState(() => {
+    const saved = localStorage.getItem('applied_configs');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('applied_configs', JSON.stringify(appliedConfigs));
+  }, [appliedConfigs]);
   const [newRpcInput, setNewRpcInput] = useState("");
   const [benchmarkStatus, setBenchmarkStatus] = useState({ isRunning: false, logs: [], pp: null, tg: null });
 
@@ -770,23 +777,25 @@ function App() {
           </div>
 
           {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && (
-            <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
-                <input 
-                  type="checkbox" 
-                  checked={rememberSettings}
-                  onChange={(e) => setRememberSettings(e.target.checked)}
-                />
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Remember model settings</span>
-              </label>
-              <button 
-                className="primary-btn" 
-                style={{ width: '100%', padding: '12px', background: isModelRunning ? 'var(--accent-hover)' : '' }} 
-                onClick={handleStartServer}
-              >
-                {isModelRunning ? 'Reload to Apply Changes' : 'Load Model'}
-              </button>
-            </div>
+            (!isModelRunning || isConfigDirty()) ? (
+              <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={rememberSettings}
+                    onChange={(e) => setRememberSettings(e.target.checked)}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Remember model settings</span>
+                </label>
+                <button 
+                  className="primary-btn" 
+                  style={{ width: '100%', padding: '12px', background: isModelRunning ? 'var(--accent-hover)' : '' }} 
+                  onClick={handleStartServer}
+                >
+                  {isModelRunning ? 'Reload to Apply Changes' : 'Load Model'}
+                </button>
+              </div>
+            ) : null
           )}
         </div>
       </div>
