@@ -10,6 +10,8 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     echo "Error: ./bin/ggml-rpc-server not found!"
     echo "Please run ./build_llama.sh first to compile the binaries."
     exit 1
+fi
+
 # Set dynamic library paths (Linux)
 export LD_LIBRARY_PATH="$(pwd)/bin:$LD_LIBRARY_PATH"
 
