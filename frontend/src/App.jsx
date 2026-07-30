@@ -60,13 +60,17 @@ function App() {
   const [rememberSettings, setRememberSettings] = useState(false);
   const [loadingProgresses, setLoadingProgresses] = useState({});
 
+  const activeServersRef = useRef(activeServers);
   useEffect(() => {
-    let interval;
-    if (activeServers.some(s => !s.isReady)) {
-      interval = setInterval(() => {
+    activeServersRef.current = activeServers;
+  }, [activeServers]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeServersRef.current.some(s => !s.isReady)) {
         setLoadingProgresses(prev => {
           const next = { ...prev };
-          activeServers.forEach(s => {
+          activeServersRef.current.forEach(s => {
             if (!s.isReady) {
               next[s.modelId] = (next[s.modelId] || 0) < 99 ? (next[s.modelId] || 0) + 1 : 99;
             } else {
@@ -75,10 +79,10 @@ function App() {
           });
           return next;
         });
-      }, 50);
-    }
+      }
+    }, 50);
     return () => clearInterval(interval);
-  }, [activeServers]);
+  }, []);
 
   useEffect(() => {
     if (selectedModel) {
@@ -215,6 +219,8 @@ function App() {
       } else {
         localStorage.removeItem(`model_config_${selectedModel.id}`);
       }
+
+      setLoadingProgresses(prev => ({ ...prev, [selectedModel.id]: 0 }));
 
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
