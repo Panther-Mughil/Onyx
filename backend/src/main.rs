@@ -337,6 +337,9 @@ async fn update_network_config(
     
     let mut proxy_lock = state.proxy_task.lock().await;
     
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    state.system_logs.lock().await.push(format!("[{}] Network gateway configured: {} (Port: {}, Network Host: {})", timestamp, bind_addr, payload.port, payload.network_host));
+    
     if let Some(task) = proxy_lock.take() {
         task.abort();
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -376,27 +379,8 @@ async fn get_server_status(
 ) -> Json<StatusResponse> {
     let mut servers_map = state.active_servers.lock().await;
     
-    let mut current_vram = 0;
-    if let Ok(nvml) = nvml_wrapper::Nvml::init() {
-        if let Ok(device) = nvml.device_by_index(0) {
-            if let Ok(mem) = device.memory_info() {
-                current_vram = mem.used / (1024 * 1024);
-            }
-        }
-    }
-
     let mut to_remove = Vec::new();
     for (model_id, server) in servers_map.iter_mut() {
-        if !server.is_ready && server.size_gb > 0.0 && current_vram > server.baseline_vram_mb {
-            let loaded_mb = current_vram - server.baseline_vram_mb;
-            let loaded_gb = loaded_mb as f32 / 1024.0;
-            let mut pct = (loaded_gb / server.size_gb) * 100.0;
-            if pct > 99.0 { pct = 99.0; }
-            if pct > server.progress {
-                server.progress = pct;
-            }
-        }
-
         if let Some(child) = server.process.as_mut() {
             if let Ok(Some(_)) = child.try_wait() {
                 to_remove.push(model_id.clone());
@@ -585,6 +569,21 @@ async fn start_server(
                 if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
                     server.is_ready = true;
                 }
+                
+                if line.contains("llm_load_tensors:") {
+                    if let Some(idx) = line.find('%') {
+                        if let Some(start) = line[..idx].rfind(' ') {
+                            if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
+                                server.progress = pct;
+                            }
+                        }
+                    }
+                }
+                
+                if line.to_lowercase().contains("error") {
+                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                    state1.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id_clone, line));
+                }
             } else {
                 break;
             }
@@ -603,6 +602,21 @@ async fn start_server(
                 
                 if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
                     server.is_ready = true;
+                }
+                
+                if line.contains("llm_load_tensors:") {
+                    if let Some(idx) = line.find('%') {
+                        if let Some(start) = line[..idx].rfind(' ') {
+                            if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
+                                server.progress = pct;
+                            }
+                        }
+                    }
+                }
+                
+                if line.to_lowercase().contains("error") {
+                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                    state2.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id_clone2, line));
                 }
             } else {
                 break;

@@ -1,0 +1,1 @@
+{"modelId": "test", "ctxSize": 8192, "gpuLayers": 99, "threads": 8, "evalBatchSize": 512, "physicalBatchSize": 512, "concurrency": 1, "unifiedKv": true, "offloadKv": true, "keepInMemory": false, "mmap": true, "flashAttention": true, "kCacheQuant": "f16", "vCacheQuant": "f16", "cpuMoe": false, "rpcServers": [], "localGpus": [{"index": 0, "name": "NVIDIA", "active": true}]}

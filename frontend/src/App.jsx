@@ -167,19 +167,16 @@ function App() {
   }, [logs]);
 
   useEffect(() => {
-    let interval;
-    if (activeTab === 'monitoring') {
-       const fetchTelemetry = () => {
-           fetch('http://127.0.0.1:3001/api/server/telemetry')
-             .then(res => res.json())
-             .then(data => setTelemetry(data))
-             .catch(() => {});
-       };
-       fetchTelemetry();
-       interval = setInterval(fetchTelemetry, 1000);
-    }
+    const fetchTelemetry = () => {
+        fetch('http://127.0.0.1:3001/api/server/telemetry')
+          .then(res => res.json())
+          .then(data => setTelemetry(data))
+          .catch(() => {});
+    };
+    fetchTelemetry();
+    const interval = setInterval(fetchTelemetry, 1000);
     return () => clearInterval(interval);
-  }, [activeTab]);
+  }, []);
 
   useEffect(() => {
     let interval;
@@ -312,6 +309,16 @@ function App() {
           <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-input)', padding: '4px 12px', borderRadius: '16px', fontSize: '12px' }}>
+            <button 
+              className="icon-btn" 
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', color: isProxyRunning ? 'var(--ready-green)' : 'var(--text-muted)' }}
+              onClick={toggleProxy}
+              title={isProxyRunning ? 'Stop Master Gateway' : 'Start Master Gateway'}
+            >
+              <Power size={14} /> 
+              {isProxyRunning ? 'Gateway: Running' : 'Gateway: Stopped'}
+            </button>
+            <div style={{ width: '1px', height: '14px', background: 'var(--border-color)' }}></div>
             Active Models: {activeServers.length}
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeServers.length > 0 ? 'var(--ready-green)' : 'var(--border-color)', marginLeft: '4px' }}></div>
           </div>
