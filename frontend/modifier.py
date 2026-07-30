@@ -3,228 +3,180 @@ import sys
 with open('src/App.jsx', 'r', encoding='utf-8') as f:
     code = f.read()
 
-# 1. Fetch settings on mount
-mount_effect = '''  useEffect(() => {
-    fetch('http://127.0.0.1:3001/api/settings')
-      .then(res => res.json())
-      .then(data => {
-        if (Object.keys(data).length > 0) {
-          setServerSettings(data);
-        }
-      })
-      .catch(() => {});
-      
-    fetchStatusAndLogs();
-    const interval = setInterval(fetchStatusAndLogs, 1000);
-    return () => clearInterval(interval);
-  }, []);'''
-
+# 1. Update initial config to include localGpus
 code = code.replace(
-'''  useEffect(() => {
-    fetchStatusAndLogs();
-    const interval = setInterval(fetchStatusAndLogs, 1000);
-    return () => clearInterval(interval);
-  }, []);''',
-mount_effect
+'''  const initialConfig = {
+    ctxSize: 8192,
+    gpuLayers: 99,
+    threads: 8,
+    evalBatchSize: 512,
+    physicalBatchSize: 512,
+    concurrency: 1,
+    unifiedKv: true,
+    offloadKv: true,
+    keepInMemory: false,
+    mmap: true,
+    flashAttention: true,
+    kCacheQuant: 'fp16',
+    vCacheQuant: 'fp16',
+    cpuMoe: false,
+    rpcServers: []
+  };''',
+'''  const initialConfig = {
+    ctxSize: 8192,
+    gpuLayers: 99,
+    threads: 8,
+    evalBatchSize: 512,
+    physicalBatchSize: 512,
+    concurrency: 1,
+    unifiedKv: true,
+    offloadKv: true,
+    keepInMemory: false,
+    mmap: true,
+    flashAttention: true,
+    kCacheQuant: 'fp16',
+    vCacheQuant: 'fp16',
+    cpuMoe: false,
+    rpcServers: [],
+    localGpus: []
+  };'''
 )
 
-
-# 2. Save settings helper and proxy state
-save_helper = '''  const [isProxyRunning, setIsProxyRunning] = useState(true);
-  const [systemLogs, setSystemLogs] = useState([]);
-
-  const saveSettings = (newSettings) => {
-    setServerSettings(newSettings);
-    fetch('http://127.0.0.1:3001/api/settings/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newSettings)
-    }).catch(() => {});
-  };
-
-  const toggleProxy = () => {
-    if (isProxyRunning) {
-      fetch('http://127.0.0.1:3001/api/server/proxy/stop', { method: 'POST' })
-        .then(() => setIsProxyRunning(false))
-        .catch(() => {});
-    } else {
-      fetch('http://127.0.0.1:3001/api/server/network', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ port: serverSettings.port, networkHost: serverSettings.networkHost })
-      }).then(() => setIsProxyRunning(true)).catch(() => {});
+# 2. Add an effect to populate localGpus from telemetry if empty
+gpu_effect = '''  useEffect(() => {
+    if (telemetry && telemetry.gpus && config.localGpus.length === 0) {
+        const initGpus = telemetry.gpus.map((g, i) => ({ index: i, name: g.name, active: true }));
+        setConfig(prev => ({ ...prev, localGpus: initGpus }));
     }
-  };
-'''
+  }, [telemetry]);'''
 
-code = code.replace('  const logsEndRef = useRef(null);', save_helper + '\n  const logsEndRef = useRef(null);')
+# We will inject this near the fetchStatusAndLogs effect
+code = code.replace('  const activeServersRef = useRef(activeServers);', gpu_effect + '\n  const activeServersRef = useRef(activeServers);')
 
-# 3. Fetch system logs
-fetch_sys_logs = '''
-  useEffect(() => {
-    if (!selectedModel) {
-      fetch('http://127.0.0.1:3001/api/system/logs')
-        .then(res => res.json())
-        .then(data => setSystemLogs(data))
-        .catch(() => {});
-    }
-  }, [selectedModel, activeServers]);
-'''
 
-code = code.replace(
-'''  useEffect(() => {
-    if (selectedModel) {
-      fetch(`http://127.0.0.1:3001/api/server/logs?modelId=${selectedModel.id}`)
-        .then(res => res.json())
-        .then(data => setLogs(data))
-        .catch(() => {});
-    } else {
-      setLogs([]);
-    }
-  }, [selectedModel, activeServers]);''',
-'''  useEffect(() => {
-    if (selectedModel) {
-      fetch(`http://127.0.0.1:3001/api/server/logs?modelId=${selectedModel.id}`)
-        .then(res => res.json())
-        .then(data => setLogs(data))
-        .catch(() => {});
-    } else {
-      setLogs([]);
-    }
-  }, [selectedModel, activeServers]);''' + fetch_sys_logs
-)
+# 3. Modify the Devices tab UI
+old_devices_ui = '''                  <div className="form-section">
+                    <div className="form-section-title"><Network size={16}/> Device Allocation (Local & RPC)</div>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>Add remote llama-rpc-server endpoints to distribute inference.</p>
+                    
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                      <input 
+                        type="text" 
+                        className="text-input" 
+                        placeholder="e.g. 192.168.1.100:50052" 
+                        style={{ flex: 1 }}
+                        value={newRpcInput}
+                        onChange={(e) => setNewRpcInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddRpc(); }}
+                      />
+                      <button className="primary-btn" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={handleAddRpc}>
+                        <Plus size={16} /> Add
+                      </button>
+                    </div>
 
-# 4. Master Gateway Toggle UI
-gateway_ui = '''        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-input)', padding: '6px 12px', borderRadius: '20px' }}>
-             <button 
-                onClick={toggleProxy}
-                style={{ 
-                  background: isProxyRunning ? 'var(--ready-green)' : '#ef4444', 
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '12px',
-                  height: '12px',
-                  padding: 0,
-                  cursor: 'pointer',
-                  boxShadow: `0 0 8px ${isProxyRunning ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
-                }}
-             />
-             <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-main)' }}>
-                Gateway: {isProxyRunning ? 'Running' : 'Stopped'}
-             </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-input)', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '500' }}>
-            <span style={{ color: 'var(--accent)' }}>Active Models: {activeServers.length}</span>
-          </div>'''
-
-code = code.replace(
-'''        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-input)', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '500' }}>
-            <span style={{ color: 'var(--accent)' }}>Active Models: {activeServers.length}</span>
-          </div>''',
-gateway_ui
-)
-
-# 5. Developer Logs (System logs fallback)
-sys_logs_ui = '''            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h2 style={{ fontSize: '14px', fontWeight: '600' }}>{selectedModel ? `Developer Logs (${selectedModel.name})` : 'System Logs'}</h2>
-              {selectedModel && (
-                <button className="secondary-btn" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={handleClearLogs}>
-                  <Trash2 size={12} style={{ marginRight: '6px' }} /> Clear Logs
-                </button>
-              )}
-            </div>
-            <div className="terminal" style={{ flex: 1 }}>
-              {(selectedModel ? logs : systemLogs).map((log, i) => (
-                <div key={i} className="log-line">
-                  {log.includes('W ') || log.includes('warning') || log.includes('error') ? (
-                    <span style={{ color: '#eab308' }}>{log}</span>
-                  ) : log.includes('model loaded') || log.includes('HTTP server listening') || log.includes('[System]') ? (
-                    <span style={{ color: 'var(--accent)' }}>{log}</span>
-                  ) : (
-                    log
-                  )}
-                </div>
-              ))}
-              <div ref={logsEndRef} />
-            </div>'''
-
-code = code.replace(
-'''            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h2 style={{ fontSize: '14px', fontWeight: '600' }}>Developer Logs {selectedModel ? `(${selectedModel.name})` : ''}</h2>
-              <button className="secondary-btn" style={{ padding: '6px 12px', fontSize: '11px' }} onClick={handleClearLogs}>
-                <Trash2 size={12} style={{ marginRight: '6px' }} /> Clear Logs
-              </button>
-            </div>
-            <div className="terminal" style={{ flex: 1 }}>
-              {logs.map((log, i) => (
-                <div key={i} className="log-line">
-                  {log.includes('W ') || log.includes('warning') || log.includes('error') ? (
-                    <span style={{ color: '#eab308' }}>{log}</span>
-                  ) : log.includes('model loaded') || log.includes('HTTP server listening') ? (
-                    <span style={{ color: 'var(--accent)' }}>{log}</span>
-                  ) : (
-                    log
-                  )}
-                </div>
-              ))}
-              <div ref={logsEndRef} />
-            </div>''',
-sys_logs_ui
-)
-
-# 6. Physical Loading Bar
-physical_bar = '''                      {!server.isReady && (
-                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                            <span>Loading weights into VRAM...</span>
-                            <span>{Math.floor(server.progress || 0)}%</span>
+                    {config.rpcServers.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No RPC workers added yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {config.rpcServers.map((server, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '12px 16px', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '13px', fontFamily: 'monospace' }}>{server.address}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <label className="switch">
+                                <input type="checkbox" checked={server.active} onChange={(e) => {
+                                  const newServers = [...config.rpcServers];
+                                  newServers[idx].active = e.target.checked;
+                                  setConfig({ ...config, rpcServers: newServers });
+                                }} />
+                                <span className="slider"></span>
+                              </label>
+                              <button className="icon-btn" onClick={() => {
+                                const newServers = config.rpcServers.filter((_, i) => i !== idx);
+                                setConfig({ ...config, rpcServers: newServers });
+                              }}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ width: '100%', height: '4px', background: 'var(--bg-main)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${server.progress || 0}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.5s ease-out' }}></div>
+                        ))}
+                      </div>
+                    )}
+                  </div>'''
+
+new_devices_ui = '''                  <div className="form-section">
+                    <div className="form-section-title"><Network size={16}/> Device Allocation (Local & RPC)</div>
+                    
+                    <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', marginTop: '16px', color: 'var(--text-main)' }}>Local GPUs</h4>
+                    {(!config.localGpus || config.localGpus.length === 0) ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No local GPUs detected yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                        {config.localGpus.map((gpu, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '12px 16px', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: '500' }}>GPU {gpu.index}: <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span></span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <label className="switch">
+                                <input type="checkbox" checked={gpu.active} onChange={(e) => {
+                                  const newGpus = [...config.localGpus];
+                                  newGpus[idx].active = e.target.checked;
+                                  setConfig({ ...config, localGpus: newGpus });
+                                }} />
+                                <span className="slider"></span>
+                              </label>
+                            </div>
                           </div>
-                        </div>
-                      )}'''
+                        ))}
+                      </div>
+                    )}
 
-code = code.replace(
-'''                      {!server.isReady && (
-                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                            <span>Loading weights...</span>
-                            <span>{loadingProgresses[server.modelId] || 0}%</span>
+                    <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', color: 'var(--text-main)' }}>RPC Workers</h4>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>Add remote llama-rpc-server endpoints to distribute inference across the network.</p>
+                    
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                      <input 
+                        type="text" 
+                        className="text-input" 
+                        placeholder="e.g. 192.168.1.100:50052" 
+                        style={{ flex: 1 }}
+                        value={newRpcInput}
+                        onChange={(e) => setNewRpcInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddRpc(); }}
+                      />
+                      <button className="primary-btn" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={handleAddRpc}>
+                        <Plus size={16} /> Add
+                      </button>
+                    </div>
+
+                    {config.rpcServers.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No RPC workers added yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {config.rpcServers.map((server, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '12px 16px', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '13px', fontFamily: 'monospace' }}>{server.address}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <label className="switch">
+                                <input type="checkbox" checked={server.active} onChange={(e) => {
+                                  const newServers = [...config.rpcServers];
+                                  newServers[idx].active = e.target.checked;
+                                  setConfig({ ...config, rpcServers: newServers });
+                                }} />
+                                <span className="slider"></span>
+                              </label>
+                              <button className="icon-btn" onClick={() => {
+                                const newServers = config.rpcServers.filter((_, i) => i !== idx);
+                                setConfig({ ...config, rpcServers: newServers });
+                              }}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ width: '100%', height: '4px', background: 'var(--bg-main)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${loadingProgresses[server.modelId] || 0}%`, height: '100%', background: '#eab308', transition: 'width 0.1s' }}></div>
-                          </div>
-                        </div>
-                      )}''',
-physical_bar
-)
+                        ))}
+                      </div>
+                    )}
+                  </div>'''
 
-# 7. Devices Tab Rename
-code = code.replace(
-'''              <button className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')}>
-                <Network size={16} /> RPC
-              </button>''',
-'''              <button className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')}>
-                <Network size={16} /> Devices
-              </button>'''
-)
-
-code = code.replace(
-'''              <div className="tab-pane">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600' }}>RPC Workers</h3>''',
-'''              <div className="tab-pane">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600' }}>Device Allocation (Local & RPC)</h3>'''
-)
-
-# 8. Save Settings usage
-code = code.replace('setServerSettings({...serverSettings,', 'saveSettings({...serverSettings,')
-code = code.replace('setServerSettings({...serverSettings, port:', 'saveSettings({...serverSettings, port:')
+code = code.replace(old_devices_ui, new_devices_ui)
 
 with open('src/App.jsx', 'w', encoding='utf-8') as f:
     f.write(code)
