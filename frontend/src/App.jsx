@@ -79,7 +79,8 @@ function App() {
     kCacheQuant: 'f16',
     vCacheQuant: 'f16',
     cpuMoe: false,
-    rpcServers: []
+    rpcServers: [],
+    localGpus: []
   };
 
   const [config, setConfig] = useState(initialConfig);
@@ -122,6 +123,17 @@ function App() {
       setLogs([]);
     }
   }, [selectedModel, activeServers]);
+  const activeServersRef = useRef(activeServers);
+  useEffect(() => {
+    activeServersRef.current = activeServers;
+  }, [activeServers]);
+
+  useEffect(() => {
+    if (telemetry && telemetry.gpus && (!config.localGpus || config.localGpus.length === 0)) {
+        const initGpus = telemetry.gpus.map((g, i) => ({ index: i, name: g.name, active: true }));
+        setConfig(prev => ({ ...prev, localGpus: initGpus }));
+    }
+  }, [telemetry]);
   useEffect(() => {
     if (!selectedModel) {
       fetch('http://127.0.0.1:3001/api/system/logs')
@@ -541,6 +553,28 @@ function App() {
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div className="form-section">
                     <div className="form-section-title"><Network size={16}/> Device Allocation (Local & RPC)</div>
+                    <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', marginTop: '16px', color: 'var(--text-main)' }}>Local GPUs</h4>
+                    {(!config.localGpus || config.localGpus.length === 0) ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No local GPUs detected yet.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                        {config.localGpus.map((gpu, idx) => (
+                          <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
+                            <span style={{ fontSize: '13px', fontWeight: '500' }}>GPU {gpu.index}: <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span></span>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                              <div className={`toggle-switch ${gpu.active ? 'active' : ''}`} onClick={() => {
+                                const newGpus = [...config.localGpus];
+                                newGpus[idx] = { ...newGpus[idx], active: !newGpus[idx].active };
+                                setConfig({ ...config, localGpus: newGpus });
+                                setRememberSettings(false);
+                              }}></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', color: 'var(--text-main)' }}>RPC Workers</h4>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>Add remote llama-rpc-server endpoints to distribute inference.</p>
                     
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
