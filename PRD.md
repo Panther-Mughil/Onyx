@@ -55,7 +55,7 @@ A web-based interface for managing and loading local LLM models using `llama.cpp
 ### 3.5. Right Side Panel
 Organized into tabs for quick access to configurations without interrupting the main view.
 - **Settings Tab**: Mirrors the Model Configuration View for the currently loaded model, allowing adjustments and re-loads.
-- **RPC Tab**: Manage RPC settings and add RPC workers for distributed inference across multiple machines.
+- **Devices Tab** (formerly RPC): Manage device allocation, listing local GPUs first followed by RPC workers for distributed inference.
 - **Inference Tab**:
   - Enable Thinking (reasoning mode)
   - System Prompt & Presets
@@ -73,3 +73,10 @@ Organized into tabs for quick access to configurations without interrupting the 
 - **Frontend**: Vite + React or Next.js, with Vanilla CSS prioritizing a premium, glassmorphism, or modern dark-mode aesthetic.
 - **Backend Middleware**: Node.js or Python to handle system-level metrics (reading temperatures/RAM), file system scanning (for models), and managing the lifecycle of the `llama.cpp` process.
 - **Backend AI**: `llama.cpp` (`llama-server`).
+
+## 5. Future Roadmap
+The following high-impact features are deferred for future updates:
+- **Built-in Chat Playground**: A built-in chat UI directly within the dashboard to quickly test loaded models using the API, bypassing the need for third-party tools like SillyTavern.
+- **1-Click HuggingFace Downloader**: A feature to input a HuggingFace GGUF URL and have the backend natively stream the model into the `models/` folder.
+- **Advanced Device Monitoring**: VRAM utilization bars mapped to individual devices/GPUs directly inside the Devices tab.
+- **System Tray Integration**: Running the backend silently in the background with OS system tray controls.

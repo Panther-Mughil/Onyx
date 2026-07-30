@@ -88,6 +88,7 @@ struct ServerInfo {
     model_id: String,
     port: u16,
     is_ready: bool,
+    progress: f32,
 }
 
 #[derive(Serialize)]
@@ -121,6 +122,9 @@ struct ActiveServer {
     port: u16,
     is_ready: bool,
     logs: Vec<String>,
+    baseline_vram_mb: u64,
+    size_gb: f32,
+    progress: f32,
 }
 
 struct AppState {
@@ -133,6 +137,7 @@ struct AppState {
     benchmark_logs: Mutex<Vec<String>>,
     benchmark_pp: Mutex<Option<f32>>,
     benchmark_tg: Mutex<Option<f32>>,
+    system_logs: Mutex<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -145,6 +150,47 @@ struct LogsQuery {
 #[serde(rename_all = "camelCase")]
 struct StopRequest {
     model_id: String,
+}
+
+
+async fn get_settings() -> Json<serde_json::Value> {
+    if let Ok(data) = fs::read_to_string("../data/settings.json") {
+        if let Ok(json) = serde_json::from_str(&data) {
+            return Json(json);
+        }
+    }
+    Json(serde_json::json!({}))
+}
+
+async fn save_settings(Json(payload): Json<serde_json::Value>) -> Json<StartResponse> {
+    let _ = fs::create_dir_all("../data");
+    if let Ok(json_str) = serde_json::to_string_pretty(&payload) {
+        let _ = fs::write("../data/settings.json", json_str);
+    }
+    Json(StartResponse { success: true, message: "Settings saved".to_string() })
+}
+
+async fn stop_proxy(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<StartResponse> {
+    let mut proxy_lock = state.proxy_task.lock().await;
+    let mut proxy_addr_lock = state.proxy_addr.lock().await;
+    
+    if let Some(task) = proxy_lock.take() {
+        task.abort();
+        *proxy_addr_lock = None;
+        let mut logs = state.system_logs.lock().await;
+        logs.push("[System] Gateway stopped.".to_string());
+        return Json(StartResponse { success: true, message: "Gateway stopped".to_string() });
+    }
+    Json(StartResponse { success: false, message: "Gateway not running".to_string() })
+}
+
+async fn get_system_logs(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<Vec<String>> {
+    let logs = state.system_logs.lock().await;
+    Json(logs.clone())
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -302,6 +348,7 @@ async fn update_network_config(
             });
             *proxy_lock = Some(task);
             *proxy_addr_lock = Some(bind_addr.clone());
+            state.system_logs.lock().await.push(format!("[System] Gateway started on {}", bind_addr));
             
             Json(StartResponse {
                 success: true,
@@ -322,8 +369,27 @@ async fn get_server_status(
 ) -> Json<StatusResponse> {
     let mut servers_map = state.active_servers.lock().await;
     
+    let mut current_vram = 0;
+    if let Ok(nvml) = nvml_wrapper::Nvml::init() {
+        if let Ok(device) = nvml.device_by_index(0) {
+            if let Ok(mem) = device.memory_info() {
+                current_vram = mem.used / (1024 * 1024);
+            }
+        }
+    }
+
     let mut to_remove = Vec::new();
     for (model_id, server) in servers_map.iter_mut() {
+        if !server.is_ready && server.size_gb > 0.0 && current_vram > server.baseline_vram_mb {
+            let loaded_mb = current_vram - server.baseline_vram_mb;
+            let loaded_gb = loaded_mb as f32 / 1024.0;
+            let mut pct = (loaded_gb / server.size_gb) * 100.0;
+            if pct > 99.0 { pct = 99.0; }
+            if pct > server.progress {
+                server.progress = pct;
+            }
+        }
+
         if let Some(child) = server.process.as_mut() {
             if let Ok(Some(_)) = child.try_wait() {
                 to_remove.push(model_id.clone());
@@ -340,6 +406,7 @@ async fn get_server_status(
             model_id: s.model_id.clone(),
             port: s.port,
             is_ready: s.is_ready,
+            progress: s.progress,
         }
     }).collect();
     
@@ -402,7 +469,7 @@ async fn start_server(
     }
 
     let mut args = vec![
-        "-m".to_string(), model_path,
+        "-m".to_string(), model_path.clone(),
         "-c".to_string(), payload.ctx_size.to_string(),
         "-ngl".to_string(), payload.gpu_layers.to_string(),
         "-t".to_string(), payload.threads.to_string(),
@@ -444,12 +511,30 @@ async fn start_server(
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
     
+    let mut baseline_vram = 0;
+    if let Ok(nvml) = nvml_wrapper::Nvml::init() {
+        if let Ok(device) = nvml.device_by_index(0) {
+            if let Ok(mem) = device.memory_info() {
+                baseline_vram = mem.used / (1024 * 1024);
+            }
+        }
+    }
+
+    let size_gb = if let Ok(metadata) = std::fs::metadata(&model_path) {
+        (metadata.len() as f32) / (1024.0 * 1024.0 * 1024.0)
+    } else {
+        0.0
+    };
+
     let server_state = ActiveServer {
         process: Some(child),
         model_id: payload.model_id.clone(),
         port,
         is_ready: false,
         logs: Vec::new(),
+        baseline_vram_mb: baseline_vram,
+        size_gb,
+        progress: 0.0,
     };
     
     servers_map.insert(payload.model_id.clone(), server_state);
@@ -731,6 +816,7 @@ async fn main() {
         benchmark_logs: Mutex::new(Vec::new()),
         benchmark_pp: Mutex::new(None),
         benchmark_tg: Mutex::new(None),
+        system_logs: Mutex::new(Vec::new()),
     });
 
     let app = Router::new()
@@ -746,6 +832,10 @@ async fn main() {
         .route("/api/server/benchmark/start", post(run_benchmark))
         .route("/api/server/benchmark/status", get(get_benchmark_status))
         .route("/api/server/benchmark/clear", post(clear_benchmark_logs))
+        .route("/api/settings", get(get_settings))
+        .route("/api/settings/save", post(save_settings))
+        .route("/api/server/proxy/stop", post(stop_proxy))
+        .route("/api/system/logs", get(get_system_logs))
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 

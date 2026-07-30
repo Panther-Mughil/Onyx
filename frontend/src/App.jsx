@@ -32,6 +32,32 @@ function App() {
     autoUnload: false
   });
 
+  const [isProxyRunning, setIsProxyRunning] = useState(true);
+  const [systemLogs, setSystemLogs] = useState([]);
+
+  const saveSettings = (newSettings) => {
+    setServerSettings(newSettings);
+    fetch('http://127.0.0.1:3001/api/settings/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSettings)
+    }).catch(() => {});
+  };
+
+  const toggleProxy = () => {
+    if (isProxyRunning) {
+      fetch('http://127.0.0.1:3001/api/server/proxy/stop', { method: 'POST' })
+        .then(() => setIsProxyRunning(false))
+        .catch(() => {});
+    } else {
+      fetch('http://127.0.0.1:3001/api/server/network', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port: serverSettings.port, networkHost: serverSettings.networkHost })
+      }).then(() => setIsProxyRunning(true)).catch(() => {});
+    }
+  };
+
   const logsEndRef = useRef(null);
 
   const [appliedConfigs, setAppliedConfigs] = useState({});
@@ -58,31 +84,6 @@ function App() {
 
   const [config, setConfig] = useState(initialConfig);
   const [rememberSettings, setRememberSettings] = useState(false);
-  const [loadingProgresses, setLoadingProgresses] = useState({});
-
-  const activeServersRef = useRef(activeServers);
-  useEffect(() => {
-    activeServersRef.current = activeServers;
-  }, [activeServers]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (activeServersRef.current.some(s => !s.isReady)) {
-        setLoadingProgresses(prev => {
-          const next = { ...prev };
-          activeServersRef.current.forEach(s => {
-            if (!s.isReady) {
-              next[s.modelId] = (next[s.modelId] || 0) < 99 ? (next[s.modelId] || 0) + 1 : 99;
-            } else {
-              next[s.modelId] = 100;
-            }
-          });
-          return next;
-        });
-      }
-    }, 50);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (selectedModel) {
@@ -120,7 +121,16 @@ function App() {
     } else {
       setLogs([]);
     }
-  }, [selectedModel, activeServers]); // Refresh logs periodically with status poll implicitly
+  }, [selectedModel, activeServers]);
+  useEffect(() => {
+    if (!selectedModel) {
+      fetch('http://127.0.0.1:3001/api/system/logs')
+        .then(res => res.json())
+        .then(data => setSystemLogs(data))
+        .catch(() => {});
+    }
+  }, [selectedModel, activeServers]);
+ // Refresh logs periodically with status poll implicitly
 
   useEffect(() => {
     fetch('http://127.0.0.1:3001/health')
@@ -219,8 +229,6 @@ function App() {
       } else {
         localStorage.removeItem(`model_config_${selectedModel.id}`);
       }
-
-      setLoadingProgresses(prev => ({ ...prev, [selectedModel.id]: 0 }));
 
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
@@ -354,11 +362,11 @@ function App() {
                       {!server.isReady && (
                         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
-                            <span>Loading weights...</span>
-                            <span>{loadingProgresses[server.modelId] || 0}%</span>
+                            <span>Loading weights into VRAM...</span>
+                            <span>{Math.floor(server.progress || 0)}%</span>
                           </div>
                           <div style={{ width: '100%', height: '4px', background: 'var(--bg-main)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${loadingProgresses[server.modelId] || 0}%`, height: '100%', background: '#eab308', transition: 'width 0.1s' }}></div>
+                            <div style={{ width: `${server.progress || 0}%`, height: '100%', background: 'var(--accent)', transition: 'width 0.5s ease-out' }}></div>
                           </div>
                         </div>
                       )}
@@ -782,7 +790,7 @@ function App() {
                     if (val !== "") {
                       val = Math.max(1, Math.min(65535, Number(val)));
                     }
-                    setServerSettings({...serverSettings, port: val === "" ? "" : val});
+                    saveSettings({...serverSettings, port: val === "" ? "" : val});
                   }} 
                 />
               </div>
@@ -792,12 +800,12 @@ function App() {
                   <span>Host on Local Network</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{serverSettings.networkHost ? '0.0.0.0 (Exposed to network)' : '127.0.0.1 (Localhost only)'}</span>
                 </span>
-                <div className={`toggle-switch ${serverSettings.networkHost ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, networkHost: !serverSettings.networkHost})}></div>
+                <div className={`toggle-switch ${serverSettings.networkHost ? 'active' : ''}`} onClick={() => saveSettings({...serverSettings, networkHost: !serverSettings.networkHost})}></div>
               </div>
 
               <div className="form-row">
                 <span>Enable CORS</span>
-                <div className={`toggle-switch ${serverSettings.cors ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, cors: !serverSettings.cors})}></div>
+                <div className={`toggle-switch ${serverSettings.cors ? 'active' : ''}`} onClick={() => saveSettings({...serverSettings, cors: !serverSettings.cors})}></div>
               </div>
 
               <div className="form-row">
@@ -805,7 +813,7 @@ function App() {
                   <span>Just-in-Time Model Loading</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Load model into memory only when first prompt is received</span>
                 </span>
-                <div className={`toggle-switch ${serverSettings.jitModelLoading ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, jitModelLoading: !serverSettings.jitModelLoading})}></div>
+                <div className={`toggle-switch ${serverSettings.jitModelLoading ? 'active' : ''}`} onClick={() => saveSettings({...serverSettings, jitModelLoading: !serverSettings.jitModelLoading})}></div>
               </div>
 
               <div className="form-row">
@@ -813,7 +821,7 @@ function App() {
                   <span>Auto-Unload Inactive</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Unload model from VRAM after 5 minutes of inactivity</span>
                 </span>
-                <div className={`toggle-switch ${serverSettings.autoUnload ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, autoUnload: !serverSettings.autoUnload})}></div>
+                <div className={`toggle-switch ${serverSettings.autoUnload ? 'active' : ''}`} onClick={() => saveSettings({...serverSettings, autoUnload: !serverSettings.autoUnload})}></div>
               </div>
             </div>
           </div>
