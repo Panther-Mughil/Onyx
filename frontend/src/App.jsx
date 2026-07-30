@@ -24,6 +24,7 @@ function App() {
   const [telemetry, setTelemetry] = useState(null);
 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [serverSettings, setServerSettings] = useState({
     port: 1234,
     networkHost: false,
@@ -141,7 +142,8 @@ function App() {
           setServerSettings(prev => ({ ...prev, ...data }));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setHasLoadedSettings(true));
   }, []);
 
   useEffect(() => {
@@ -322,6 +324,14 @@ function App() {
   };
 
   const isModelRunning = selectedModel ? activeServers.some(s => s.modelId === selectedModel.id) : false;
+
+  if (!hasLoadedSettings) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+        <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
