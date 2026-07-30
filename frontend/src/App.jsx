@@ -58,6 +58,27 @@ function App() {
 
   const [config, setConfig] = useState(initialConfig);
   const [rememberSettings, setRememberSettings] = useState(false);
+  const [loadingProgresses, setLoadingProgresses] = useState({});
+
+  useEffect(() => {
+    let interval;
+    if (activeServers.some(s => !s.isReady)) {
+      interval = setInterval(() => {
+        setLoadingProgresses(prev => {
+          const next = { ...prev };
+          activeServers.forEach(s => {
+            if (!s.isReady) {
+              next[s.modelId] = (next[s.modelId] || 0) < 99 ? (next[s.modelId] || 0) + 1 : 99;
+            } else {
+              next[s.modelId] = 100;
+            }
+          });
+          return next;
+        });
+      }, 50);
+    }
+    return () => clearInterval(interval);
+  }, [activeServers]);
 
   useEffect(() => {
     if (selectedModel) {
@@ -325,8 +346,14 @@ function App() {
                       </div>
 
                       {!server.isReady && (
-                        <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden', marginBottom: '12px', position: 'relative' }}>
-                           <div style={{ position: 'absolute', width: '30%', height: '100%', background: '#eab308', animation: 'indeterminate 1.5s infinite linear' }}></div>
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                            <span>Loading weights...</span>
+                            <span>{loadingProgresses[server.modelId] || 0}%</span>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', background: 'var(--bg-main)', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ width: `${loadingProgresses[server.modelId] || 0}%`, height: '100%', background: '#eab308', transition: 'width 0.1s' }}></div>
+                          </div>
                         </div>
                       )}
 
@@ -765,6 +792,22 @@ function App() {
               <div className="form-row">
                 <span>Enable CORS</span>
                 <div className={`toggle-switch ${serverSettings.cors ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, cors: !serverSettings.cors})}></div>
+              </div>
+
+              <div className="form-row">
+                <span style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span>Just-in-Time Model Loading</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Load model into memory only when first prompt is received</span>
+                </span>
+                <div className={`toggle-switch ${serverSettings.jitModelLoading ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, jitModelLoading: !serverSettings.jitModelLoading})}></div>
+              </div>
+
+              <div className="form-row">
+                <span style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span>Auto-Unload Inactive</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Unload model from VRAM after 5 minutes of inactivity</span>
+                </span>
+                <div className={`toggle-switch ${serverSettings.autoUnload ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, autoUnload: !serverSettings.autoUnload})}></div>
               </div>
             </div>
           </div>
