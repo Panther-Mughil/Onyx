@@ -13,14 +13,14 @@ const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
 
 function App() {
   const [backendStatus, setBackendStatus] = useState({ status: 'checking', message: '' });
-  const [activeServer, setActiveServer] = useState({ isRunning: false, modelId: null });
+  const [activeServers, setActiveServers] = useState([]); // Array of { model_id, port, is_ready }
   const [logs, setLogs] = useState([]);
   
   // Modals & Navigation
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null); // The model currently selected in the right pane
-  const [activeTab, setActiveTab] = useState('load'); // 'info', 'load', 'inference', 'monitoring'
+  const [selectedModel, setSelectedModel] = useState(null); 
+  const [activeTab, setActiveTab] = useState('load'); 
   const [telemetry, setTelemetry] = useState(null);
 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
@@ -34,12 +34,11 @@ function App() {
 
   const logsEndRef = useRef(null);
 
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [appliedConfig, setAppliedConfig] = useState(null);
+  const [appliedConfigs, setAppliedConfigs] = useState({});
   const [newRpcInput, setNewRpcInput] = useState("");
   const [benchmarkStatus, setBenchmarkStatus] = useState({ isRunning: false, logs: [], pp: null, tg: null });
 
-  const [config, setConfig] = useState({
+  const initialConfig = {
     ctxSize: 2048,
     gpuLayers: 28,
     threads: 4,
@@ -55,26 +54,48 @@ function App() {
     vCacheQuant: 'f16',
     cpuMoe: false,
     rpcServers: []
-  });
+  };
+
+  const [config, setConfig] = useState(initialConfig);
+  const [rememberSettings, setRememberSettings] = useState(false);
+
+  useEffect(() => {
+    if (selectedModel) {
+      const savedConfig = localStorage.getItem(`model_config_${selectedModel.id}`);
+      if (savedConfig) {
+        try {
+          setConfig(JSON.parse(savedConfig));
+          setRememberSettings(true);
+        } catch (e) {
+          setConfig(initialConfig);
+          setRememberSettings(false);
+        }
+      } else {
+        setConfig(initialConfig);
+        setRememberSettings(false);
+      }
+    }
+  }, [selectedModel]);
 
   const fetchStatusAndLogs = () => {
     fetch('http://127.0.0.1:3001/api/server/status')
       .then(res => res.json())
       .then(data => {
-         setActiveServer({ isRunning: data.is_running, modelId: data.model_id, isReady: data.is_ready });
-         if (data.is_running) {
-             setAppliedConfig(prev => prev || { ...config });
-         } else {
-             setAppliedConfig(null);
-         }
+         setActiveServers(data.servers || []);
       })
       .catch(() => {});
-
-    fetch('http://127.0.0.1:3001/api/server/logs')
-      .then(res => res.json())
-      .then(data => setLogs(data))
-      .catch(() => {});
   };
+
+  useEffect(() => {
+    if (selectedModel) {
+      fetch(`http://127.0.0.1:3001/api/server/logs?modelId=${selectedModel.id}`)
+        .then(res => res.json())
+        .then(data => setLogs(data))
+        .catch(() => {});
+    } else {
+      setLogs([]);
+    }
+  }, [selectedModel, activeServers]); // Refresh logs periodically with status poll implicitly
 
   useEffect(() => {
     fetch('http://127.0.0.1:3001/health')
@@ -97,25 +118,6 @@ function App() {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs]);
-
-  useEffect(() => {
-    let interval;
-    if (activeServer.isRunning && !activeServer.isReady) {
-      setLoadingProgress(0);
-      interval = setInterval(() => {
-        setLoadingProgress(prev => {
-          const remaining = 99 - prev;
-          const step = remaining > 20 ? 8 : (remaining > 5 ? 2 : 0.5);
-          return Math.min(99.9, prev + step);
-        });
-      }, 500);
-    } else if (activeServer.isReady) {
-      setLoadingProgress(100);
-    } else {
-      setLoadingProgress(0);
-    }
-    return () => clearInterval(interval);
-  }, [activeServer.isRunning, activeServer.isReady]);
 
   useEffect(() => {
     let interval;
@@ -147,17 +149,6 @@ function App() {
     return () => clearInterval(interval);
   }, [activeTab]);
 
-  // Auto-restore selected model on page refresh if a model is currently running
-  useEffect(() => {
-    if (!selectedModel && activeServer.isRunning && activeServer.modelId && models.length > 0) {
-      const model = models.find(m => m.id === activeServer.modelId);
-      if (model) {
-        setSelectedModel(model);
-      }
-    }
-  }, [selectedModel, activeServer.isRunning, activeServer.modelId, models]);
-
-  // Hot-swap network proxy whenever server settings change
   useEffect(() => {
     fetch('http://127.0.0.1:3001/api/server/network', {
       method: 'POST',
@@ -172,16 +163,17 @@ function App() {
       ...prev,
       [name]: type === 'checkbox' ? checked : (type === 'number' || type === 'range' ? Number(value) : value)
     }));
+    setRememberSettings(false);
   };
 
-  // Toggle helper
   const handleToggle = (name) => {
     setConfig(prev => ({ ...prev, [name]: !prev[name] }));
+    setRememberSettings(false);
   };
 
   const isConfigDirty = () => {
-    if (!appliedConfig) return false;
-    return JSON.stringify(config) !== JSON.stringify(appliedConfig);
+    if (!selectedModel || !appliedConfigs[selectedModel.id]) return false;
+    return JSON.stringify(config) !== JSON.stringify(appliedConfigs[selectedModel.id]);
   };
 
   const handleAddRpc = () => {
@@ -191,11 +183,18 @@ function App() {
       rpcServers: [...prev.rpcServers, { address: newRpcInput.trim(), active: false }]
     }));
     setNewRpcInput("");
+    setRememberSettings(false);
   };
 
   const handleStartServer = async () => {
     if (!selectedModel) return;
     try {
+      if (rememberSettings) {
+        localStorage.setItem(`model_config_${selectedModel.id}`, JSON.stringify(config));
+      } else {
+        localStorage.removeItem(`model_config_${selectedModel.id}`);
+      }
+
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,24 +204,40 @@ function App() {
       if (!result.success) {
         alert("Error starting server: " + result.message);
       } else {
-        setAppliedConfig({ ...config });
+        setAppliedConfigs(prev => ({ ...prev, [selectedModel.id]: { ...config } }));
       }
     } catch (err) {
       alert("Failed to reach backend.");
     }
   };
 
-  const handleStopServer = async () => {
+  const handleStopServer = async (modelId) => {
     try {
-      await fetch('http://127.0.0.1:3001/api/server/stop', { method: 'POST' });
-      setAppliedConfig(null);
+      await fetch('http://127.0.0.1:3001/api/server/stop', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId })
+      });
+      setAppliedConfigs(prev => {
+        const next = { ...prev };
+        delete next[modelId];
+        return next;
+      });
+      if (selectedModel && selectedModel.id === modelId) {
+        setSelectedModel(null);
+      }
     } catch(e) { console.error(e); }
   };
 
   const handleClearLogs = async () => {
+    if (!selectedModel) return;
     setLogs([]);
     try {
-      await fetch('http://127.0.0.1:3001/api/server/logs/clear', { method: 'POST' });
+      await fetch('http://127.0.0.1:3001/api/server/logs/clear', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId: selectedModel.id })
+      });
     } catch(e) { console.error(e); }
   };
 
@@ -233,8 +248,7 @@ function App() {
     return "";
   };
 
-  // Find the details of the active model
-  const activeModelDetails = activeServer.isRunning ? models.find(m => m.id === activeServer.modelId) : null;
+  const isModelRunning = selectedModel ? activeServers.some(s => s.model_id === selectedModel.id) : false;
 
   return (
     <div className="app-container">
@@ -243,7 +257,6 @@ function App() {
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           
-          {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none', marginRight: '8px' }}>
             <OnyxLogo size={22} />
             <span style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '0.5px' }}>Onyx</span>
@@ -252,20 +265,17 @@ function App() {
           <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }}></div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-input)', padding: '4px 12px', borderRadius: '16px', fontSize: '12px' }}>
-            Status: {activeServer.isRunning ? 'Running' : 'Stopped'}
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeServer.isRunning ? 'var(--ready-green)' : 'var(--border-color)', marginLeft: '4px' }}></div>
+            Active Models: {activeServers.length}
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: activeServers.length > 0 ? 'var(--ready-green)' : 'var(--border-color)', marginLeft: '4px' }}></div>
           </div>
           <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsServerSettingsOpen(true)}>
-            <Settings2 size={14} /> Server Settings
+            <Settings2 size={14} /> Global Settings
           </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            {activeServer.isRunning ? `Server running on ${serverSettings.networkHost ? '0.0.0.0' : '127.0.0.1'}:${serverSettings.port}` : 'Server not running'}
-          </span>
           <button className="primary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsModalOpen(true)}>
-            + Load Model
+            + Load New Model
           </button>
         </div>
       </div>
@@ -273,86 +283,98 @@ function App() {
       {/* Main Split View */}
       <div className="main-content">
         
-        {/* LEFT PANE: Loaded Models & Developer Logs */}
-        <div className="left-pane">
-          <div>
-            <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '600' }}>Loaded Models</h3>
-            <div className="box" style={{ padding: '16px', minHeight: '100px' }}>
-              {activeModelDetails ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* LEFT PANE */}
+        <div className="left-pane" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '600', flexShrink: 0 }}>Loaded Models</h3>
+            <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {activeServers.length > 0 ? (
+                activeServers.map(server => {
+                  const modelDetails = models.find(m => m.id === server.model_id);
+                  if (!modelDetails) return null;
+                  const isSelected = selectedModel && selectedModel.id === server.model_id;
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ 
-                        border: `1px solid ${activeServer.isReady ? 'var(--ready-green)' : '#eab308'}`, 
-                        color: activeServer.isReady ? 'var(--ready-green)' : '#eab308', 
-                        padding: '2px 8px', 
-                        borderRadius: '4px', 
-                        fontSize: '10px', 
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                      {!activeServer.isReady && (
-                         <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                      )}
-                      {activeServer.isReady ? 'READY' : 'LOADING...'}
-                    </div>
-
-                    {!activeServer.isReady && (
-                      <div style={{ fontSize: '11px', color: '#eab308', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                        {Math.floor(loadingProgress)}%
+                  return (
+                    <div key={server.model_id} style={{ 
+                        border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-color)', 
+                        padding: '16px', 
+                        borderRadius: '12px',
+                        background: isSelected ? 'rgba(34, 211, 238, 0.05)' : 'var(--bg-input)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                    }} onClick={() => { setSelectedModel(modelDetails); setActiveTab('load'); }}>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ 
+                            border: `1px solid ${server.is_ready ? 'var(--ready-green)' : '#eab308'}`, 
+                            color: server.is_ready ? 'var(--ready-green)' : '#eab308', 
+                            padding: '2px 8px', 
+                            borderRadius: '4px', 
+                            fontSize: '10px', 
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                          {!server.is_ready && (
+                             <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                          )}
+                          {server.is_ready ? 'READY' : 'LOADING...'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Port: <strong>{server.port}</strong></div>
                       </div>
-                    )}
-                  </div>
 
-                  {!activeServer.isReady && (
-                    <div style={{ width: '100%', height: '4px', background: 'var(--bg-input)', borderRadius: '2px', overflow: 'hidden', marginTop: '-4px', marginBottom: '4px' }}>
-                       <div style={{ width: `${loadingProgress}%`, height: '100%', background: '#eab308', transition: 'width 0.5s ease-out' }}></div>
-                    </div>
-                  )}
+                      {!server.is_ready && (
+                        <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden', marginBottom: '12px', position: 'relative' }}>
+                           <div style={{ position: 'absolute', width: '30%', height: '100%', background: '#eab308', animation: 'indeterminate 1.5s infinite linear' }}></div>
+                        </div>
+                      )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ color: 'var(--accent)', fontWeight: '600', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>llm</span> {activeModelDetails.name}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ color: 'var(--text-main)', fontWeight: '600', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: 'var(--accent)' }}>llm</span> {modelDetails.name}
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Size <strong style={{color: 'var(--text-main)', marginLeft: '4px'}}>{modelDetails.size_gb.toFixed(2)} GB</strong></span>
+                          <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => { e.stopPropagation(); handleStopServer(server.model_id); }}>
+                            <Square size={14} /> Eject
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Size <strong style={{color: 'var(--text-main)', marginLeft: '4px'}}>{activeModelDetails.size_gb.toFixed(2)} GB</strong></span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Parallel <strong style={{color: 'var(--text-main)', marginLeft: '4px'}}>1</strong></span>
-                      <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleStopServer}>
-                        <Square size={14} /> Eject
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--border-color)', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--border-color)', gap: '16px' }}>
                   <OnyxLogo size={80} color="var(--border-color)" />
-                  <div style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: '500' }}>No active engine. Select a model to begin.</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '13px', fontWeight: '500' }}>No active engines. Select a model to begin.</div>
                 </div>
               )}
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginTop: '24px', overflow: 'hidden' }}>
+          <div style={{ flex: '1 1 40%', display: 'flex', flexDirection: 'column', marginTop: '24px', minHeight: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div style={{ display: 'flex', gap: '16px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: '600' }}>Developer Logs</h3>
+                <h3 style={{ fontSize: '14px', fontWeight: '600' }}>Developer Logs {selectedModel ? `(${selectedModel.name})` : ''}</h3>
               </div>
               <button className="secondary-btn" onClick={handleClearLogs} style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Trash2 size={12} /> Clear Logs
               </button>
             </div>
             <div className="terminal">
-              {logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)}
+              {!selectedModel ? (
+                 <div style={{ color: 'var(--text-muted)' }}>Select an active model to view its logs...</div>
+              ) : (
+                 logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)
+              )}
               <div ref={logsEndRef} />
             </div>
           </div>
         </div>
 
-        {/* RIGHT PANE: Side panel for configuration */}
+        {/* RIGHT PANE */}
         <div className="right-pane">
-          {/* Header */}
           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
             <Cpu size={20} color="var(--text-muted)" />
             <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
@@ -360,7 +382,6 @@ function App() {
             </h2>
           </div>
           
-          {/* Tabs */}
           <div className="tab-header">
             <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')} title="Info">
               <Info size={16} /> <span className="tab-label">Info</span>
@@ -379,7 +400,6 @@ function App() {
             </div>
           </div>
 
-          {/* Tab Contents */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             
             {activeTab === 'info' && (
@@ -396,7 +416,7 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu to view information.</div>
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu or loaded models to view information.</div>
               )
             )}
 
@@ -471,7 +491,7 @@ function App() {
                   </div>
                 </>
               ) : (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model from the top menu to configure load settings.</div>
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure load settings.</div>
               )
             )}
 
@@ -508,10 +528,12 @@ function App() {
                                 const newServers = [...config.rpcServers];
                                 newServers[idx] = { ...newServers[idx], active: !newServers[idx].active };
                                 setConfig({ ...config, rpcServers: newServers });
+                                setRememberSettings(false);
                               }}></div>
                               <button style={{ background: 'transparent', color: 'var(--danger)', display: 'flex' }} onClick={() => {
                                 const newServers = config.rpcServers.filter((_, i) => i !== idx);
                                 setConfig({ ...config, rpcServers: newServers });
+                                setRememberSettings(false);
                               }}>
                                 <X size={14} />
                               </button>
@@ -591,7 +613,6 @@ function App() {
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>Fetching telemetry...</div>
                 ) : (
                   <>
-                    {/* CPU Card */}
                     <div className="box" style={{ padding: '16px' }}>
                        <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.cpu_name}</h4>
                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -606,7 +627,6 @@ function App() {
                        </div>
                     </div>
 
-                    {/* RAM Card */}
                     <div className="box" style={{ padding: '16px' }}>
                        <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -616,7 +636,6 @@ function App() {
                        </div>
                     </div>
 
-                    {/* GPU Cards */}
                     {telemetry.gpus.length === 0 ? (
                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
                     ) : (
@@ -654,26 +673,30 @@ function App() {
             )}
           </div>
 
-          {/* Start Server Button */}
           {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && (
-            (!activeServer.isRunning) ? (
+            (!isModelRunning || isConfigDirty()) ? (
               <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
-                <button className="primary-btn" style={{ width: '100%', padding: '12px' }} onClick={handleStartServer}>
-                  Load Model
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={rememberSettings}
+                    onChange={(e) => setRememberSettings(e.target.checked)}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Remember model settings</span>
+                </label>
+                <button 
+                  className="primary-btn" 
+                  style={{ width: '100%', padding: '12px', background: isModelRunning ? 'var(--accent-hover)' : '' }} 
+                  onClick={handleStartServer}
+                >
+                  {isModelRunning ? 'Reload to Apply Changes' : 'Load Model'}
                 </button>
               </div>
-            ) : (isConfigDirty() ? (
-              <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
-                <button className="primary-btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-hover)' }} onClick={handleStartServer}>
-                  Reload to Apply Changes
-                </button>
-              </div>
-            ) : null)
+            ) : null
           )}
         </div>
       </div>
 
-      {/* Model Selection Modal */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div className="box" style={{ width: '600px', maxHeight: '70vh', background: 'var(--bg-main)' }}>
@@ -702,12 +725,11 @@ function App() {
         </div>
       )}
 
-      {/* Server Settings Modal */}
       {isServerSettingsOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div className="box" style={{ width: '450px', background: 'var(--bg-main)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Server Settings</h2>
+              <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Global Proxy Settings</h2>
               <button style={{ background: 'transparent', color: 'var(--text-muted)' }} onClick={() => setIsServerSettingsOpen(false)}>
                 <X size={20} />
               </button>
@@ -715,7 +737,7 @@ function App() {
             
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-row">
-                <span>Server Port</span>
+                <span>Proxy Port</span>
                 <input 
                   type="number" 
                   min="1" 
@@ -743,16 +765,6 @@ function App() {
               <div className="form-row">
                 <span>Enable CORS</span>
                 <div className={`toggle-switch ${serverSettings.cors ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, cors: !serverSettings.cors})}></div>
-              </div>
-
-              <div className="form-row">
-                <span>Just-in-Time model loading</span>
-                <div className={`toggle-switch ${serverSettings.jitModelLoading ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, jitModelLoading: !serverSettings.jitModelLoading})}></div>
-              </div>
-
-              <div className="form-row">
-                <span>Auto unload model when unused</span>
-                <div className={`toggle-switch ${serverSettings.autoUnload ? 'active' : ''}`} onClick={() => setServerSettings({...serverSettings, autoUnload: !serverSettings.autoUnload})}></div>
               </div>
             </div>
           </div>

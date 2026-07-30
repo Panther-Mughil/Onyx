@@ -14,6 +14,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tower_http::cors::CorsLayer;
 use sysinfo::System;
+use std::collections::HashMap;
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -80,10 +81,17 @@ struct NetworkConfig {
 }
 
 #[derive(Serialize)]
-struct StatusResponse {
-    is_running: bool,
-    model_id: Option<String>,
+#[serde(rename_all = "camelCase")]
+struct ServerInfo {
+    model_id: String,
+    port: u16,
     is_ready: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StatusResponse {
+    servers: Vec<ServerInfo>,
 }
 
 #[derive(Serialize, Clone)]
@@ -105,11 +113,17 @@ struct TelemetryResponse {
     gpus: Vec<GpuTelemetry>,
 }
 
+struct ActiveServer {
+    process: Option<Child>,
+    model_id: String,
+    port: u16,
+    is_ready: bool,
+    logs: Vec<String>,
+}
+
 struct AppState {
-    server_process: Mutex<Option<Child>>,
-    active_model_id: Mutex<Option<String>>,
-    server_logs: Mutex<Vec<String>>,
-    is_model_ready: Mutex<bool>,
+    active_servers: Mutex<HashMap<String, ActiveServer>>,
+    next_port: Mutex<u16>,
     sys: Mutex<System>,
     proxy_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     proxy_addr: Mutex<Option<String>>,
@@ -117,6 +131,18 @@ struct AppState {
     benchmark_logs: Mutex<Vec<String>>,
     benchmark_pp: Mutex<Option<f32>>,
     benchmark_tg: Mutex<Option<f32>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LogsQuery {
+    model_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StopRequest {
+    model_id: String,
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -174,7 +200,6 @@ async fn update_network_config(
     
     let mut proxy_addr_lock = state.proxy_addr.lock().await;
     
-    // Check if already bound to the requested address
     if let Some(current_addr) = proxy_addr_lock.as_ref() {
         if current_addr == &bind_addr {
             return Json(StartResponse {
@@ -186,7 +211,6 @@ async fn update_network_config(
     
     let mut proxy_lock = state.proxy_task.lock().await;
     
-    // Abort existing proxy if it exists and allow OS to reclaim socket
     if let Some(task) = proxy_lock.take() {
         task.abort();
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -211,21 +235,12 @@ async fn update_network_config(
             *proxy_lock = Some(task);
             *proxy_addr_lock = Some(bind_addr.clone());
             
-            {
-                let mut logs = state.server_logs.lock().await;
-                logs.push(format!(" I  TCP Reverse Proxy dynamically re-routed: now serving on {}", bind_addr));
-            }
-            
             Json(StartResponse {
                 success: true,
                 message: format!("Proxy running on {}", bind_addr),
             })
         },
         Err(e) => {
-            {
-                let mut logs = state.server_logs.lock().await;
-                logs.push(format!(" E  Failed to bind TCP proxy to {}: {}", bind_addr, e));
-            }
             Json(StartResponse {
                 success: false,
                 message: format!("Failed to bind {}: {}", bind_addr, e),
@@ -237,43 +252,52 @@ async fn update_network_config(
 async fn get_server_status(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<StatusResponse> {
-    let mut process_lock = state.server_process.lock().await;
-    let mut model_lock = state.active_model_id.lock().await;
-    let mut ready_lock = state.is_model_ready.lock().await;
+    let mut servers_map = state.active_servers.lock().await;
     
-    let mut is_running = false;
-    
-    if let Some(child) = process_lock.as_mut() {
-        if let Ok(Some(_)) = child.try_wait() {
-            // Process crashed or exited (e.g. Out of Memory error)
-            // Auto-eject and clean up the state
-            *process_lock = None;
-            *model_lock = None;
-            *ready_lock = false;
-        } else {
-            is_running = true;
+    let mut to_remove = Vec::new();
+    for (model_id, server) in servers_map.iter_mut() {
+        if let Some(child) = server.process.as_mut() {
+            if let Ok(Some(_)) = child.try_wait() {
+                to_remove.push(model_id.clone());
+            }
         }
     }
     
-    Json(StatusResponse {
-        is_running,
-        model_id: model_lock.clone(),
-        is_ready: *ready_lock,
-    })
+    for id in to_remove {
+        servers_map.remove(&id);
+    }
+    
+    let servers: Vec<ServerInfo> = servers_map.values().map(|s| {
+        ServerInfo {
+            model_id: s.model_id.clone(),
+            port: s.port,
+            is_ready: s.is_ready,
+        }
+    }).collect();
+    
+    Json(StatusResponse { servers })
 }
 
 async fn get_server_logs(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    axum::extract::Query(query): axum::extract::Query<LogsQuery>,
 ) -> Json<Vec<String>> {
-    let logs = state.server_logs.lock().await;
-    Json(logs.clone())
+    let servers = state.active_servers.lock().await;
+    if let Some(server) = servers.get(&query.model_id) {
+        Json(server.logs.clone())
+    } else {
+        Json(Vec::new())
+    }
 }
 
 async fn clear_server_logs(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<StopRequest>,
 ) -> Json<StartResponse> {
-    let mut logs = state.server_logs.lock().await;
-    logs.clear();
+    let mut servers = state.active_servers.lock().await;
+    if let Some(server) = servers.get_mut(&payload.model_id) {
+        server.logs.clear();
+    }
     Json(StartResponse {
         success: true,
         message: "Logs cleared".to_string(),
@@ -285,18 +309,20 @@ async fn start_server(
     Json(payload): Json<ServerConfig>,
 ) -> Json<StartResponse> {
     
-    let mut process_lock = state.server_process.lock().await;
-    *state.is_model_ready.lock().await = false;
+    let mut servers_map = state.active_servers.lock().await;
     
-    // Aggressive Windows cleanup for zombie processes
-    let _ = std::process::Command::new("taskkill")
-        .args(["/F", "/IM", "llama-server.exe", "/T"])
-        .output();
-
-    if let Some(mut child) = process_lock.take() {
-        let _ = child.kill().await;
+    if servers_map.contains_key(&payload.model_id) {
+        if let Some(mut existing) = servers_map.remove(&payload.model_id) {
+            if let Some(mut child) = existing.process.take() {
+                let _ = child.kill().await;
+            }
+        }
     }
-
+    
+    let mut next_port_lock = state.next_port.lock().await;
+    let port = *next_port_lock;
+    *next_port_lock += 1;
+    
     let model_path = format!("../models/{}", payload.model_id);
     let binary_path = "../bin/llama-server.exe";
 
@@ -318,7 +344,7 @@ async fn start_server(
         "--cache-type-k".to_string(), payload.k_cache_quant.clone(),
         "--cache-type-v".to_string(), payload.v_cache_quant.clone(),
         "--host".to_string(), "127.0.0.1".to_string(),
-        "--port".to_string(), "8080".to_string(),
+        "--port".to_string(), port.to_string(),
     ];
 
     if let Some(servers) = &payload.rpc_servers {
@@ -340,7 +366,6 @@ async fn start_server(
     args.push("--flash-attn".to_string());
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
 
-    // Spawn natively and pipe outputs
     let mut child = Command::new(binary_path)
         .args(args)
         .stdout(Stdio::piped())
@@ -351,47 +376,55 @@ async fn start_server(
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
     
-    // Clear old logs
-    {
-        let mut logs = state.server_logs.lock().await;
-        logs.clear();
-    }
+    let server_state = ActiveServer {
+        process: Some(child),
+        model_id: payload.model_id.clone(),
+        port,
+        is_ready: false,
+        logs: Vec::new(),
+    };
+    
+    servers_map.insert(payload.model_id.clone(), server_state);
+    drop(servers_map); 
 
-    // Spawn tasks to capture logs
+    let model_id_clone = payload.model_id.clone();
     let state1 = state.clone();
     tokio::spawn(async move {
         let mut reader = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = reader.next_line().await {
-            let mut logs = state1.server_logs.lock().await;
-            logs.push(line.clone());
-            if logs.len() > 1000 { logs.remove(0); }
-            
-            if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                let mut ready = state1.is_model_ready.lock().await;
-                *ready = true;
+            let mut servers = state1.active_servers.lock().await;
+            if let Some(server) = servers.get_mut(&model_id_clone) {
+                server.logs.push(line.clone());
+                if server.logs.len() > 1000 { server.logs.remove(0); }
+                
+                if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                    server.is_ready = true;
+                }
+            } else {
+                break;
             }
         }
     });
 
+    let model_id_clone2 = payload.model_id.clone();
     let state2 = state.clone();
     tokio::spawn(async move {
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
-            let mut logs = state2.server_logs.lock().await;
-            logs.push(line.clone());
-            if logs.len() > 1000 { logs.remove(0); }
-            
-            if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                let mut ready = state2.is_model_ready.lock().await;
-                *ready = true;
+            let mut servers = state2.active_servers.lock().await;
+            if let Some(server) = servers.get_mut(&model_id_clone2) {
+                server.logs.push(line.clone());
+                if server.logs.len() > 1000 { server.logs.remove(0); }
+                
+                if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                    server.is_ready = true;
+                }
+            } else {
+                break;
             }
         }
     });
 
-    *process_lock = Some(child);
-    let mut active_model = state.active_model_id.lock().await;
-    *active_model = Some(payload.model_id);
-    
     Json(StartResponse {
         success: true,
         message: "llama-server started".to_string(),
@@ -400,28 +433,24 @@ async fn start_server(
 
 async fn stop_server(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<StopRequest>,
 ) -> Json<StartResponse> {
-    let mut process_lock = state.server_process.lock().await;
-    let mut model_lock = state.active_model_id.lock().await;
-    let mut ready_lock = state.is_model_ready.lock().await;
+    let mut servers_map = state.active_servers.lock().await;
     
-    // Aggressive Windows cleanup
-    let _ = std::process::Command::new("taskkill")
-        .args(["/F", "/IM", "llama-server.exe", "/T"])
-        .output();
-
-    if let Some(mut child) = process_lock.take() {
-        let _ = child.kill().await;
+    if let Some(mut server) = servers_map.remove(&payload.model_id) {
+        if let Some(mut child) = server.process.take() {
+            let _ = child.kill().await;
+        }
+        Json(StartResponse {
+            success: true,
+            message: "Server stopped successfully".to_string(),
+        })
+    } else {
+        Json(StartResponse {
+            success: false,
+            message: "Server not running".to_string(),
+        })
     }
-    
-    *process_lock = None;
-    *model_lock = None;
-    *ready_lock = false;
-    
-    Json(StartResponse {
-        success: true,
-        message: "Server stopped successfully".to_string(),
-    })
 }
 
 async fn get_benchmark_status(
@@ -463,22 +492,21 @@ async fn run_benchmark(
         *is_running = true;
     }
     
-    // Clean up previous results
     state.benchmark_logs.lock().await.clear();
     *state.benchmark_pp.lock().await = None;
     *state.benchmark_tg.lock().await = None;
 
-    // Shutdown active server safely
     {
-        let mut process_lock = state.server_process.lock().await;
+        let mut servers_map = state.active_servers.lock().await;
+        for (_, server) in servers_map.iter_mut() {
+            if let Some(mut child) = server.process.take() {
+                let _ = child.kill().await;
+            }
+        }
+        servers_map.clear();
         let _ = std::process::Command::new("taskkill")
             .args(["/F", "/IM", "llama-server.exe", "/T"])
             .output();
-        if let Some(mut child) = process_lock.take() {
-            let _ = child.kill().await;
-        }
-        *state.active_model_id.lock().await = None;
-        *state.is_model_ready.lock().await = false;
     }
 
     let model_path = format!("../models/{}", payload.model_id);
@@ -534,7 +562,6 @@ async fn run_benchmark(
                 let mut logs = state_clone_out.benchmark_logs.lock().await;
                 logs.push(line.clone());
                 
-                // Parse for pp and tg
                 if line.contains("|") && (line.contains("pp512") || line.contains("tg128")) {
                     let parts: Vec<&str> = line.split('|').collect();
                     if parts.len() > 6 {
@@ -624,13 +651,11 @@ async fn main() {
     let _ = fs::create_dir_all("../models");
 
     let mut sys = System::new_all();
-    sys.refresh_all(); // Initial warm-up for accurate usage
+    sys.refresh_all();
 
     let shared_state = Arc::new(AppState {
-        server_process: Mutex::new(None),
-        active_model_id: Mutex::new(None),
-        server_logs: Mutex::new(Vec::new()),
-        is_model_ready: Mutex::new(false),
+        active_servers: Mutex::new(HashMap::new()),
+        next_port: Mutex::new(8080),
         sys: Mutex::new(sys),
         proxy_task: Mutex::new(None),
         proxy_addr: Mutex::new(None),
