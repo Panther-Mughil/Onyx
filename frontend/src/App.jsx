@@ -372,7 +372,14 @@ function App() {
                         background: isSelected ? 'rgba(34, 211, 238, 0.05)' : 'var(--bg-input)',
                         cursor: 'pointer',
                         transition: 'all 0.2s'
-                    }} onClick={() => { setSelectedModel(modelDetails); setActiveTab('load'); }}>
+                    }} onClick={() => { 
+                      if (isSelected) {
+                        setSelectedModel(null);
+                      } else {
+                        setSelectedModel(modelDetails); 
+                        setActiveTab('load'); 
+                      }
+                    }}>
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <div style={{ 
