@@ -11,7 +11,8 @@ use std::path::Path;
 use std::fs;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::process::{Child, Command};
+use tokio::process::Command;
+use command_group::AsyncCommandGroup;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tower_http::cors::CorsLayer;
@@ -125,7 +126,7 @@ struct TelemetryResponse {
 }
 
 struct ActiveServer {
-    process: Option<Child>,
+    process: Option<command_group::AsyncGroupChild>,
     model_id: String,
     port: u16,
     is_ready: bool,
@@ -571,7 +572,7 @@ async fn start_server(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .creation_flags(0x08000000) // CREATE_NO_WINDOW
-        .spawn()
+        .group_spawn()
     {
         Ok(child) => child,
         Err(e) => {
@@ -582,8 +583,8 @@ async fn start_server(
         }
     };
     
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
+    let stdout = child.inner().stdout.take().unwrap();
+    let stderr = child.inner().stderr.take().unwrap();
     
     let server_state = ActiveServer {
         process: Some(child),
@@ -725,7 +726,7 @@ async fn run_benchmark(
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .spawn()
+            .group_spawn()
         {
             Ok(child) => child,
             Err(e) => {
@@ -735,8 +736,8 @@ async fn run_benchmark(
             }
         };
 
-        let stdout = child.stdout.take().expect("Failed to open stdout");
-        let stderr = child.stderr.take().expect("Failed to open stderr");
+        let stdout = child.inner().stdout.take().expect("Failed to open stdout");
+        let stderr = child.inner().stderr.take().expect("Failed to open stderr");
 
         let state_clone_out = shared_state.clone();
         tokio::spawn(async move {

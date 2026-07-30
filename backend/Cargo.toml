@@ -13,3 +13,7 @@ sysinfo = "0.30"
 nvml-wrapper = "0.10"
 reqwest = { version = "0.13.4", features = ["json", "stream"] }
 chrono = "0.4.45"
+command-group = { version = "5.0.1", features = ["with-tokio"] }
+
+[build-dependencies]
+winres = "0.1"
