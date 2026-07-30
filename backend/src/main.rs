@@ -137,7 +137,6 @@ struct ActiveServer {
 
 struct AppState {
     active_servers: Mutex<HashMap<String, ActiveServer>>,
-    next_port: Mutex<u16>,
     sys: Mutex<System>,
     proxy_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     proxy_addr: Mutex<Option<String>>,
@@ -841,7 +840,6 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         active_servers: Mutex::new(HashMap::new()),
-        next_port: Mutex::new(8080),
         sys: Mutex::new(sys),
         proxy_task: Mutex::new(None),
         proxy_addr: Mutex::new(None),
