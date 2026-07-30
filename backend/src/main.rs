@@ -250,7 +250,8 @@ async fn proxy_handler(
 ) -> Response {
     let (parts, body) = req.into_parts();
     
-    let body_bytes = match axum::body::to_bytes(body, usize::MAX).await {
+    const MAX_BODY_SIZE: usize = 100 * 1024 * 1024; // 100 MB
+    let body_bytes = match axum::body::to_bytes(body, MAX_BODY_SIZE).await {
         Ok(b) => b,
         Err(_) => return (axum::http::StatusCode::BAD_REQUEST, "Failed to read body").into_response(),
     };
@@ -428,6 +429,44 @@ async fn clear_server_logs(
     })
 }
 
+fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
+    reader: R,
+    state: Arc<AppState>,
+    model_id: String,
+) {
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(reader).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let mut servers = state.active_servers.lock().await;
+            if let Some(server) = servers.get_mut(&model_id) {
+                server.logs.push(line.clone());
+                if server.logs.len() > 1000 { server.logs.remove(0); }
+
+                if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                    server.is_ready = true;
+                }
+
+                if line.contains("llm_load_tensors:") {
+                    if let Some(idx) = line.find('%') {
+                        if let Some(start) = line[..idx].rfind(' ') {
+                            if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
+                                server.progress = pct;
+                            }
+                        }
+                    }
+                }
+
+                if line.to_lowercase().contains("error") {
+                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                    state.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id, line));
+                }
+            } else {
+                break;
+            }
+        }
+    });
+}
+
 async fn start_server(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<ServerConfig>,
@@ -527,12 +566,21 @@ async fn start_server(
     args.push("--flash-attn".to_string());
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
 
-    let mut child = Command::new(binary_path)
+    let mut child = match Command::new(binary_path)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .spawn()
-        .expect("Failed to start llama-server");
+    {
+        Ok(child) => child,
+        Err(e) => {
+            return Json(StartResponse {
+                success: false,
+                message: format!("Failed to start llama-server: {}", e),
+            });
+        }
+    };
     
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
@@ -549,73 +597,8 @@ async fn start_server(
     servers_map.insert(payload.model_id.clone(), server_state);
     drop(servers_map); 
 
-    let model_id_clone = payload.model_id.clone();
-    let state1 = state.clone();
-    tokio::spawn(async move {
-        let mut reader = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            let mut servers = state1.active_servers.lock().await;
-            if let Some(server) = servers.get_mut(&model_id_clone) {
-                server.logs.push(line.clone());
-                if server.logs.len() > 1000 { server.logs.remove(0); }
-                
-                if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                    server.is_ready = true;
-                }
-                
-                if line.contains("llm_load_tensors:") {
-                    if let Some(idx) = line.find('%') {
-                        if let Some(start) = line[..idx].rfind(' ') {
-                            if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
-                                server.progress = pct;
-                            }
-                        }
-                    }
-                }
-                
-                if line.to_lowercase().contains("error") {
-                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                    state1.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id_clone, line));
-                }
-            } else {
-                break;
-            }
-        }
-    });
-
-    let model_id_clone2 = payload.model_id.clone();
-    let state2 = state.clone();
-    tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            let mut servers = state2.active_servers.lock().await;
-            if let Some(server) = servers.get_mut(&model_id_clone2) {
-                server.logs.push(line.clone());
-                if server.logs.len() > 1000 { server.logs.remove(0); }
-                
-                if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                    server.is_ready = true;
-                }
-                
-                if line.contains("llm_load_tensors:") {
-                    if let Some(idx) = line.find('%') {
-                        if let Some(start) = line[..idx].rfind(' ') {
-                            if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
-                                server.progress = pct;
-                            }
-                        }
-                    }
-                }
-                
-                if line.to_lowercase().contains("error") {
-                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                    state2.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id_clone2, line));
-                }
-            } else {
-                break;
-            }
-        }
-    });
+    spawn_log_reader(stdout, state.clone(), payload.model_id.clone());
+    spawn_log_reader(stderr, state.clone(), payload.model_id.clone());
 
     Json(StartResponse {
         success: true,
@@ -737,12 +720,20 @@ async fn run_benchmark(
     let shared_state = state.clone();
     
     tokio::spawn(async move {
-        let mut child = Command::new(binary_path)
+        let mut child = match Command::new(binary_path)
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .spawn()
-            .expect("Failed to start llama-bench");
+        {
+            Ok(child) => child,
+            Err(e) => {
+                eprintln!("Failed to start llama-bench: {}", e);
+                *shared_state.benchmark_running.lock().await = false;
+                return;
+            }
+        };
 
         let stdout = child.stdout.take().expect("Failed to open stdout");
         let stderr = child.stderr.take().expect("Failed to open stderr");
