@@ -13,7 +13,7 @@ const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
 
 function App() {
   const [backendStatus, setBackendStatus] = useState({ status: 'checking', message: '' });
-  const [activeServers, setActiveServers] = useState([]); // Array of { model_id, port, is_ready }
+  const [activeServers, setActiveServers] = useState([]); // Array of { modelId, port, isReady }
   const [logs, setLogs] = useState([]);
   
   // Modals & Navigation
@@ -248,7 +248,7 @@ function App() {
     return "";
   };
 
-  const isModelRunning = selectedModel ? activeServers.some(s => s.model_id === selectedModel.id) : false;
+  const isModelRunning = selectedModel ? activeServers.some(s => s.modelId === selectedModel.id) : false;
 
   return (
     <div className="app-container">
@@ -290,12 +290,12 @@ function App() {
             <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {activeServers.length > 0 ? (
                 activeServers.map(server => {
-                  const modelDetails = models.find(m => m.id === server.model_id);
+                  const modelDetails = models.find(m => m.id === server.modelId);
                   if (!modelDetails) return null;
-                  const isSelected = selectedModel && selectedModel.id === server.model_id;
+                  const isSelected = selectedModel && selectedModel.id === server.modelId;
                   
                   return (
-                    <div key={server.model_id} style={{ 
+                    <div key={server.modelId} style={{ 
                         border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-color)', 
                         padding: '16px', 
                         borderRadius: '12px',
@@ -306,8 +306,8 @@ function App() {
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <div style={{ 
-                            border: `1px solid ${server.is_ready ? 'var(--ready-green)' : '#eab308'}`, 
-                            color: server.is_ready ? 'var(--ready-green)' : '#eab308', 
+                            border: `1px solid ${server.isReady ? 'var(--ready-green)' : '#eab308'}`, 
+                            color: server.isReady ? 'var(--ready-green)' : '#eab308', 
                             padding: '2px 8px', 
                             borderRadius: '4px', 
                             fontSize: '10px', 
@@ -316,15 +316,15 @@ function App() {
                             alignItems: 'center',
                             gap: '6px'
                           }}>
-                          {!server.is_ready && (
+                          {!server.isReady && (
                              <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                           )}
-                          {server.is_ready ? 'READY' : 'LOADING...'}
+                          {server.isReady ? 'READY' : 'LOADING...'}
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Port: <strong>{server.port}</strong></div>
                       </div>
 
-                      {!server.is_ready && (
+                      {!server.isReady && (
                         <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden', marginBottom: '12px', position: 'relative' }}>
                            <div style={{ position: 'absolute', width: '30%', height: '100%', background: '#eab308', animation: 'indeterminate 1.5s infinite linear' }}></div>
                         </div>
@@ -336,7 +336,7 @@ function App() {
                         </div>
                         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Size <strong style={{color: 'var(--text-main)', marginLeft: '4px'}}>{modelDetails.size_gb.toFixed(2)} GB</strong></span>
-                          <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => { e.stopPropagation(); handleStopServer(server.model_id); }}>
+                          <button className="secondary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => { e.stopPropagation(); handleStopServer(server.modelId); }}>
                             <Square size={14} /> Eject
                           </button>
                         </div>
