@@ -551,7 +551,13 @@ async fn start_server(
     if let Some(servers) = &payload.rpc_servers {
         let active_servers: Vec<String> = servers.iter()
             .filter(|s| s.active)
-            .map(|s| s.address.clone())
+            .map(|s| {
+                if s.address.contains(':') {
+                    s.address.clone()
+                } else {
+                    format!("{}:50052", s.address)
+                }
+            })
             .collect();
             
         if !active_servers.is_empty() {
@@ -561,8 +567,13 @@ async fn start_server(
     }
 
     if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
-    if payload.keep_in_memory { args.push("--mlock".to_string()); }
-    if !payload.mmap { args.push("--no-mmap".to_string()); }
+    if payload.keep_in_memory { 
+        args.push("--load-mode".to_string()); 
+        args.push("mlock".to_string()); 
+    } else if !payload.mmap { 
+        args.push("--load-mode".to_string()); 
+        args.push("none".to_string()); 
+    }
     
     args.push("--flash-attn".to_string());
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
@@ -703,7 +714,13 @@ async fn run_benchmark(
     if let Some(servers) = &payload.rpc_servers {
         let active_servers: Vec<String> = servers.iter()
             .filter(|s| s.active)
-            .map(|s| s.address.clone())
+            .map(|s| {
+                if s.address.contains(':') {
+                    s.address.clone()
+                } else {
+                    format!("{}:50052", s.address)
+                }
+            })
             .collect();
             
         if !active_servers.is_empty() {
