@@ -10,7 +10,9 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     echo "Error: ./bin/ggml-rpc-server not found!"
     echo "Please run ./build_llama.sh first to compile the binaries."
     exit 1
-fi
+# Set dynamic library paths so the binary can find the .dylib / .so files in the bin folder
+export DYLD_LIBRARY_PATH="$(pwd)/bin:$DYLD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$(pwd)/bin:$LD_LIBRARY_PATH"
 
 echo "Starting RPC Server on $HOST:$PORT..."
 echo "To connect to this worker from your main Onyx instance:"
