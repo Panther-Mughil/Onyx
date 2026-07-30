@@ -14,7 +14,7 @@ echo [1/4] Cloning latest llama.cpp repository...
 git clone https://github.com/ggerganov/llama.cpp.git
 cd llama.cpp
 
-set CMAKE_ARGS=-DGGML_RPC=ON
+set CMAKE_ARGS=-DGGML_RPC=ON -DGGML_BLAS=OFF
 if /I "%USE_CUDA%"=="Y" set CMAKE_ARGS=%CMAKE_ARGS% -DGGML_CUDA=ON
 
 echo.
