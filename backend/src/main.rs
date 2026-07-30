@@ -2,6 +2,8 @@ use axum::{
     routing::{get, post},
     Router,
     Json,
+    extract::Request,
+    response::{Response, IntoResponse},
 };
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -191,6 +193,77 @@ async fn get_local_models() -> Json<Vec<Model>> {
     Json(models)
 }
 
+async fn proxy_handler(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    req: Request,
+) -> Response {
+    let (parts, body) = req.into_parts();
+    
+    let body_bytes = match axum::body::to_bytes(body, usize::MAX).await {
+        Ok(b) => b,
+        Err(_) => return (axum::http::StatusCode::BAD_REQUEST, "Failed to read body").into_response(),
+    };
+    
+    let mut target_port = 8080;
+    let mut found_target = false;
+    
+    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+        if let Some(model_str) = json.get("model").and_then(|m| m.as_str()) {
+            let servers = state.active_servers.lock().await;
+            if let Some(server) = servers.get(model_str) {
+                target_port = server.port;
+                found_target = true;
+            }
+            if !found_target {
+                for (id, server) in servers.iter() {
+                    if id.starts_with(model_str) {
+                        target_port = server.port;
+                        found_target = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    if !found_target {
+        let servers = state.active_servers.lock().await;
+        if let Some(first) = servers.values().next() {
+            target_port = first.port;
+        } else {
+            return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "No active models").into_response();
+        }
+    }
+
+    let client = reqwest::Client::new();
+    let uri = format!("http://127.0.0.1:{}{}", target_port, parts.uri.path_and_query().map(|pq| pq.as_str()).unwrap_or(""));
+    
+    let mut req_builder = client.request(parts.method, uri);
+    for (k, v) in parts.headers.iter() {
+        if k != axum::http::header::HOST {
+            req_builder = req_builder.header(k, v);
+        }
+    }
+    req_builder = req_builder.body(reqwest::Body::from(body_bytes));
+
+    match req_builder.send().await {
+        Ok(response) => {
+            let mut axum_res = Response::builder().status(response.status());
+            if let Some(headers) = axum_res.headers_mut() {
+                for (k, v) in response.headers().iter() {
+                    headers.insert(k.clone(), v.clone());
+                }
+            }
+            let stream = response.bytes_stream();
+            let body = axum::body::Body::from_stream(stream);
+            axum_res.body(body).unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to build response").into_response())
+        }
+        Err(e) => {
+            (axum::http::StatusCode::BAD_GATEWAY, format!("Bad Gateway: {}", e)).into_response()
+        }
+    }
+}
+
 async fn update_network_config(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<NetworkConfig>,
@@ -216,21 +289,16 @@ async fn update_network_config(
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     }
     
-    let target_addr = "127.0.0.1:8080".to_string();
+    let app = Router::new()
+        .fallback(proxy_handler)
+        .with_state(state.clone());
     
     let listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
     
     match listener_result {
         Ok(listener) => {
             let task = tokio::spawn(async move {
-                while let Ok((mut inbound, _)) = listener.accept().await {
-                    let target = target_addr.clone();
-                    tokio::spawn(async move {
-                        if let Ok(mut outbound) = tokio::net::TcpStream::connect(target).await {
-                            let _ = tokio::io::copy_bidirectional(&mut inbound, &mut outbound).await;
-                        }
-                    });
-                }
+                let _ = axum::serve(listener, app).await;
             });
             *proxy_lock = Some(task);
             *proxy_addr_lock = Some(bind_addr.clone());
