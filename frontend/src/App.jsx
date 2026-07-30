@@ -552,12 +552,11 @@ function App() {
               selectedModel ? (
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div className="form-section">
-                    <div className="form-section-title"><Network size={16}/> Device Allocation (Local & RPC)</div>
-                    <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', marginTop: '16px', color: 'var(--text-main)' }}>Local GPUs</h4>
+                    <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', marginTop: '4px', color: 'var(--text-main)' }}>GPUs</h4>
                     {(!config.localGpus || config.localGpus.length === 0) ? (
-                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No local GPUs detected yet.</div>
+                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No GPUs detected.</div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '32px' }}>
                         {config.localGpus.map((gpu, idx) => (
                           <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
                             <span style={{ fontSize: '13px', fontWeight: '500' }}>GPU {gpu.index}: <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span></span>
