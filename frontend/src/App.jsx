@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Play, Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, ChevronRight, X, ChevronDown, CheckCircle2, Zap, Network, Plus, Gauge, BookOpen, Server, Download, Power } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
+import { Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Zap, Network, Plus, Gauge, BookOpen, Power } from 'lucide-react';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -108,7 +107,6 @@ function App() {
   const [rememberSettings, setRememberSettings] = useState(false);
 
 
-
   const fetchStatusAndLogs = () => {
     fetch('http://127.0.0.1:3001/api/server/status')
       .then(res => res.json())
@@ -128,10 +126,7 @@ function App() {
       setLogs([]);
     }
   }, [selectedModel, activeServers]);
-  const activeServersRef = useRef(activeServers);
-  useEffect(() => {
-    activeServersRef.current = activeServers;
-  }, [activeServers]);
+
 
   useEffect(() => {
     if (telemetry && telemetry.gpus && (!config.localGpus || config.localGpus.length === 0)) {
@@ -214,9 +209,9 @@ function App() {
     fetch('http://127.0.0.1:3001/api/server/network', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(serverSettings)
+      body: JSON.stringify({ port: serverSettings.port, networkHost: serverSettings.networkHost })
     }).catch(err => console.error("Failed to update network proxy", err));
-  }, [serverSettings]);
+  }, [serverSettings.port, serverSettings.networkHost]);
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -234,7 +229,23 @@ function App() {
 
   const isConfigDirty = () => {
     if (!selectedModel || !appliedConfigs[selectedModel.id]) return false;
-    return JSON.stringify(config) !== JSON.stringify(appliedConfigs[selectedModel.id]);
+    const current = config;
+    const applied = appliedConfigs[selectedModel.id];
+    
+    // Deep equality check ignoring key order
+    const keys1 = Object.keys(current);
+    const keys2 = Object.keys(applied);
+    
+    if (keys1.length !== keys2.length) return true;
+    
+    for (let key of keys1) {
+      if (typeof current[key] === 'object' && current[key] !== null) {
+        if (JSON.stringify(current[key]) !== JSON.stringify(applied[key])) return true;
+      } else if (current[key] !== applied[key]) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const handleAddRpc = () => {
@@ -811,8 +822,7 @@ function App() {
             )}
           </div>
 
-          {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && (
-            (!isModelRunning || isConfigDirty()) ? (
+          {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && !isModelRunning && (
               <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
                   <input 
@@ -824,13 +834,32 @@ function App() {
                 </label>
                 <button 
                   className="primary-btn" 
-                  style={{ width: '100%', padding: '12px', background: isModelRunning ? 'var(--accent-hover)' : '' }} 
+                  style={{ width: '100%', padding: '12px' }} 
                   onClick={handleStartServer}
                 >
-                  {isModelRunning ? 'Reload to Apply Changes' : 'Load Model'}
+                  Load Model
                 </button>
               </div>
-            ) : null
+          )}
+
+          {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && isModelRunning && isConfigDirty() && (
+              <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={rememberSettings}
+                    onChange={(e) => setRememberSettings(e.target.checked)}
+                  />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Remember model settings</span>
+                </label>
+                <button 
+                  className="primary-btn" 
+                  style={{ width: '100%', padding: '12px', background: 'var(--accent-hover)' }} 
+                  onClick={handleStartServer}
+                >
+                  Reload to Apply Changes
+                </button>
+              </div>
           )}
         </div>
       </div>
