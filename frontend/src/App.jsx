@@ -44,6 +44,20 @@ function App() {
     }).catch(() => {});
   };
 
+  const handleSelectModel = (model) => {
+    setSelectedModel(model);
+    if (model) {
+      const savedConfig = serverSettings.savedModelConfigs?.[model.id];
+      if (savedConfig) {
+        setConfig(savedConfig);
+        setRememberSettings(true);
+      } else {
+        setConfig(initialConfig);
+        setRememberSettings(false);
+      }
+    }
+  };
+
   const toggleProxy = () => {
     if (isProxyRunning) {
       fetch('http://127.0.0.1:3001/api/server/proxy/stop', { method: 'POST' })
@@ -87,18 +101,7 @@ function App() {
   const [config, setConfig] = useState(initialConfig);
   const [rememberSettings, setRememberSettings] = useState(false);
 
-  useEffect(() => {
-    if (selectedModel) {
-      const savedConfig = serverSettings.savedModelConfigs?.[selectedModel.id];
-      if (savedConfig) {
-        setConfig(savedConfig);
-        setRememberSettings(true);
-      } else {
-        setConfig(initialConfig);
-        setRememberSettings(false);
-      }
-    }
-  }, [selectedModel]); // Do not add serverSettings.savedModelConfigs as a dependency to prevent overwriting ongoing user edits
+
 
   const fetchStatusAndLogs = () => {
     fetch('http://127.0.0.1:3001/api/server/status')
@@ -284,16 +287,20 @@ function App() {
         appliedConfigs: nextApplied
       });
       if (selectedModel && selectedModel.id === modelId) {
-        setSelectedModel(null);
+        handleSelectModel(null);
       }
     } catch(e) { console.error(e); }
   };
 
   const handleClearLogs = async () => {
     if (!selectedModel) {
-      setSystemLogs([]);
       try {
-        await fetch('http://127.0.0.1:3001/api/system/logs/clear', { method: 'POST' });
+        const res = await fetch('http://127.0.0.1:3001/api/system/logs/clear', { method: 'POST' });
+        if (res.ok) {
+           setSystemLogs([]);
+        } else {
+           alert("Failed to clear system logs! This usually means your backend is running an old version. Please close the terminal and run start.bat again.");
+        }
       } catch(e) { console.error(e); }
       return;
     }
@@ -380,9 +387,9 @@ function App() {
                         transition: 'all 0.2s'
                     }} onClick={() => { 
                       if (isSelected) {
-                        setSelectedModel(null);
+                        handleSelectModel(null);
                       } else {
-                        setSelectedModel(modelDetails); 
+                        handleSelectModel(modelDetails); 
                         setActiveTab('load'); 
                       }
                     }}>
@@ -828,7 +835,7 @@ function App() {
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>No models found.</div>
               ) : (
                 models.map(model => (
-                  <div key={model.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }} onClick={() => { setSelectedModel(model); setIsModalOpen(false); setActiveTab('load'); }}>
+                  <div key={model.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }} onClick={() => { handleSelectModel(model); setIsModalOpen(false); setActiveTab('load'); }}>
                     <div>
                       <div style={{ fontWeight: '600', marginBottom: '4px' }}>{model.name}</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{model.quantization} • {model.size_gb.toFixed(2)} GB</div>
