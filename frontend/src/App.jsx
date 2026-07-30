@@ -60,14 +60,8 @@ function App() {
 
   const logsEndRef = useRef(null);
 
-  const [appliedConfigs, setAppliedConfigs] = useState(() => {
-    const saved = localStorage.getItem('applied_configs');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  useEffect(() => {
-    localStorage.setItem('applied_configs', JSON.stringify(appliedConfigs));
-  }, [appliedConfigs]);
+  const appliedConfigs = serverSettings.appliedConfigs || {};
+  const savedModelConfigs = serverSettings.savedModelConfigs || {};
   const [newRpcInput, setNewRpcInput] = useState("");
   const [benchmarkStatus, setBenchmarkStatus] = useState({ isRunning: false, logs: [], pp: null, tg: null });
 
@@ -95,21 +89,16 @@ function App() {
 
   useEffect(() => {
     if (selectedModel) {
-      const savedConfig = localStorage.getItem(`model_config_${selectedModel.id}`);
+      const savedConfig = serverSettings.savedModelConfigs?.[selectedModel.id];
       if (savedConfig) {
-        try {
-          setConfig(JSON.parse(savedConfig));
-          setRememberSettings(true);
-        } catch (e) {
-          setConfig(initialConfig);
-          setRememberSettings(false);
-        }
+        setConfig(savedConfig);
+        setRememberSettings(true);
       } else {
         setConfig(initialConfig);
         setRememberSettings(false);
       }
     }
-  }, [selectedModel]);
+  }, [selectedModel]); // Do not add serverSettings.savedModelConfigs as a dependency to prevent overwriting ongoing user edits
 
   const fetchStatusAndLogs = () => {
     fetch('http://127.0.0.1:3001/api/server/status')
@@ -251,11 +240,14 @@ function App() {
   const handleStartServer = async () => {
     if (!selectedModel) return;
     try {
+      const newSavedConfigs = { ...savedModelConfigs };
       if (rememberSettings) {
-        localStorage.setItem(`model_config_${selectedModel.id}`, JSON.stringify(config));
+        newSavedConfigs[selectedModel.id] = config;
       } else {
-        localStorage.removeItem(`model_config_${selectedModel.id}`);
+        delete newSavedConfigs[selectedModel.id];
       }
+
+      const newAppliedConfigs = { ...appliedConfigs, [selectedModel.id]: config };
 
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
@@ -266,7 +258,11 @@ function App() {
       if (!result.success) {
         alert("Error starting server: " + result.message);
       } else {
-        setAppliedConfigs(prev => ({ ...prev, [selectedModel.id]: { ...config } }));
+        saveSettings({
+          ...serverSettings,
+          savedModelConfigs: newSavedConfigs,
+          appliedConfigs: newAppliedConfigs
+        });
       }
     } catch (err) {
       alert("Failed to reach backend.");
@@ -280,10 +276,12 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modelId })
       });
-      setAppliedConfigs(prev => {
-        const next = { ...prev };
-        delete next[modelId];
-        return next;
+      
+      const nextApplied = { ...appliedConfigs };
+      delete nextApplied[modelId];
+      saveSettings({
+        ...serverSettings,
+        appliedConfigs: nextApplied
       });
       if (selectedModel && selectedModel.id === modelId) {
         setSelectedModel(null);
