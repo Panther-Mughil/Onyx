@@ -663,26 +663,26 @@ function App() {
                         <Plus size={14} /> Add
                       </button>
                     </div>
-                  <div className="space-y-2 mt-2">
+                  <div style={{ marginTop: '8px' }}>
                     {(!serverSettings.rpcServers || serverSettings.rpcServers.length === 0) ? (
-                      <div className="text-center p-4 border border-dashed rounded text-[var(--text-muted)] text-sm">
+                      <div style={{ textAlign: 'center', padding: '16px', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--text-muted)', fontSize: '13px' }}>
                         No RPC workers added.
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-2">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {serverSettings.rpcServers.map((server, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-[var(--surface)] hover:border-[var(--primary)] transition-colors">
-                            <div className="flex items-center gap-3">
-                              <Network size={16} className={server.active ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
-                              <span className="font-mono text-sm">{server.address}</span>
+                          <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Network size={16} color={server.active ? "var(--primary)" : "var(--text-muted)"} />
+                              <span style={{ color: 'var(--text-main)', fontSize: '13px', fontFamily: 'monospace' }}>{server.address}</span>
                             </div>
-                            <div className="flex gap-2">
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                               <div className={`toggle-switch ${server.active ? 'active' : ''}`} onClick={() => {
                                 const newServers = [...serverSettings.rpcServers];
                                 newServers[idx].active = !newServers[idx].active;
                                 saveSettings({ ...serverSettings, rpcServers: newServers });
                               }}></div>
-                              <button className="p-1 hover:text-red-400 transition-colors" onClick={() => {
+                              <button style={{ background: 'transparent', color: 'var(--danger)', display: 'flex', border: 'none', cursor: 'pointer', padding: '4px' }} onClick={() => {
                                 const newServers = serverSettings.rpcServers.filter((_, i) => i !== idx);
                                 saveSettings({ ...serverSettings, rpcServers: newServers });
                               }}>
