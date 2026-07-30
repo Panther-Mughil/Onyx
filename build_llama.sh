@@ -12,7 +12,7 @@ cd llama.cpp
 
 echo "[2/4] Compiling with RPC support..."
 # llama.cpp now uses CMake exclusively.
-cmake -B build -DGGML_RPC=ON
+cmake -B build -DGGML_RPC=ON -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH="\$ORIGIN;@executable_path"
 cmake --build build --config Release -j
 
 echo "[3/4] Extracting binaries..."
