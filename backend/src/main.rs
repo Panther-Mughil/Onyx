@@ -454,9 +454,13 @@ async fn start_server(
         }
     }
     
-    let mut next_port_lock = state.next_port.lock().await;
-    let port = *next_port_lock;
-    *next_port_lock += 1;
+    let port = {
+        let mut p = 8080;
+        while servers_map.values().any(|s| s.port == p) {
+            p += 1;
+        }
+        p
+    };
     
     let model_path = format!("../models/{}", payload.model_id);
     let binary_path = "../bin/llama-server.exe";

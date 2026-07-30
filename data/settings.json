@@ -1,0 +1,7 @@
+{
+  "autoUnload": false,
+  "cors": true,
+  "jitModelLoading": false,
+  "networkHost": true,
+  "port": 1234
+}
