@@ -11,19 +11,21 @@ git clone https://github.com/ggerganov/llama.cpp.git
 cd llama.cpp
 
 echo "[2/4] Compiling with RPC support..."
-# GGML_RPC=1 enables the RPC server build for distributed inference
-make -j GGML_RPC=1
+# llama.cpp now uses CMake exclusively.
+cmake -B build -DGGML_RPC=ON
+cmake --build build --config Release -j
 
 echo "[3/4] Extracting binaries..."
 mkdir -p ../bin
 # Move the newly compiled binaries to the Onyx bin folder
-cp llama-server ../bin/ 2>/dev/null
-cp llama-bench ../bin/ 2>/dev/null
-cp llama-rpc-server ../bin/ 2>/dev/null
+# Depending on the generator, binaries could be in build/bin or build/bin/Release
+cp build/bin/Release/llama-server ../bin/ 2>/dev/null || cp build/bin/llama-server ../bin/ 2>/dev/null
+cp build/bin/Release/llama-bench ../bin/ 2>/dev/null || cp build/bin/llama-bench ../bin/ 2>/dev/null
+cp build/bin/Release/llama-rpc-server ../bin/ 2>/dev/null || cp build/bin/llama-rpc-server ../bin/ 2>/dev/null
 
-# Also grab any library files that might have been built (like metal/ggml libs)
-cp *.dylib ../bin/ 2>/dev/null
-cp *.so ../bin/ 2>/dev/null
+# Grab any shared libraries (like ggml.so or metal.dylib)
+cp build/bin/Release/*.dylib ../bin/ 2>/dev/null || cp build/bin/*.dylib ../bin/ 2>/dev/null
+cp build/bin/Release/*.so ../bin/ 2>/dev/null || cp build/bin/*.so ../bin/ 2>/dev/null
 
 cd ..
 
