@@ -29,7 +29,8 @@ function App() {
     networkHost: false,
     cors: true,
     jitModelLoading: false,
-    autoUnload: false
+    autoUnload: false,
+    rpcServers: []
   });
 
   const [isProxyRunning, setIsProxyRunning] = useState(true);
@@ -99,7 +100,6 @@ function App() {
     kCacheQuant: 'f16',
     vCacheQuant: 'f16',
     cpuMoe: false,
-    rpcServers: [],
     localGpus: []
   };
 
@@ -250,12 +250,11 @@ function App() {
 
   const handleAddRpc = () => {
     if (!newRpcInput.trim()) return;
-    setConfig(prev => ({
-      ...prev,
-      rpcServers: [...prev.rpcServers, { address: newRpcInput.trim(), active: false }]
-    }));
+    saveSettings({
+      ...serverSettings,
+      rpcServers: [...(serverSettings.rpcServers || []), { address: newRpcInput.trim(), active: false }]
+    });
     setNewRpcInput("");
-    setRememberSettings(false);
   };
 
   const handleStartServer = async () => {
@@ -273,7 +272,7 @@ function App() {
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelId: selectedModel.id, ...config })
+        body: JSON.stringify({ modelId: selectedModel.id, ...config, rpcServers: serverSettings.rpcServers || [] })
       });
       const result = await response.json();
       if (!result.success) {
@@ -664,27 +663,30 @@ function App() {
                         <Plus size={14} /> Add
                       </button>
                     </div>
-
-                    {config.rpcServers.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px', fontSize: '12px' }}>No RPC workers added yet.</div>
+                  <div className="space-y-2 mt-2">
+                    {(!serverSettings.rpcServers || serverSettings.rpcServers.length === 0) ? (
+                      <div className="text-center p-4 border border-dashed rounded text-[var(--text-muted)] text-sm">
+                        No RPC workers added.
+                      </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {config.rpcServers.map((server, idx) => (
-                          <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
-                            <span style={{ color: 'var(--text-main)' }}>{server.address}</span>
-                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <div className="flex flex-col gap-2">
+                        {serverSettings.rpcServers.map((server, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-[var(--surface)] hover:border-[var(--primary)] transition-colors">
+                            <div className="flex items-center gap-3">
+                              <Network size={16} className={server.active ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
+                              <span className="font-mono text-sm">{server.address}</span>
+                            </div>
+                            <div className="flex gap-2">
                               <div className={`toggle-switch ${server.active ? 'active' : ''}`} onClick={() => {
-                                const newServers = [...config.rpcServers];
-                                newServers[idx] = { ...newServers[idx], active: !newServers[idx].active };
-                                setConfig({ ...config, rpcServers: newServers });
-                                setRememberSettings(false);
+                                const newServers = [...serverSettings.rpcServers];
+                                newServers[idx].active = !newServers[idx].active;
+                                saveSettings({ ...serverSettings, rpcServers: newServers });
                               }}></div>
-                              <button style={{ background: 'transparent', color: 'var(--danger)', display: 'flex' }} onClick={() => {
-                                const newServers = config.rpcServers.filter((_, i) => i !== idx);
-                                setConfig({ ...config, rpcServers: newServers });
-                                setRememberSettings(false);
+                              <button className="p-1 hover:text-red-400 transition-colors" onClick={() => {
+                                const newServers = serverSettings.rpcServers.filter((_, i) => i !== idx);
+                                saveSettings({ ...serverSettings, rpcServers: newServers });
                               }}>
-                                <X size={14} />
+                                <Trash2 size={16} />
                               </button>
                             </div>
                           </div>
@@ -693,6 +695,7 @@ function App() {
                     )}
                   </div>
                 </div>
+              </div>
               ) : (
                 <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure Devices.</div>
               )
