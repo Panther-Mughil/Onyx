@@ -430,8 +430,8 @@ function App() {
             <div className={`tab-btn ${activeTab === 'load' ? 'active' : ''}`} onClick={() => setActiveTab('load')} title="Options">
               <SlidersHorizontal size={16} /> <span className="tab-label">Options</span>
             </div>
-            <div className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')} title="RPC Workers">
-              <Network size={16} /> <span className="tab-label">RPC</span>
+            <div className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')} title="Devices">
+              <Network size={16} /> <span className="tab-label">Devices</span>
             </div>
             <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')} title="Monitoring">
               <Activity size={16} /> <span className="tab-label">Monitoring</span>
@@ -540,7 +540,7 @@ function App() {
               selectedModel ? (
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div className="form-section">
-                    <div className="form-section-title"><Network size={16}/> RPC Workers</div>
+                    <div className="form-section-title"><Network size={16}/> Device Allocation (Local & RPC)</div>
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>Add remote llama-rpc-server endpoints to distribute inference.</p>
                     
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -586,7 +586,7 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure RPC workers.</div>
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure Devices.</div>
               )
             )}
 
