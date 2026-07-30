@@ -444,7 +444,9 @@ function App() {
             </div>
             <div className="terminal">
               {!selectedModel ? (
-                 <div style={{ color: 'var(--text-muted)' }}>Select an active model to view its logs...</div>
+                 systemLogs.length === 0 ? 
+                   <div style={{ color: 'var(--text-muted)' }}>System logs empty...</div> :
+                   systemLogs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)
               ) : (
                  logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)
               )}
