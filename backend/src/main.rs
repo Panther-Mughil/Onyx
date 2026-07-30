@@ -571,7 +571,6 @@ async fn start_server(
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .group_spawn()
     {
         Ok(child) => child,
@@ -725,7 +724,6 @@ async fn run_benchmark(
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .group_spawn()
         {
             Ok(child) => child,
