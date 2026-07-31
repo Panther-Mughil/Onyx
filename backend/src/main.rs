@@ -304,10 +304,12 @@ async fn get_local_models() -> Json<Vec<Model>> {
                 let mut context_length = 0;
                 let mut block_count = 0;
                 
+                let mut architecture = String::new();
+                
                 // Try to load from cache first
                 let cache_path_str = format!("{}/models/metadata_cache.json", base_dir());
                 let cache_path = std::path::Path::new(&cache_path_str);
-                let mut cache: std::collections::HashMap<String, (u32, u32)> = if cache_path.exists() {
+                let mut cache: std::collections::HashMap<String, (u32, u32, String)> = if cache_path.exists() {
                     if let Ok(cache_str) = fs::read_to_string(cache_path) {
                         serde_json::from_str(&cache_str).unwrap_or_default()
                     } else {
@@ -317,9 +319,10 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     std::collections::HashMap::new()
                 };
 
-                if let Some(&(ctx, blk)) = cache.get(&filename) {
+                if let Some(&(ctx, blk, ref arch)) = cache.get(&filename) {
                     context_length = ctx;
                     block_count = blk;
+                    architecture = arch.clone();
                 } else {
                     // Full reliable parser using gguf crate
                     if let Ok(mut file) = fs::File::open(&path) {
@@ -337,6 +340,11 @@ async fn get_local_models() -> Json<Vec<Model>> {
                                     if md.key.ends_with(".block_count") {
                                         if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
                                             block_count = v;
+                                        }
+                                    }
+                                    if md.key == "general.architecture" {
+                                        if let gguf::GGUFMetadataValue::String(v) = &md.value {
+                                            architecture = v.clone();
                                         }
                                     }
                                 }
@@ -386,13 +394,28 @@ async fn get_local_models() -> Json<Vec<Model>> {
                             }
                         }
                     }
-                    
                     // Update cache
-                    cache.insert(filename.clone(), (context_length, block_count));
+                    cache.insert(filename.clone(), (context_length, block_count, architecture.clone()));
                     if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
                         let _ = fs::write(cache_path, cache_str);
                     }
                 }
+                
+                // Now that we have architecture (from either cache or GGUF), update tags
+                if architecture.to_lowercase().contains("clip") || architecture.to_lowercase().contains("llava") || architecture.to_lowercase().contains("vision") || architecture.to_lowercase().contains("mllama") {
+                    if !tags.contains(&"Vision".to_string()) {
+                        tags.push("Vision".to_string());
+                    }
+                }
+                
+                // If it is gemma, the user says it has vision
+                if filename_lower.contains("gemma") && !tags.contains(&"Vision".to_string()) {
+                    tags.push("Vision".to_string());
+                }
+
+                // Dedup tags
+                tags.sort();
+                tags.dedup();
 
                 models.push(Model {
                     id: filename,
