@@ -55,14 +55,20 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     
     echo "Extracting..."
     if [[ "$DOWNLOAD_URL" == *".tar.gz" ]]; then
-        tar -xzf llama_archive -C ./bin
+        tar -xzf llama_archive -C ./bin --strip-components=1
     else
         unzip -o llama_archive -d ./bin
+        for dir in ./bin/llama-*/; do
+            if [ -d "$dir" ]; then
+                mv "$dir"* ./bin/ 2>/dev/null || true
+                rm -rf "$dir" 2>/dev/null || true
+            fi
+        done
     fi
     rm llama_archive
     
     chmod +x ./bin/ggml-rpc-server
-    chmod +x ./bin/llama-server
+    chmod +x ./bin/llama-server 2>/dev/null || true
     echo "Download complete!"
 fi
 
