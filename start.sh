@@ -52,15 +52,18 @@ if [ ! -f "bin/llama-server" ]; then
         echo "[!] Pre-compiled macOS binaries contain a known BLAS bug."
         echo "[!] Compiling llama-server from source (this takes a moment)..."
         
-        if ! command -v cmake &> /dev/null; then
-            echo "[!] 'cmake' is not installed. Attempting to install via Homebrew..."
-            if command -v brew &> /dev/null; then
-                brew install cmake
-            else
-                echo "Error: Homebrew is not installed. Please install Homebrew (https://brew.sh) or install cmake manually."
-                exit 1
+        # Ensure build tools are installed
+        for cmd in cmake git make; do
+            if ! command -v $cmd &> /dev/null; then
+                echo "[!] '$cmd' is not installed. Attempting to install via Homebrew..."
+                if command -v brew &> /dev/null; then
+                    brew install $cmd
+                else
+                    echo "Error: Homebrew is not installed. Please install Homebrew (https://brew.sh) to automate this, or install $cmd manually."
+                    exit 1
+                fi
             fi
-        fi
+        done
         
         rm -rf llama_src
         git clone --depth 1 https://github.com/ggml-org/llama.cpp.git llama_src
