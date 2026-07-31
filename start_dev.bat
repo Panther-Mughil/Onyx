@@ -57,7 +57,7 @@ call npm install --prefix frontend
 :: 5. Launch both servers using Windows Terminal (wt.exe) or fallback to cmd
 echo.
 echo Launching Rust Backend and Vite Frontend in separate tabs...
-wt cmd /k "title Rust Backend && cargo run --manifest-path backend/Cargo.toml" ; new-tab cmd /k "title Vite Frontend && npm run dev --prefix frontend"
+wt -d . cmd /k "title Rust Backend && cargo run --manifest-path backend/Cargo.toml" ; new-tab -d . cmd /k "title Vite Frontend && npm run dev --prefix frontend"
 if %errorlevel% neq 0 (
     echo Windows Terminal not found, falling back to separate windows...
     start "Onyx Backend" cmd /k "cargo run --manifest-path backend/Cargo.toml"
