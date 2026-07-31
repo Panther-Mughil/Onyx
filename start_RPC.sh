@@ -88,4 +88,8 @@ echo "2. Go to 'RPC & Devices' tab"
 echo "3. Add a new RPC Server using this machine's local IP address and port $PORT"
 echo ""
 
-./bin/ggml-rpc-server -H $HOST -p $PORT
+if [ "$OS" = "Darwin" ]; then
+    ./bin/ggml-rpc-server -H $HOST -p $PORT -d Metal,CPU
+else
+    ./bin/ggml-rpc-server -H $HOST -p $PORT
+fi
