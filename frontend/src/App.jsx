@@ -127,6 +127,23 @@ function App() {
     }
   }, [selectedModel, activeServers]);
 
+  useEffect(() => {
+    if (selectedModel) {
+      setConfig(prev => {
+        let newConfig = { ...prev };
+        let updated = false;
+        if (selectedModel.context_length && newConfig.ctxSize > selectedModel.context_length) {
+          newConfig.ctxSize = selectedModel.context_length;
+          updated = true;
+        }
+        if (selectedModel.block_count && newConfig.gpuLayers > selectedModel.block_count) {
+          newConfig.gpuLayers = selectedModel.block_count;
+          updated = true;
+        }
+        return updated ? newConfig : prev;
+      });
+    }
+  }, [selectedModel]);
 
   useEffect(() => {
     if (telemetry && telemetry.gpus && (!config.localGpus || config.localGpus.length === 0)) {
