@@ -16,33 +16,35 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     
     if [ "$OS" = "Darwin" ]; then
         if [ "$ARCH" = "arm64" ]; then
-            ASSET_PATTERN="bin-macos-arm64\.tar\.gz$"
+            ASSET_PATTERN="bin-macos-arm64\.tar\.gz"
         else
-            ASSET_PATTERN="bin-macos-x64\.tar\.gz$"
+            ASSET_PATTERN="bin-macos-x64\.tar\.gz"
         fi
     elif [ "$OS" = "Linux" ]; then
-        if [ "$ARCH" = "aarch64" ]; then
-            ASSET_PATTERN="bin-ubuntu-x64\.zip$" # Fallback since aarch64 linux isn't often published
+        if command -v nvidia-smi &> /dev/null; then
+            ASSET_PATTERN="bin-ubuntu-vulkan-x64\.tar\.gz" # Linux doesn't have official CUDA binaries anymore, use Vulkan
         else
-            if command -v nvidia-smi &> /dev/null; then
-                ASSET_PATTERN="bin-ubuntu-vulkan-x64\.zip$" # Vulkan works well on Linux, or use CUDA if they have it
-            else
-                ASSET_PATTERN="bin-ubuntu-x64\.zip$" # CPU
-            fi
+            ASSET_PATTERN="bin-ubuntu-x64\.tar\.gz"
+        fi
+        
+        # Check for ARM64 Linux
+        if [ "$ARCH" = "aarch64" ]; then
+            ASSET_PATTERN="bin-ubuntu-arm64\.tar\.gz"
         fi
     else
         echo "Unsupported OS: $OS"
         exit 1
     fi
     
-    # Simple curl check for release. If nvidia-smi exists, try getting cuda first.
-    if command -v nvidia-smi &> /dev/null && [ "$OS" = "Linux" ]; then
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64-cuda-13.*\.zip$" | head -n 1 | cut -d '"' -f 4)
-    fi
-    if [ -z "$DOWNLOAD_URL" ]; then
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
-    fi
+    # Simple curl check for release.
+    DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
     
+    # If Vulkan failed, fallback to CPU
+    if [ -z "$DOWNLOAD_URL" ] && [ "$OS" = "Linux" ]; then
+        echo "Falling back to CPU binary..."
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64\.tar\.gz" | head -n 1 | cut -d '"' -f 4)
+    fi
+
     if [ -z "$DOWNLOAD_URL" ]; then
         echo "Failed to find a matching release asset."
         exit 1
