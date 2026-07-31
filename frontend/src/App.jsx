@@ -823,7 +823,7 @@ function App() {
                       fetch('http://127.0.0.1:3001/api/server/benchmark/start', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...config, modelId: selectedModel.id })
+                        body: JSON.stringify({ ...config, modelId: selectedModel.id, rpcServers: serverSettings.rpcServers || [] })
                       }).then(() => {
                         setBenchmarkStatus(prev => ({ ...prev, isRunning: true, logs: [], pp: null, tg: null }));
                       });
