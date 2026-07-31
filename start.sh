@@ -6,40 +6,7 @@ echo "           Starting Onyx"
 echo "======================================="
 echo ""
 
-# 1. Check for Node.js
-if ! command -v npm &> /dev/null; then
-    echo "[!] Node.js/npm not found. Attempting to install..."
-    if command -v brew &> /dev/null; then
-        brew install node
-    elif command -v apt-get &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y nodejs npm
-    elif command -v dnf &> /dev/null; then
-        sudo dnf install -y nodejs
-    elif command -v pacman &> /dev/null; then
-        sudo pacman -S --noconfirm nodejs npm
-    else
-        echo "Could not detect package manager. Please install Node.js manually from https://nodejs.org/"
-        exit 1
-    fi
-    echo "=============================================================="
-    echo "Node.js has been installed. Please restart your terminal"
-    echo "and re-run ./start.sh for the changes to take effect."
-    echo "=============================================================="
-    exit 0
-fi
-
-# 2. Check for Rust (cargo)
-if ! command -v cargo &> /dev/null; then
-    echo "[!] Rust/Cargo not found. Installing via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    echo "=============================================================="
-    echo "Rust has been installed. You MUST restart your terminal"
-    echo "and re-run ./start.sh for the changes to take effect."
-    echo "=============================================================="
-    exit 0
-fi
-
-# 3. Check for pre-compiled llama.cpp
+# 1. Check for pre-compiled llama.cpp
 if [ ! -f "bin/llama-server" ]; then
     echo "[!] llama-server not found in bin/"
     echo "Downloading pre-compiled llama.cpp binaries from GitHub..."
@@ -136,32 +103,17 @@ if [ ! -f "bin/llama-server" ]; then
     fi
 fi
 
-# 4. Install frontend dependencies
+# 2. Start the embedded application
 echo ""
-echo "Installing frontend dependencies (if any are missing)..."
-cd frontend
-npm install
-cd ..
-
-# 5. Start the application
-echo ""
-echo "Starting backend and frontend..."
-
-trap 'echo "Stopping servers..."; kill $(jobs -p) 2>/dev/null; exit' SIGINT SIGTERM
-
-cd backend
-cargo run &
-BACKEND_PID=$!
-
-cd ../frontend
-npm run dev &
-FRONTEND_PID=$!
-
-echo ""
-echo "Onyx is now running!"
-echo "Backend: http://localhost:3001"
-echo "Frontend: Check the output above for the Vite local URL (usually http://localhost:5173)"
-echo "Press Ctrl+C to stop both servers gracefully."
+echo "Starting Onyx Server..."
+echo "Please open your browser and navigate to http://127.0.0.1:3001"
 echo ""
 
-wait $BACKEND_PID $FRONTEND_PID
+if [ -f "./onyx" ]; then
+    ./onyx
+elif [ -f "backend/target/release/onyx" ]; then
+    ./backend/target/release/onyx
+else
+    echo "[!] onyx binary not found! Please build the project or download a release."
+    exit 1
+fi

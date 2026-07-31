@@ -6,35 +6,7 @@ echo           Starting Onyx
 echo =======================================
 echo.
 
-:: 1. Check for Node.js
-where npm >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [!] Node.js not found. Installing via winget...
-    winget install -e --id OpenJS.NodeJS
-    echo.
-    echo ==============================================================
-    echo Node.js has been installed. You MUST restart your terminal
-    echo and re-run start.bat for the changes to take effect.
-    echo ==============================================================
-    pause
-    exit /b
-)
-
-:: 2. Check for Rust (cargo)
-where cargo >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [!] Rust/Cargo not found. Installing via winget...
-    winget install -e --id Rustlang.Rustup
-    echo.
-    echo ==============================================================
-    echo Rust has been installed. You MUST restart your terminal
-    echo and re-run start.bat for the changes to take effect.
-    echo ==============================================================
-    pause
-    exit /b
-)
-
-:: 3. Check for pre-compiled llama.cpp
+:: 1. Check for pre-compiled llama.cpp
 if exist "bin\llama-server.exe" goto skip_download
 
 echo [!] llama-server.exe not found in bin\
@@ -49,20 +21,18 @@ if %errorlevel% neq 0 (
 
 :skip_download
 
-:: 4. Install frontend dependencies
+:: 2. Start the embedded application
 echo.
-echo Installing frontend dependencies (if any are missing)...
-cd frontend
-call npm install
-cd ..
-
-:: 5. Start the application
+echo Starting Onyx Server...
+echo Please open your browser and navigate to http://127.0.0.1:3001
 echo.
-echo Starting backend and frontend...
-wt -d .\backend cmd /k "title Rust Backend && cargo run" ; new-tab -d .\frontend cmd /k "title Vite Frontend && npm run dev"
 
-if %errorlevel% neq 0 (
-    echo Windows Terminal not found, falling back to separate windows...
-    start "Onyx Backend" cmd /k "cd backend && cargo run"
-    start "Onyx Frontend" cmd /k "cd frontend && npm run dev"
+if exist "onyx.exe" (
+    onyx.exe
+) else if exist "backend\target\release\onyx.exe" (
+    backend\target\release\onyx.exe
+) else (
+    echo [!] onyx.exe not found! Please build the project or download a release.
+    pause
+    exit /b
 )
