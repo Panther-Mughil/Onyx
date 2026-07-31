@@ -2,6 +2,34 @@
 cd /d "%~dp0"
 echo Starting Onyx...
 
+:: 1. Check for Node.js
+where npm >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [!] Node.js not found. Installing via winget...
+    winget install -e --id OpenJS.NodeJS
+    echo.
+    echo ==============================================================
+    echo Node.js has been installed. You MUST restart your terminal
+    echo and re-run start_dev.bat for the changes to take effect.
+    echo ==============================================================
+    pause
+    exit /b
+)
+
+:: 2. Check for Rust (cargo)
+where cargo >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [!] Rust/Cargo not found. Installing via winget...
+    winget install -e --id Rustlang.Rustup
+    echo.
+    echo ==============================================================
+    echo Rust has been installed. You MUST restart your terminal
+    echo and re-run start_dev.bat for the changes to take effect.
+    echo ==============================================================
+    pause
+    exit /b
+)
+
 :: Check for pre-compiled llama.cpp
 if exist "bin\llama-server.exe" goto skip_download
 
@@ -16,6 +44,12 @@ if %errorlevel% neq 0 (
 )
 
 :skip_download
+
+:: Install frontend dependencies
+echo Installing frontend dependencies...
+cd frontend
+call npm install
+cd ..
 
 :: Try to use Windows Terminal (wt.exe) to open both processes in multiple tabs
 wt -d .\backend cmd /k "title Rust Backend && cargo run" ; new-tab -d .\frontend cmd /k "title Vite Frontend && npm run dev"
