@@ -6,6 +6,19 @@ echo "   Starting Onyx Dev Environment"
 echo "======================================="
 echo ""
 
+# 0. Ensure Homebrew is installed on macOS
+if [ "$(uname -s)" = "Darwin" ]; then
+    if ! command -v brew &> /dev/null; then
+        echo "[!] Homebrew is not installed. Installing Homebrew first..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        if [ -x "/opt/homebrew/bin/brew" ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -x "/usr/local/bin/brew" ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+    fi
+fi
+
 # 1. Check for Node.js
 if ! command -v npm &> /dev/null; then
     echo "[!] Node.js/npm not found. Attempting to install..."
