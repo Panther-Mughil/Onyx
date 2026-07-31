@@ -22,6 +22,15 @@ use rust_embed::RustEmbed;
 use axum::http::{header, StatusCode, Uri};
 use mime_guess::from_path;
 
+fn base_dir() -> String {
+    let current_dir = std::env::current_dir().unwrap_or_default();
+    if current_dir.ends_with("backend") {
+        "..".to_string()
+    } else {
+        ".".to_string()
+    }
+}
+
 #[derive(RustEmbed)]
 #[folder = "../frontend/dist"]
 struct Asset;
@@ -192,7 +201,8 @@ struct StopRequest {
 
 
 async fn get_settings() -> Json<serde_json::Value> {
-    if let Ok(data) = fs::read_to_string("../data/settings.json") {
+    let settings_path = format!("{}/data/settings.json", base_dir());
+    if let Ok(data) = fs::read_to_string(&settings_path) {
         if let Ok(json) = serde_json::from_str(&data) {
             return Json(json);
         }
@@ -201,9 +211,11 @@ async fn get_settings() -> Json<serde_json::Value> {
 }
 
 async fn save_settings(Json(payload): Json<serde_json::Value>) -> Json<StartResponse> {
-    let _ = fs::create_dir_all("../data");
+    let data_dir = format!("{}/data", base_dir());
+    let _ = fs::create_dir_all(&data_dir);
     if let Ok(json_str) = serde_json::to_string_pretty(&payload) {
-        let _ = fs::write("../data/settings.json", json_str);
+        let settings_path = format!("{}/data/settings.json", base_dir());
+        let _ = fs::write(&settings_path, json_str);
     }
     Json(StartResponse { success: true, message: "Settings saved".to_string() })
 }
@@ -240,7 +252,8 @@ async fn health_check() -> Json<HealthResponse> {
 
 async fn get_local_models() -> Json<Vec<Model>> {
     let mut models = Vec::new();
-    let models_dir = Path::new("../models");
+    let models_dir_str = format!("{}/models", base_dir());
+    let models_dir = Path::new(&models_dir_str);
 
     if let Ok(entries) = fs::read_dir(models_dir) {
         for entry in entries.flatten() {
@@ -267,7 +280,8 @@ async fn get_local_models() -> Json<Vec<Model>> {
                 let mut block_count = 0;
                 
                 // Try to load from cache first
-                let cache_path = std::path::Path::new("../models/metadata_cache.json");
+                let cache_path_str = format!("{}/models/metadata_cache.json", base_dir());
+                let cache_path = std::path::Path::new(&cache_path_str);
                 let mut cache: std::collections::HashMap<String, (u32, u32)> = if cache_path.exists() {
                     if let Ok(cache_str) = fs::read_to_string(cache_path) {
                         serde_json::from_str(&cache_str).unwrap_or_default()
@@ -605,10 +619,14 @@ async fn start_server(
         p
     };
     
-    let model_path = format!("../models/{}", payload.model_id);
-    let binary_path = "../bin/llama-server.exe";
+    let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
+    let binary_path = if cfg!(windows) {
+        format!("{}/bin/llama-server.exe", base_dir())
+    } else {
+        format!("{}/bin/llama-server", base_dir())
+    };
 
-    if !Path::new(binary_path).exists() {
+    if !Path::new(&binary_path).exists() {
         return Json(StartResponse {
             success: false,
             message: format!("Binary not found at {}", binary_path),
@@ -809,8 +827,12 @@ async fn run_benchmark(
             .output();
     }
 
-    let model_path = format!("../models/{}", payload.model_id);
-    let binary_path = "../bin/llama-bench.exe";
+    let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
+    let binary_path = if cfg!(windows) {
+        format!("{}/bin/llama-bench.exe", base_dir())
+    } else {
+        format!("{}/bin/llama-bench", base_dir())
+    };
     
     let mut args = vec![
         "-m".to_string(), model_path,
@@ -971,7 +993,8 @@ async fn clear_system_logs(
 
 #[tokio::main]
 async fn main() {
-    let _ = fs::create_dir_all("../models");
+    let models_dir = format!("{}/models", base_dir());
+    let _ = fs::create_dir_all(&models_dir);
 
     let mut sys = System::new_all();
     sys.refresh_all();
