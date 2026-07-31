@@ -16,3 +16,7 @@ frontend/dist/
 # Documentation
 PRD.md
 AI_DEVELOPMENT_GUIDE.md
+
+# Application Data
+data/settings.json
+models/metadata_cache.json
