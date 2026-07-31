@@ -1,34 +1,5 @@
 {
-  "appliedConfigs": {
-    "magnum-v4-9b-Q4_K_M.gguf": {
-      "concurrency": 1,
-      "cpuMoe": false,
-      "ctxSize": 128000,
-      "evalBatchSize": 2048,
-      "flashAttention": false,
-      "gpuLayers": 28,
-      "kCacheQuant": "f16",
-      "keepInMemory": true,
-      "localGpus": [
-        {
-          "active": true,
-          "index": 0,
-          "name": "NVIDIA GeForce RTX 5060"
-        },
-        {
-          "active": true,
-          "index": 1,
-          "name": "NVIDIA GeForce RTX 3050"
-        }
-      ],
-      "mmap": true,
-      "offloadKv": true,
-      "physicalBatchSize": 512,
-      "threads": 12,
-      "unifiedKv": true,
-      "vCacheQuant": "f16"
-    }
-  },
+  "appliedConfigs": {},
   "autoUnload": false,
   "cors": true,
   "jitModelLoading": false,
