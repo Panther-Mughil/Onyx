@@ -72,6 +72,7 @@ struct Model {
     size_gb: f32,
     context_length: u32,
     block_count: u32,
+    tags: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -267,14 +268,38 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     0.0
                 };
 
-                let parts: Vec<&str> = filename.split('.').collect();
-                let quantization = if parts.len() >= 3 {
-                    parts[parts.len() - 2].to_string() 
-                } else {
-                    "Unknown".to_string()
-                };
+                let filename_lower = filename.to_lowercase();
                 
-                let name = parts[0].to_string();
+                let mut quantization = "Unknown".to_string();
+                let q_patterns = ["q2_", "q3_", "q4_", "q5_", "q6_", "q8_", "iq1_", "iq2_", "iq3_", "iq4_", "f16", "f32"];
+                for p in q_patterns.iter() {
+                    if let Some(idx) = filename_lower.find(p) {
+                        let sub = &filename[idx..];
+                        let end_idx = sub.find('.').unwrap_or(sub.len());
+                        quantization = sub[..end_idx].to_uppercase();
+                        break;
+                    }
+                }
+
+                let mut tags = Vec::new();
+                if filename_lower.contains("vision") || filename_lower.contains("-vl") {
+                    tags.push("Vision".to_string());
+                }
+                if filename_lower.contains("reasoning") || filename_lower.contains("-r1") || filename_lower.contains("think") {
+                    tags.push("Reasoning".to_string());
+                }
+                if filename_lower.contains("coder") || filename_lower.contains("code") {
+                    tags.push("Coding".to_string());
+                }
+                if tags.is_empty() {
+                    tags.push("Text Generation".to_string());
+                }
+
+                let name = if filename.ends_with(".gguf") {
+                    filename[..filename.len() - 5].to_string()
+                } else {
+                    filename.clone()
+                };
 
                 let mut context_length = 0;
                 let mut block_count = 0;
@@ -376,6 +401,7 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     size_gb,
                     context_length,
                     block_count,
+                    tags,
                 });
             }
         }

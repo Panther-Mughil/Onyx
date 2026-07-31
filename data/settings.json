@@ -3,7 +3,7 @@
     "magnum-v4-9b-Q4_K_M.gguf": {
       "concurrency": 1,
       "cpuMoe": false,
-      "ctxSize": 2048,
+      "ctxSize": 256,
       "evalBatchSize": 2048,
       "flashAttention": false,
       "gpuLayers": 42,
@@ -36,7 +36,7 @@
   "port": 12057,
   "rpcServers": [
     {
-      "active": false,
+      "active": true,
       "address": "10.0.2.3"
     }
   ],
