@@ -41,7 +41,7 @@
   "port": 12057,
   "rpcServers": [
     {
-      "active": true,
+      "active": false,
       "address": "10.0.2.3"
     }
   ],
