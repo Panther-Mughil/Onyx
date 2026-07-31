@@ -64,6 +64,15 @@ struct HealthResponse {
     message: String,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+struct CachedModelMetadata {
+    context_length: u32,
+    block_count: u32,
+    architecture: String,
+    quantization: String,
+    tags: Vec<String>,
+}
+
 #[derive(Serialize)]
 struct Model {
     id: String,
@@ -268,48 +277,10 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     0.0
                 };
 
-                let filename_lower = filename.to_lowercase();
-                
-                let mut quantization = "Unknown".to_string();
-                let q_patterns = ["q2_", "q3_", "q4_", "q5_", "q6_", "q8_", "iq1_", "iq2_", "iq3_", "iq4_", "f16", "f32"];
-                for p in q_patterns.iter() {
-                    if let Some(idx) = filename_lower.find(p) {
-                        let sub = &filename[idx..];
-                        let end_idx = sub.find('.').unwrap_or(sub.len());
-                        quantization = sub[..end_idx].to_uppercase();
-                        break;
-                    }
-                }
-
-                let mut tags = Vec::new();
-                if filename_lower.contains("vision") || filename_lower.contains("-vl") {
-                    tags.push("Vision".to_string());
-                }
-                if filename_lower.contains("reasoning") || filename_lower.contains("-r1") || filename_lower.contains("think") {
-                    tags.push("Reasoning".to_string());
-                }
-                if filename_lower.contains("coder") || filename_lower.contains("code") {
-                    tags.push("Coding".to_string());
-                }
-                if tags.is_empty() {
-                    tags.push("Text Generation".to_string());
-                }
-
-                let name = if filename.ends_with(".gguf") {
-                    filename[..filename.len() - 5].to_string()
-                } else {
-                    filename.clone()
-                };
-
-                let mut context_length = 0;
-                let mut block_count = 0;
-                
-                let mut architecture = String::new();
-                
                 // Try to load from cache first
                 let cache_path_str = format!("{}/models/metadata_cache.json", base_dir());
                 let cache_path = std::path::Path::new(&cache_path_str);
-                let mut cache: std::collections::HashMap<String, (u32, u32, String)> = if cache_path.exists() {
+                let mut cache: std::collections::HashMap<String, CachedModelMetadata> = if cache_path.exists() {
                     if let Ok(cache_str) = fs::read_to_string(cache_path) {
                         serde_json::from_str(&cache_str).unwrap_or_default()
                     } else {
@@ -319,11 +290,32 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     std::collections::HashMap::new()
                 };
 
-                if let Some(&(ctx, blk, ref arch)) = cache.get(&filename) {
-                    context_length = ctx;
-                    block_count = blk;
-                    architecture = arch.clone();
+                let mut context_length = 0;
+                let mut block_count = 0;
+                let mut architecture = String::new();
+                let mut quantization = String::new();
+                let mut tags = Vec::new();
+
+                if let Some(cached_data) = cache.get(&filename) {
+                    context_length = cached_data.context_length;
+                    block_count = cached_data.block_count;
+                    architecture = cached_data.architecture.clone();
+                    quantization = cached_data.quantization.clone();
+                    tags = cached_data.tags.clone();
                 } else {
+                    // Extract quantization from filename
+                    let filename_lower = filename.to_lowercase();
+                    quantization = "Unknown".to_string();
+                    let q_patterns = ["q2_", "q3_", "q4_", "q5_", "q6_", "q8_", "iq1_", "iq2_", "iq3_", "iq4_", "f16", "f32"];
+                    for p in q_patterns.iter() {
+                        if let Some(idx) = filename_lower.find(p) {
+                            let sub = &filename[idx..];
+                            let end_idx = sub.find('.').unwrap_or(sub.len());
+                            quantization = sub[..end_idx].to_uppercase();
+                            break;
+                        }
+                    }
+
                     // Full reliable parser using gguf crate
                     if let Ok(mut file) = fs::File::open(&path) {
                         use std::io::Read;
@@ -394,28 +386,49 @@ async fn get_local_models() -> Json<Vec<Model>> {
                             }
                         }
                     }
-                    // Update cache
-                    cache.insert(filename.clone(), (context_length, block_count, architecture.clone()));
+                    
+                    // Generate tags dynamically
+                    if architecture.to_lowercase().contains("clip") || architecture.to_lowercase().contains("llava") || architecture.to_lowercase().contains("vision") || architecture.to_lowercase().contains("mllama") {
+                        if !tags.contains(&"VISION".to_string()) { tags.push("VISION".to_string()); }
+                    }
+                    
+                    if filename_lower.contains("gemma") || filename_lower.contains("qwen") || filename_lower.contains("vision") || filename_lower.contains("-vl") {
+                        if !tags.contains(&"VISION".to_string()) { tags.push("VISION".to_string()); }
+                    }
+                    if filename_lower.contains("gemma") || filename_lower.contains("qwen") || filename_lower.contains("tool") || filename_lower.contains("function") {
+                        if !tags.contains(&"TOOLS".to_string()) { tags.push("TOOLS".to_string()); }
+                    }
+                    if filename_lower.contains("gemma") || filename_lower.contains("qwen") || filename_lower.contains("reasoning") || filename_lower.contains("r1") || filename_lower.contains("think") {
+                        if !tags.contains(&"REASONING".to_string()) { tags.push("REASONING".to_string()); }
+                    }
+                    
+                    if tags.is_empty() {
+                        tags.push("TEXT GENERATION".to_string());
+                    }
+
+                    // Dedup tags
+                    tags.sort();
+                    tags.dedup();
+
+                    // Update cache with the new CachedModelMetadata
+                    let new_metadata = CachedModelMetadata {
+                        context_length,
+                        block_count,
+                        architecture: architecture.clone(),
+                        quantization: quantization.clone(),
+                        tags: tags.clone(),
+                    };
+                    cache.insert(filename.clone(), new_metadata);
                     if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
                         let _ = fs::write(cache_path, cache_str);
                     }
                 }
-                
-                // Now that we have architecture (from either cache or GGUF), update tags
-                if architecture.to_lowercase().contains("clip") || architecture.to_lowercase().contains("llava") || architecture.to_lowercase().contains("vision") || architecture.to_lowercase().contains("mllama") {
-                    if !tags.contains(&"Vision".to_string()) {
-                        tags.push("Vision".to_string());
-                    }
-                }
-                
-                // If it is gemma, the user says it has vision
-                if filename_lower.contains("gemma") && !tags.contains(&"Vision".to_string()) {
-                    tags.push("Vision".to_string());
-                }
 
-                // Dedup tags
-                tags.sort();
-                tags.dedup();
+                let name = if filename.ends_with(".gguf") {
+                    filename[..filename.len() - 5].to_string()
+                } else {
+                    filename.clone()
+                };
 
                 models.push(Model {
                     id: filename,
