@@ -21,7 +21,51 @@ if %errorlevel% neq 0 (
 
 :skip_download
 
-:: 2. Start the embedded application
+if exist "onyx.exe" goto launch_onyx
+if exist "backend\target\release\onyx.exe" goto launch_onyx
+
+echo [!] onyx.exe not found!
+echo Building Onyx from source...
+echo.
+
+:: Check for Node.js
+where npm >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [!] Node.js not found. Installing via winget...
+    winget install -e --id OpenJS.NodeJS
+    echo.
+    echo ==============================================================
+    echo Node.js has been installed. You MUST restart your terminal
+    echo and re-run start.bat for the changes to take effect.
+    echo ==============================================================
+    pause
+    exit /b
+)
+
+:: Check for Rust (Cargo)
+where cargo >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [!] Rust/Cargo not found. Installing via winget...
+    winget install -e --id Rustlang.Rustup
+    echo.
+    echo ==============================================================
+    echo Rust has been installed. You MUST restart your terminal
+    echo and re-run start.bat for the changes to take effect.
+    echo ==============================================================
+    pause
+    exit /b
+)
+
+echo Installing frontend dependencies...
+call npm install --prefix frontend
+echo Building Vite frontend...
+call npm run build --prefix frontend
+
+echo.
+echo Compiling Rust backend...
+call cargo build --manifest-path backend/Cargo.toml --release
+
+:launch_onyx
 echo.
 echo Starting Onyx Server...
 echo Please open your browser and navigate to http://127.0.0.1:3001
@@ -32,7 +76,7 @@ if exist "onyx.exe" (
 ) else if exist "backend\target\release\onyx.exe" (
     backend\target\release\onyx.exe
 ) else (
-    echo [!] onyx.exe not found! Please build the project or download a release.
+    echo [!] Compilation failed. onyx.exe could not be found.
     pause
     exit /b
 )

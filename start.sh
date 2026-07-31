@@ -112,7 +112,67 @@ if [ "$(uname)" == "Darwin" ]; then
     install_name_tool -add_rpath @executable_path ./bin/llama-server >/dev/null 2>&1 || true
 fi
 
-# 2. Start the embedded application
+if [ ! -f "./onyx" ] && [ ! -f "backend/target/release/onyx" ]; then
+    echo "[!] onyx binary not found!"
+    echo "Building Onyx from source..."
+    echo ""
+
+    # Ensure Homebrew is installed on macOS
+    if [ "$(uname -s)" = "Darwin" ]; then
+        if ! command -v brew &> /dev/null; then
+            echo "[!] Homebrew is not installed. Installing Homebrew first..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            if [ -x "/opt/homebrew/bin/brew" ]; then
+                eval "$(/opt/homebrew/bin/brew shellenv)"
+            elif [ -x "/usr/local/bin/brew" ]; then
+                eval "$(/usr/local/bin/brew shellenv)"
+            fi
+        fi
+    fi
+
+    # Check for Node.js
+    if ! command -v npm &> /dev/null; then
+        echo "[!] Node.js/npm not found. Attempting to install..."
+        if command -v brew &> /dev/null; then
+            brew install node
+        elif command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y nodejs npm
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y nodejs
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm nodejs npm
+        else
+            echo "Could not detect package manager. Please install Node.js manually from https://nodejs.org/"
+            exit 1
+        fi
+        echo "=============================================================="
+        echo "Node.js has been installed. Please restart your terminal"
+        echo "and re-run ./start.sh for the changes to take effect."
+        echo "=============================================================="
+        exit 0
+    fi
+
+    # Check for Rust (cargo)
+    if ! command -v cargo &> /dev/null; then
+        echo "[!] Rust/Cargo not found. Installing via rustup..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        echo "=============================================================="
+        echo "Rust has been installed. You MUST restart your terminal"
+        echo "and re-run ./start.sh for the changes to take effect."
+        echo "=============================================================="
+        exit 0
+    fi
+
+    echo "Installing frontend dependencies..."
+    npm install --prefix frontend
+    echo "Building Vite frontend..."
+    npm run build --prefix frontend
+
+    echo ""
+    echo "Compiling Rust backend..."
+    cargo build --manifest-path backend/Cargo.toml --release
+fi
+
 echo ""
 echo "Starting Onyx Server..."
 echo "Please open your browser and navigate to http://127.0.0.1:3001"
@@ -123,6 +183,6 @@ if [ -f "./onyx" ]; then
 elif [ -f "backend/target/release/onyx" ]; then
     ./backend/target/release/onyx
 else
-    echo "[!] onyx binary not found! Please build the project or download a release."
+    echo "[!] Compilation failed. onyx binary could not be found."
     exit 1
 fi
