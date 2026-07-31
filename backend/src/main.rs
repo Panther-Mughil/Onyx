@@ -103,6 +103,7 @@ struct ServerConfig {
     model_id: String,
     ctx_size: u32,
     gpu_layers: u32,
+    layer_allocations: Option<std::collections::HashMap<String, u32>>,
     threads: u32,
     eval_batch_size: u32,
     physical_batch_size: u32,
@@ -682,27 +683,56 @@ async fn start_server(
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
 
-    if let Some(gpus) = &payload.local_gpus {
-        if !gpus.is_empty() {
-            let max_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
-            let mut splits = vec!["0"; max_index + 1];
-            
-            let mut any_active = false;
-            let mut all_active = true;
-            
-            for g in gpus.iter() {
-                if g.active {
-                    splits[g.index] = "1";
-                    any_active = true;
-                } else {
-                    all_active = false;
+    if let Some(allocs) = &payload.layer_allocations {
+        let mut total_offloaded = 0;
+        let mut splits = Vec::new();
+        
+        if let Some(gpus) = &payload.local_gpus {
+            if !gpus.is_empty() {
+                let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
+                for i in 0..=max_gpu_index {
+                    let key = format!("gpu_{}", i);
+                    let layers = allocs.get(&key).copied().unwrap_or(0);
+                    splits.push(layers.to_string());
+                    total_offloaded += layers;
                 }
             }
-            
-            if !any_active {
-                actual_gpu_layers = 0;
-            } else if !all_active {
-                ts_arg = Some(splits.join(","));
+        }
+        
+        if let Some(rpcs) = &payload.rpc_servers {
+            let active_rpcs: Vec<_> = rpcs.iter().filter(|r| r.active).collect();
+            for i in 0..active_rpcs.len() {
+                let key = format!("rpc_{}", i);
+                let layers = allocs.get(&key).copied().unwrap_or(0);
+                splits.push(layers.to_string());
+                total_offloaded += layers;
+            }
+        }
+        
+        actual_gpu_layers = total_offloaded;
+        if splits.len() > 1 {
+            ts_arg = Some(splits.join(","));
+        }
+    } else {
+        if let Some(gpus) = &payload.local_gpus {
+            if !gpus.is_empty() {
+                let max_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
+                let mut splits = vec!["0"; max_index + 1];
+                let mut any_active = false;
+                let mut all_active = true;
+                for g in gpus.iter() {
+                    if g.active {
+                        splits[g.index] = "1";
+                        any_active = true;
+                    } else {
+                        all_active = false;
+                    }
+                }
+                if !any_active {
+                    actual_gpu_layers = 0;
+                } else if !all_active {
+                    ts_arg = Some(splits.join(","));
+                }
             }
         }
     }

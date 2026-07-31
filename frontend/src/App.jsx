@@ -362,6 +362,48 @@ function App() {
 
   const isModelRunning = selectedModel ? activeServers.some(s => s.modelId === selectedModel.id) : false;
 
+  const maxLayers = selectedModel?.block_count ? selectedModel.block_count + 1 : 100;
+  const activeDevices = [];
+  if (config.localGpus) {
+      config.localGpus.forEach(g => {
+          if (g.active) activeDevices.push({ id: `gpu_${g.index}`, name: `GPU ${g.index}` });
+      });
+  }
+  if (serverSettings.rpcServers) {
+      serverSettings.rpcServers.forEach((r, idx) => {
+          if (r.active) activeDevices.push({ id: `rpc_${idx}`, name: `RPC ${r.address}` });
+      });
+  }
+
+  let allocs = config.layerAllocations || {};
+  let totalOffloaded = 0;
+  activeDevices.forEach(d => {
+      totalOffloaded += (allocs[d.id] || 0);
+  });
+  let cpuLayers = Math.max(0, maxLayers - totalOffloaded);
+
+  const handleAllocationChange = (deviceId, value) => {
+      let newVal = parseInt(value, 10) || 0;
+      let newAllocs = { ...allocs };
+      
+      let currentVal = newAllocs[deviceId] || 0;
+      let diff = newVal - currentVal;
+      
+      if (deviceId === 'cpu') {
+          if (activeDevices.length > 0) {
+              let targetDevice = activeDevices[0].id;
+              let targetOld = newAllocs[targetDevice] || 0;
+              newAllocs[targetDevice] = Math.max(0, targetOld - diff);
+          }
+      } else {
+          let maxAllowed = currentVal + cpuLayers;
+          if (newVal > maxAllowed) newVal = maxAllowed;
+          newAllocs[deviceId] = newVal;
+      }
+      
+      setConfig({ ...config, layerAllocations: newAllocs });
+  };
+
   if (!hasLoadedSettings) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
@@ -586,14 +628,29 @@ function App() {
                       </div>
                     </div>
 
-                    <div>
-                      <div className="form-row">
-                        <span>GPU Offload (Layers)</span>
-                        <input type="number" className="num-input" name="gpuLayers" value={config.gpuLayers} max={selectedModel?.block_count || 99} onChange={handleConfigChange} />
+                    <div style={{ marginTop: '24px' }}>
+                      <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px' }}>Device Layer Allocation</div>
+                      
+                      <div style={{ marginBottom: '16px' }}>
+                        <div className="form-row">
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Cpu size={14}/> Host (CPU)</span>
+                          <input type="number" className="num-input" value={cpuLayers} max={maxLayers} onChange={(e) => handleAllocationChange('cpu', e.target.value)} />
+                        </div>
+                        <input type="range" className="range-slider" min="0" max={maxLayers} value={cpuLayers} onChange={(e) => handleAllocationChange('cpu', e.target.value)} />
                       </div>
-                      <input type="range" className="range-slider" min="0" max={selectedModel?.block_count || 99} name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+
+                      {activeDevices.map(d => (
+                        <div key={d.id} style={{ marginBottom: '16px' }}>
+                          <div className="form-row">
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{d.name}</span>
+                            <input type="number" className="num-input" value={allocs[d.id] || 0} max={maxLayers} onChange={(e) => handleAllocationChange(d.id, e.target.value)} />
+                          </div>
+                          <input type="range" className="range-slider" min="0" max={maxLayers} value={allocs[d.id] || 0} onChange={(e) => handleAllocationChange(d.id, e.target.value)} />
+                        </div>
+                      ))}
+
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
-                        <Info size={14}/> <span>Model offload limited to dedicated GPU memory.</span>
+                        <Info size={14}/> <span>Distribute {maxLayers} layers explicitly across your compute devices.</span>
                       </div>
                     </div>
                   </div>
