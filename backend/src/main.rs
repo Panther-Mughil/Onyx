@@ -789,8 +789,12 @@ async fn start_server(
     args.push("--flash-attn".to_string());
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
 
-    let mut child = match Command::new(binary_path)
-        .args(args)
+    let full_command = format!("{} {}", binary_path, args.join(" "));
+    state.system_logs.lock().await.push(format!("I [SYSTEM] Booting llama-server with parameters:"));
+    state.system_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
+
+    let mut child = match Command::new(binary_path.clone())
+        .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .group_spawn()
@@ -807,12 +811,16 @@ async fn start_server(
     let stdout = child.inner().stdout.take().unwrap();
     let stderr = child.inner().stderr.take().unwrap();
     
+    let mut initial_logs = Vec::new();
+    initial_logs.push(format!("I [SYSTEM] Booting llama-server with exact parameters:"));
+    initial_logs.push(format!("I [SYSTEM] {}", full_command));
+
     let server_state = ActiveServer {
         process: Some(child),
         model_id: payload.model_id.clone(),
         port,
         is_ready: false,
-        logs: Vec::new(),
+        logs: initial_logs,
         progress: 0.0,
     };
     

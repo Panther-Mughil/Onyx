@@ -362,7 +362,7 @@ function App() {
 
   const isModelRunning = selectedModel ? activeServers.some(s => s.modelId === selectedModel.id) : false;
 
-  const maxLayers = selectedModel?.block_count ? selectedModel.block_count + 1 : 100;
+  const maxLayers = selectedModel?.block_count ? selectedModel.block_count : 100;
   const activeDevices = [];
   if (config.localGpus) {
       config.localGpus.forEach(g => {
