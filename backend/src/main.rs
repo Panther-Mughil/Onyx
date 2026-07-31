@@ -386,29 +386,6 @@ async fn get_local_models() -> Json<Vec<Model>> {
                             }
                         }
                     }
-                    
-                    // Generate tags dynamically
-                    if architecture.to_lowercase().contains("clip") || architecture.to_lowercase().contains("llava") || architecture.to_lowercase().contains("vision") || architecture.to_lowercase().contains("mllama") {
-                        if !tags.contains(&"VISION".to_string()) { tags.push("VISION".to_string()); }
-                    }
-                    
-                    if filename_lower.contains("gemma") || filename_lower.contains("qwen") || filename_lower.contains("vision") || filename_lower.contains("-vl") {
-                        if !tags.contains(&"VISION".to_string()) { tags.push("VISION".to_string()); }
-                    }
-                    if filename_lower.contains("gemma") || filename_lower.contains("qwen") || filename_lower.contains("tool") || filename_lower.contains("function") {
-                        if !tags.contains(&"TOOLS".to_string()) { tags.push("TOOLS".to_string()); }
-                    }
-                    if filename_lower.contains("gemma") || filename_lower.contains("qwen") || filename_lower.contains("reasoning") || filename_lower.contains("r1") || filename_lower.contains("think") {
-                        if !tags.contains(&"REASONING".to_string()) { tags.push("REASONING".to_string()); }
-                    }
-                    
-                    if tags.is_empty() {
-                        tags.push("TEXT GENERATION".to_string());
-                    }
-
-                    // Dedup tags
-                    tags.sort();
-                    tags.dedup();
 
                     // Update cache with the new CachedModelMetadata
                     let new_metadata = CachedModelMetadata {

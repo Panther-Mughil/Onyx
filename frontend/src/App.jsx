@@ -555,13 +555,7 @@ function App() {
                     <div className="info-row"><span>File</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.id.substring(0, 20)}...</span></div>
                     <div className="info-row"><span>Format</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>GGUF</span></div>
                     <div className="info-row"><span>Quantization</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.quantization}</span></div>
-                    <div className="info-row"><span>Capabilities</span> 
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {selectedModel.tags && selectedModel.tags.map(tag => (
-                          <span key={tag} style={{background: 'var(--accent)', color: '#000', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase'}}>{tag}</span>
-                        ))}
-                      </div>
-                    </div>
+
                     <div className="info-row"><span>Size on disk</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.size_gb.toFixed(2)} GB</span></div>
                   </div>
                 </div>
