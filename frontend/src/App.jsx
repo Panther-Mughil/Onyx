@@ -146,9 +146,14 @@ function App() {
   }, [selectedModel]);
 
   useEffect(() => {
-    if (telemetry && telemetry.gpus && (!config.localGpus || config.localGpus.length === 0)) {
-        const initGpus = telemetry.gpus.map((g, i) => ({ index: i, name: g.name, active: true }));
-        setConfig(prev => ({ ...prev, localGpus: initGpus }));
+    if (telemetry) {
+        if (telemetry.gpus && (!config.localGpus || config.localGpus.length === 0)) {
+            const initGpus = telemetry.gpus.map((g, i) => ({ index: i, name: g.name, active: true }));
+            setConfig(prev => ({ ...prev, localGpus: initGpus }));
+        }
+        if (telemetry.physical_cores && config.threads === (navigator.hardwareConcurrency || 4)) {
+            setConfig(prev => ({ ...prev, threads: telemetry.physical_cores }));
+        }
     }
   }, [telemetry]);
   useEffect(() => {
@@ -598,7 +603,7 @@ function App() {
                     
                     <div className="form-row" style={{marginBottom: '16px'}}>
                       <span>CPU Thread Pool Size</span>
-                      <input type="number" className="num-input" name="threads" value={config.threads} max={navigator.hardwareConcurrency || 32} onChange={handleConfigChange} />
+                      <input type="number" className="num-input" name="threads" value={config.threads} max={telemetry?.physical_cores || navigator.hardwareConcurrency || 32} onChange={handleConfigChange} />
                     </div>
 
                     <div className="form-row" style={{marginBottom: '16px'}}>

@@ -169,6 +169,7 @@ struct TelemetryResponse {
     cpu_name: String,
     cpu_usage_pct: f32,
     cpu_temp_c: f32,
+    physical_cores: Option<usize>,
     ram_used_gb: f32,
     ram_total_gb: f32,
     gpus: Vec<GpuTelemetry>,
@@ -990,8 +991,19 @@ async fn get_telemetry(
     
     let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
     let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
+    let physical_cores = sys.physical_core_count();
     
-    let cpu_temp_c = 0.0; 
+    let components = sysinfo::Components::new_with_refreshed_list();
+    let mut cpu_temp_c = 0.0; 
+    for component in &components {
+        let label = component.label().to_lowercase();
+        if label.contains("cpu") || label.contains("core") || label.contains("tctl") {
+            let temp = component.temperature();
+            if temp > cpu_temp_c {
+                cpu_temp_c = temp;
+            }
+        }
+    }
 
     let ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
     let ram_total_gb = sys.total_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
@@ -1023,6 +1035,7 @@ async fn get_telemetry(
         cpu_name,
         cpu_usage_pct,
         cpu_temp_c,
+        physical_cores,
         ram_used_gb,
         ram_total_gb,
         gpus,
