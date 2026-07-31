@@ -16,13 +16,13 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     
     if [ "$OS" = "Darwin" ]; then
         if [ "$ARCH" = "arm64" ]; then
-            ASSET_PATTERN="bin-macos-arm64\.zip$"
+            ASSET_PATTERN="bin-macos-arm64\.tar\.gz$"
         else
-            ASSET_PATTERN="bin-macos-x64\.zip$"
+            ASSET_PATTERN="bin-macos-x64\.tar\.gz$"
         fi
     elif [ "$OS" = "Linux" ]; then
         if [ "$ARCH" = "aarch64" ]; then
-            ASSET_PATTERN="bin-ubuntu-x64\.zip$" # Actually linux-aarch64 isn't often published by llama.cpp, fallback to building? We'll just look for ubuntu-aarch64
+            ASSET_PATTERN="bin-ubuntu-x64\.zip$" # Fallback since aarch64 linux isn't often published
         else
             if command -v nvidia-smi &> /dev/null; then
                 ASSET_PATTERN="bin-ubuntu-vulkan-x64\.zip$" # Vulkan works well on Linux, or use CUDA if they have it
@@ -37,10 +37,10 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     
     # Simple curl check for release. If nvidia-smi exists, try getting cuda first.
     if command -v nvidia-smi &> /dev/null && [ "$OS" = "Linux" ]; then
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64-cuda-cu12.*\.zip$" | head -n 1 | cut -d '"' -f 4)
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64-cuda-13.*\.zip$" | head -n 1 | cut -d '"' -f 4)
     fi
     if [ -z "$DOWNLOAD_URL" ]; then
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
     fi
     
     if [ -z "$DOWNLOAD_URL" ]; then
@@ -49,11 +49,15 @@ if [ ! -f "./bin/ggml-rpc-server" ]; then
     fi
     
     echo "Downloading from $DOWNLOAD_URL..."
-    curl -L "$DOWNLOAD_URL" -o llama.zip
+    curl -L "$DOWNLOAD_URL" -o llama_archive
     
     echo "Extracting..."
-    unzip -o llama.zip -d ./bin
-    rm llama.zip
+    if [[ "$DOWNLOAD_URL" == *".tar.gz" ]]; then
+        tar -xzf llama_archive -C ./bin
+    else
+        unzip -o llama_archive -d ./bin
+    fi
+    rm llama_archive
     
     chmod +x ./bin/ggml-rpc-server
     chmod +x ./bin/llama-server

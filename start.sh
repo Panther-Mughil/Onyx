@@ -50,13 +50,13 @@ if [ ! -f "bin/llama-server" ]; then
     
     if [ "$OS" = "Darwin" ]; then
         if [ "$ARCH" = "arm64" ]; then
-            ASSET_PATTERN="bin-macos-arm64\.zip$"
+            ASSET_PATTERN="bin-macos-arm64\.tar\.gz$"
         else
-            ASSET_PATTERN="bin-macos-x64\.zip$"
+            ASSET_PATTERN="bin-macos-x64\.tar\.gz$"
         fi
     elif [ "$OS" = "Linux" ]; then
         if command -v nvidia-smi &> /dev/null; then
-            ASSET_PATTERN="bin-ubuntu-x64-cuda-cu12.*\.zip$"
+            ASSET_PATTERN="bin-ubuntu-x64-cuda-13.*\.zip$"
         else
             ASSET_PATTERN="bin-ubuntu-x64\.zip$"
         fi
@@ -71,16 +71,16 @@ if [ ! -f "bin/llama-server" ]; then
     fi
     
     # Simple curl check for release.
-    DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
+    DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
     
     # If a specific CUDA version failed, fallback to Vulkan or CPU
     if [ -z "$DOWNLOAD_URL" ] && [ "$OS" = "Linux" ] && command -v nvidia-smi &> /dev/null; then
-        echo "CUDA 12 binary not found in latest release. Trying Vulkan..."
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-vulkan-x64\.zip$" | head -n 1 | cut -d '"' -f 4)
+        echo "CUDA 13 binary not found in latest release. Trying Vulkan..."
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-vulkan-x64\.zip$" | head -n 1 | cut -d '"' -f 4)
     fi
     if [ -z "$DOWNLOAD_URL" ] && [ "$OS" = "Linux" ]; then
         echo "Falling back to CPU binary..."
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64\.zip$" | head -n 1 | cut -d '"' -f 4)
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64\.zip$" | head -n 1 | cut -d '"' -f 4)
     fi
 
     if [ -z "$DOWNLOAD_URL" ]; then
@@ -89,11 +89,15 @@ if [ ! -f "bin/llama-server" ]; then
     fi
     
     echo "Downloading from $DOWNLOAD_URL..."
-    curl -L "$DOWNLOAD_URL" -o llama.zip
+    curl -L "$DOWNLOAD_URL" -o llama_archive
     
     echo "Extracting..."
-    unzip -o llama.zip -d ./bin
-    rm llama.zip
+    if [[ "$DOWNLOAD_URL" == *".tar.gz" ]]; then
+        tar -xzf llama_archive -C ./bin
+    else
+        unzip -o llama_archive -d ./bin
+    fi
+    rm llama_archive
     
     chmod +x ./bin/llama-server
     chmod +x ./bin/ggml-rpc-server 2>/dev/null || true
