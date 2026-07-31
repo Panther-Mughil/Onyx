@@ -56,12 +56,18 @@ if [ ! -f "bin/llama-server" ]; then
         for cmd in cmake git make; do
             if ! command -v $cmd &> /dev/null; then
                 echo "[!] '$cmd' is not installed. Attempting to install via Homebrew..."
-                if command -v brew &> /dev/null; then
-                    brew install $cmd
-                else
-                    echo "Error: Homebrew is not installed. Please install Homebrew (https://brew.sh) to automate this, or install $cmd manually."
-                    exit 1
+                if ! command -v brew &> /dev/null; then
+                    echo "[!] Homebrew is not installed. Installing Homebrew first (you may be prompted for your password)..."
+                    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                    
+                    # Ensure brew is in PATH for this session
+                    if [ -x "/opt/homebrew/bin/brew" ]; then
+                        eval "$(/opt/homebrew/bin/brew shellenv)"
+                    elif [ -x "/usr/local/bin/brew" ]; then
+                        eval "$(/usr/local/bin/brew shellenv)"
+                    fi
                 fi
+                brew install $cmd
             fi
         done
         
