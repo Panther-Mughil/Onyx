@@ -103,6 +103,15 @@ if [ ! -f "bin/llama-server" ]; then
     fi
 fi
 
+# Set dynamic library paths (Linux) so llama-server can find its GPU libraries
+export LD_LIBRARY_PATH="$(pwd)/bin:$LD_LIBRARY_PATH"
+
+# On macOS, System Integrity Protection (SIP) strips DYLD_LIBRARY_PATH.
+# We permanently rewrite the binary's rpath to look in its own directory instead.
+if [ "$(uname)" == "Darwin" ]; then
+    install_name_tool -add_rpath @executable_path ./bin/llama-server >/dev/null 2>&1 || true
+fi
+
 # 2. Start the embedded application
 echo ""
 echo "Starting Onyx Server..."
