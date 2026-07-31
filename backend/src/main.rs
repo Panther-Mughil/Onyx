@@ -235,37 +235,81 @@ async fn get_local_models() -> Json<Vec<Model>> {
 
                 let mut context_length = 0;
                 let mut block_count = 0;
+                
+                // Try to load from cache first
+                let cache_path = std::path::Path::new("../models/metadata_cache.json");
+                let mut cache: std::collections::HashMap<String, (u32, u32)> = if cache_path.exists() {
+                    if let Ok(cache_str) = fs::read_to_string(cache_path) {
+                        serde_json::from_str(&cache_str).unwrap_or_default()
+                    } else {
+                        std::collections::HashMap::new()
+                    }
+                } else {
+                    std::collections::HashMap::new()
+                };
 
-                // Quick binary search for GGUF metadata
-                if let Ok(mut file) = fs::File::open(&path) {
-                    use std::io::Read;
-                    let mut buffer = vec![0u8; 1024 * 1024]; // Read first 1MB for metadata
-                    if let Ok(bytes_read) = file.read(&mut buffer) {
-                        buffer.truncate(bytes_read);
-                        
-                        // Search for ".context_length"
-                        let ctx_needle = b".context_length";
-                        if let Some(pos) = buffer.windows(ctx_needle.len()).position(|w| w == ctx_needle) {
-                            let type_pos = pos + ctx_needle.len();
-                            if type_pos + 8 <= buffer.len() {
-                                let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
-                                if val_type == 4 { // u32 type
-                                    context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                if let Some(&(ctx, blk)) = cache.get(&filename) {
+                    context_length = ctx;
+                    block_count = blk;
+                } else {
+                    // Full reliable parser using gguf crate
+                    if let Ok(mut file) = fs::File::open(&path) {
+                        use std::io::Read;
+                        let mut buffer = vec![0u8; 1024 * 1024 * 5]; // Read first 5MB to ensure full header
+                        if let Ok(bytes_read) = file.read(&mut buffer) {
+                            buffer.truncate(bytes_read);
+                            if let Ok(Some(gguf_file)) = gguf::GGUFFile::read(&buffer) {
+                                for md in gguf_file.header.metadata {
+                                    if md.key.ends_with(".context_length") {
+                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                            context_length = v;
+                                        }
+                                    }
+                                    if md.key.ends_with(".block_count") {
+                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                            block_count = v;
+                                        }
+                                    }
                                 }
                             }
                         }
-
-                        // Search for ".block_count"
-                        let blk_needle = b".block_count";
-                        if let Some(pos) = buffer.windows(blk_needle.len()).position(|w| w == blk_needle) {
-                            let type_pos = pos + blk_needle.len();
-                            if type_pos + 8 <= buffer.len() {
-                                let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
-                                if val_type == 4 { // u32 type
-                                    block_count = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                    }
+                    
+                    // Fallback to substring binary search if full parser fails (e.g. header > 5MB)
+                    if context_length == 0 || block_count == 0 {
+                        if let Ok(mut file) = fs::File::open(&path) {
+                            use std::io::Read;
+                            let mut buffer = vec![0u8; 1024 * 1024]; 
+                            if let Ok(bytes_read) = file.read(&mut buffer) {
+                                buffer.truncate(bytes_read);
+                                let ctx_needle = b".context_length";
+                                if let Some(pos) = buffer.windows(ctx_needle.len()).position(|w| w == ctx_needle) {
+                                    let type_pos = pos + ctx_needle.len();
+                                    if type_pos + 8 <= buffer.len() {
+                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if val_type == 4 {
+                                            context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                        }
+                                    }
+                                }
+                                let blk_needle = b".block_count";
+                                if let Some(pos) = buffer.windows(blk_needle.len()).position(|w| w == blk_needle) {
+                                    let type_pos = pos + blk_needle.len();
+                                    if type_pos + 8 <= buffer.len() {
+                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if val_type == 4 {
+                                            block_count = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                        }
+                                    }
                                 }
                             }
                         }
+                    }
+                    
+                    // Update cache
+                    cache.insert(filename.clone(), (context_length, block_count));
+                    if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
+                        let _ = fs::write(cache_path, cache_str);
                     }
                 }
 
