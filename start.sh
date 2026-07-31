@@ -49,62 +49,77 @@ if [ ! -f "bin/llama-server" ]; then
     ARCH="$(uname -m)"
     
     if [ "$OS" = "Darwin" ]; then
-        if [ "$ARCH" = "arm64" ]; then
-            ASSET_PATTERN="bin-macos-arm64\.tar\.gz"
-        else
-            ASSET_PATTERN="bin-macos-x64\.tar\.gz"
-        fi
-    elif [ "$OS" = "Linux" ]; then
-        if command -v nvidia-smi &> /dev/null; then
-            ASSET_PATTERN="bin-ubuntu-vulkan-x64\.tar\.gz" # Linux doesn't have official CUDA binaries anymore, use Vulkan
-        else
-            ASSET_PATTERN="bin-ubuntu-x64\.tar\.gz"
+        echo "[!] Pre-compiled macOS binaries contain a known BLAS bug."
+        echo "[!] Compiling llama-server from source (this takes a moment)..."
+        
+        if ! command -v cmake &> /dev/null; then
+            echo "Error: 'cmake' is required to compile on macOS. Please install it (e.g. 'brew install cmake')."
+            exit 1
         fi
         
-        # Check for ARM64 Linux
-        if [ "$ARCH" = "aarch64" ]; then
-            ASSET_PATTERN="bin-ubuntu-arm64\.tar\.gz"
-        fi
+        rm -rf llama_src
+        git clone --depth 1 https://github.com/ggml-org/llama.cpp.git llama_src
+        cd llama_src
+        cmake -B build -DGGML_METAL=ON -DGGML_RPC=ON -DGGML_BLAS=OFF
+        cmake --build build --config Release -j $(sysctl -n hw.logicalcpu)
+        cd ..
+        
+        cp ./llama_src/build/bin/llama-server ./bin/
+        cp ./llama_src/build/bin/ggml-rpc-server ./bin/ 2>/dev/null || true
+        cp ./llama_src/build/bin/*.dylib ./bin/ 2>/dev/null || true
+        rm -rf llama_src
+        
+        echo "Compilation complete!"
     else
-        echo "Unsupported OS: $OS"
-        exit 1
-    fi
-    
-    # Simple curl check for release.
-    DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
-    
-    # If Vulkan failed, fallback to CPU
-    if [ -z "$DOWNLOAD_URL" ] && [ "$OS" = "Linux" ]; then
-        echo "Falling back to CPU binary..."
-        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64\.tar\.gz" | head -n 1 | cut -d '"' -f 4)
-    fi
-
-    if [ -z "$DOWNLOAD_URL" ]; then
-        echo "Failed to find a matching release asset for $OS $ARCH."
-        exit 1
-    fi
-    
-    echo "Downloading from $DOWNLOAD_URL..."
-    curl -L "$DOWNLOAD_URL" -o llama_archive
-    
-    echo "Extracting..."
-    if [[ "$DOWNLOAD_URL" == *".tar.gz" ]]; then
-        tar -xzf llama_archive -C ./bin --strip-components=1
-    else
-        unzip -o llama_archive -d ./bin
-        # Unzip doesn't have strip-components, so move files up if nested
-        for dir in ./bin/llama-*/; do
-            if [ -d "$dir" ]; then
-                mv "$dir"* ./bin/ 2>/dev/null || true
-                rm -rf "$dir" 2>/dev/null || true
+        if [ "$OS" = "Linux" ]; then
+            if command -v nvidia-smi &> /dev/null; then
+                ASSET_PATTERN="bin-ubuntu-vulkan-x64\.tar\.gz"
+            else
+                ASSET_PATTERN="bin-ubuntu-x64\.tar\.gz"
             fi
-        done
+            
+            if [ "$ARCH" = "aarch64" ]; then
+                ASSET_PATTERN="bin-ubuntu-arm64\.tar\.gz"
+            fi
+        else
+            echo "Unsupported OS: $OS"
+            exit 1
+        fi
+        
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
+        
+        if [ -z "$DOWNLOAD_URL" ] && [ "$OS" = "Linux" ]; then
+            echo "Falling back to CPU binary..."
+            DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64\.tar\.gz" | head -n 1 | cut -d '"' -f 4)
+        fi
+
+        if [ -z "$DOWNLOAD_URL" ]; then
+            echo "Failed to find a matching release asset."
+            exit 1
+        fi
+        
+        echo "Downloading from $DOWNLOAD_URL..."
+        curl -L "$DOWNLOAD_URL" -o llama_archive
+        
+        echo "Extracting..."
+        if [[ "$DOWNLOAD_URL" == *".tar.gz" ]]; then
+            tar -xzf llama_archive -C ./bin --strip-components=1
+        else
+            unzip -o llama_archive -d ./bin
+            # Unzip doesn't have strip-components, so move files up if nested
+            for dir in ./bin/llama-*/; do
+                if [ -d "$dir" ]; then
+                    mv "$dir"* ./bin/ 2>/dev/null || true
+                    rm -rf "$dir" 2>/dev/null || true
+                fi
+            done
+        fi
+        rm llama_archive
+        
+        chmod +x ./bin/llama-server
+        chmod +x ./bin/ggml-rpc-server 2>/dev/null || true
+        echo "Download complete!"
     fi
-    rm llama_archive
-    
-    chmod +x ./bin/llama-server
-    chmod +x ./bin/ggml-rpc-server 2>/dev/null || true
-    echo "Download complete!"
 fi
 
 # 4. Install frontend dependencies
