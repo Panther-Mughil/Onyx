@@ -102,6 +102,9 @@ if [ ! -f "bin/llama-server" ]; then
     fi
     rm llama_archive
     
+    # Delete BLAS backend to prevent unsupported op RMS_NORM crashes
+    rm -f ./bin/*blas* 2>/dev/null || true
+    
     chmod +x ./bin/llama-server
     chmod +x ./bin/ggml-rpc-server 2>/dev/null || true
     echo "Download complete!"
