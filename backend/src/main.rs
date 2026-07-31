@@ -304,9 +304,9 @@ async fn get_local_models() -> Json<Vec<Model>> {
                             buffer.truncate(bytes_read);
                             if let Ok(Some(gguf_file)) = gguf::GGUFFile::read(&buffer) {
                                 for md in gguf_file.header.metadata {
-                                    if md.key.ends_with(".context_length") {
+                                    if md.key.ends_with(".context_length") || md.key.ends_with(".n_ctx_train") {
                                         if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
-                                            context_length = v;
+                                            if context_length == 0 { context_length = v; }
                                         }
                                     }
                                     if md.key.ends_with(".block_count") {
@@ -333,6 +333,18 @@ async fn get_local_models() -> Json<Vec<Model>> {
                                         let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 4 {
                                             context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                        }
+                                    }
+                                }
+                                let ctx_train_needle = b".n_ctx_train";
+                                if context_length == 0 {
+                                    if let Some(pos) = buffer.windows(ctx_train_needle.len()).position(|w| w == ctx_train_needle) {
+                                        let type_pos = pos + ctx_train_needle.len();
+                                        if type_pos + 8 <= buffer.len() {
+                                            let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                            if val_type == 4 {
+                                                context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                            }
                                         }
                                     }
                                 }
@@ -699,6 +711,9 @@ async fn start_server(
     }
 
     if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
+    if !payload.unified_kv { args.push("--no-kv-unified".to_string()); }
+    if payload.cpu_moe { args.push("--cpu-moe".to_string()); }
+    
     if payload.keep_in_memory { 
         args.push("--load-mode".to_string()); 
         args.push("mlock".to_string()); 
