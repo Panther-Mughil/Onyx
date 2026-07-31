@@ -635,6 +635,37 @@ function App() {
                       <span>Try mmap()</span>
                       <div className={`toggle-switch ${config.mmap ? 'active' : ''}`} onClick={() => handleToggle('mmap')}></div>
                     </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>Flash Attention</span>
+                      <div className={`toggle-switch ${config.flashAttention ? 'active' : ''}`} onClick={() => handleToggle('flashAttention')}></div>
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>K Cache Quantization</span>
+                      <select className="select-input" name="kCacheQuant" value={config.kCacheQuant} onChange={handleConfigChange} style={{ width: '140px' }}>
+                        <option value="f16">f16 (Disable)</option>
+                        <option value="q8_0">q8_0</option>
+                        <option value="q4_0">q4_0</option>
+                        <option value="q4_1">q4_1</option>
+                        <option value="q5_0">q5_0</option>
+                        <option value="q5_1">q5_1</option>
+                        <option value="iq4_nl">iq4_nl</option>
+                      </select>
+                    </div>
+
+                    <div className="form-row" style={{marginBottom: '16px'}}>
+                      <span>V Cache Quantization</span>
+                      <select className="select-input" name="vCacheQuant" value={config.vCacheQuant} onChange={handleConfigChange} style={{ width: '140px' }}>
+                        <option value="f16">f16 (Disable)</option>
+                        <option value="q8_0">q8_0</option>
+                        <option value="q4_0">q4_0</option>
+                        <option value="q4_1">q4_1</option>
+                        <option value="q5_0">q5_0</option>
+                        <option value="q5_1">q5_1</option>
+                        <option value="iq4_nl">iq4_nl</option>
+                      </select>
+                    </div>
                   </div>
                 </>
               ) : (
