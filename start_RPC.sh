@@ -7,9 +7,57 @@ echo "   Onyx RPC Worker Node (Mac/Linux)    "
 echo "======================================="
 
 if [ ! -f "./bin/ggml-rpc-server" ]; then
-    echo "Error: ./bin/ggml-rpc-server not found!"
-    echo "Please run ./build_llama.sh first to compile the binaries."
-    exit 1
+    echo "[!] ggml-rpc-server not found in bin/"
+    echo "Downloading pre-compiled llama.cpp binaries from GitHub..."
+    mkdir -p bin
+    
+    OS="$(uname -s)"
+    ARCH="$(uname -m)"
+    
+    if [ "$OS" = "Darwin" ]; then
+        if [ "$ARCH" = "arm64" ]; then
+            ASSET_PATTERN="bin-macos-arm64\.zip$"
+        else
+            ASSET_PATTERN="bin-macos-x64\.zip$"
+        fi
+    elif [ "$OS" = "Linux" ]; then
+        if [ "$ARCH" = "aarch64" ]; then
+            ASSET_PATTERN="bin-ubuntu-x64\.zip$" # Actually linux-aarch64 isn't often published by llama.cpp, fallback to building? We'll just look for ubuntu-aarch64
+        else
+            if command -v nvidia-smi &> /dev/null; then
+                ASSET_PATTERN="bin-ubuntu-vulkan-x64\.zip$" # Vulkan works well on Linux, or use CUDA if they have it
+            else
+                ASSET_PATTERN="bin-ubuntu-x64\.zip$" # CPU
+            fi
+        fi
+    else
+        echo "Unsupported OS: $OS"
+        exit 1
+    fi
+    
+    # Simple curl check for release. If nvidia-smi exists, try getting cuda first.
+    if command -v nvidia-smi &> /dev/null && [ "$OS" = "Linux" ]; then
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "bin-ubuntu-x64-cuda-cu12.*\.zip$" | head -n 1 | cut -d '"' -f 4)
+    fi
+    if [ -z "$DOWNLOAD_URL" ]; then
+        DOWNLOAD_URL=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep "browser_download_url" | grep -E "$ASSET_PATTERN" | head -n 1 | cut -d '"' -f 4)
+    fi
+    
+    if [ -z "$DOWNLOAD_URL" ]; then
+        echo "Failed to find a matching release asset."
+        exit 1
+    fi
+    
+    echo "Downloading from $DOWNLOAD_URL..."
+    curl -L "$DOWNLOAD_URL" -o llama.zip
+    
+    echo "Extracting..."
+    unzip -o llama.zip -d ./bin
+    rm llama.zip
+    
+    chmod +x ./bin/ggml-rpc-server
+    chmod +x ./bin/llama-server
+    echo "Download complete!"
 fi
 
 # Set dynamic library paths (Linux)

@@ -22,5 +22,7 @@ This project consists of two primary layers:
 - **RPC**: Allow dynamic addition of RPC endpoints via the UI, which translates to passing `--rpc <endpoints>` flags to the server instance.
 
 ## 4. Workflows
+- **Development**: Use `start_dev.bat` to start the backend and frontend in separate terminal tabs with hot-reloading enabled.
+- **Testing/End-Users**: Use `start.bat` which will automatically install Node.js/Rust if missing, download the pre-compiled `llama.cpp` binaries, and start the application directly. RPC Nodes should use `start_RPC.bat` or `start_RPC.sh`.
 - When implementing a new tab or feature, first build the underlying logic in the backend middleware (if required), then expose it to the frontend via a clean API, and finally build the premium UI components.
 - Always check the `PRD.md` for exact feature requirements.
