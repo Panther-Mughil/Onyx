@@ -643,43 +643,7 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
-async fn start_server(
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
-    Json(payload): Json<ServerConfig>,
-) -> Json<StartResponse> {
-    
-    let mut servers_map = state.active_servers.lock().await;
-    
-    if servers_map.contains_key(&payload.model_id) {
-        if let Some(mut existing) = servers_map.remove(&payload.model_id) {
-            if let Some(mut child) = existing.process.take() {
-                let _ = child.kill().await;
-            }
-        }
-    }
-    
-    let port = {
-        let mut p = 8080;
-        while servers_map.values().any(|s| s.port == p) {
-            p += 1;
-        }
-        p
-    };
-    
-    let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
-    let binary_path = if cfg!(windows) {
-        format!("{}/bin/llama-server.exe", base_dir())
-    } else {
-        format!("{}/bin/llama-server", base_dir())
-    };
-
-    if !Path::new(&binary_path).exists() {
-        return Json(StartResponse {
-            success: false,
-            message: format!("Binary not found at {}", binary_path),
-        });
-    }
-
+fn compute_gpu_offloads(payload: &ServerConfig) -> (u32, Option<String>) {
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
 
@@ -736,6 +700,48 @@ async fn start_server(
             }
         }
     }
+    
+    (actual_gpu_layers, ts_arg)
+}
+
+async fn start_server(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<ServerConfig>,
+) -> Json<StartResponse> {
+    
+    let mut servers_map = state.active_servers.lock().await;
+    
+    if servers_map.contains_key(&payload.model_id) {
+        if let Some(mut existing) = servers_map.remove(&payload.model_id) {
+            if let Some(mut child) = existing.process.take() {
+                let _ = child.kill().await;
+            }
+        }
+    }
+    
+    let port = {
+        let mut p = 8080;
+        while servers_map.values().any(|s| s.port == p) {
+            p += 1;
+        }
+        p
+    };
+    
+    let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
+    let binary_path = if cfg!(windows) {
+        format!("{}/bin/llama-server.exe", base_dir())
+    } else {
+        format!("{}/bin/llama-server", base_dir())
+    };
+
+    if !Path::new(&binary_path).exists() {
+        return Json(StartResponse {
+            success: false,
+            message: format!("Binary not found at {}", binary_path),
+        });
+    }
+
+    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload);
 
     let mut args = vec![
         "-m".to_string(), model_path.clone(),
@@ -921,9 +927,11 @@ async fn run_benchmark(
         format!("{}/bin/llama-bench", base_dir())
     };
     
+    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload);
+
     let mut args = vec![
         "-m".to_string(), model_path,
-        "-ngl".to_string(), payload.gpu_layers.to_string(),
+        "-ngl".to_string(), actual_gpu_layers.to_string(),
         "-t".to_string(), payload.threads.to_string(),
         "-b".to_string(), payload.eval_batch_size.to_string(),
         "-ub".to_string(), payload.physical_batch_size.to_string(),
@@ -933,6 +941,11 @@ async fn run_benchmark(
         "-n".to_string(), "128".to_string(),
         "--progress".to_string(),
     ];
+
+    if let Some(ts) = ts_arg {
+        args.push("-ts".to_string());
+        args.push(ts);
+    }
 
     if let Some(servers) = &payload.rpc_servers {
         let active_servers: Vec<String> = servers.iter()
@@ -959,9 +972,13 @@ async fn run_benchmark(
 
     let shared_state = state.clone();
     
+    let full_command = format!("{} {}", binary_path, args.join(" "));
+    state.benchmark_logs.lock().await.push(format!("I [SYSTEM] Booting llama-bench with exact parameters:"));
+    state.benchmark_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
+    
     tokio::spawn(async move {
-        let mut child = match Command::new(binary_path)
-            .args(args)
+        let mut child = match Command::new(binary_path.clone())
+            .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .group_spawn()
