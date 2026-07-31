@@ -53,8 +53,13 @@ if [ ! -f "bin/llama-server" ]; then
         echo "[!] Compiling llama-server from source (this takes a moment)..."
         
         if ! command -v cmake &> /dev/null; then
-            echo "Error: 'cmake' is required to compile on macOS. Please install it (e.g. 'brew install cmake')."
-            exit 1
+            echo "[!] 'cmake' is not installed. Attempting to install via Homebrew..."
+            if command -v brew &> /dev/null; then
+                brew install cmake
+            else
+                echo "Error: Homebrew is not installed. Please install Homebrew (https://brew.sh) or install cmake manually."
+                exit 1
+            fi
         fi
         
         rm -rf llama_src
