@@ -88,9 +88,9 @@ function App() {
   const initialConfig = {
     ctxSize: 2048,
     gpuLayers: 28,
-    threads: 4,
-    evalBatchSize: 4096,
-    physicalBatchSize: 1024,
+    threads: navigator.hardwareConcurrency || 4,
+    evalBatchSize: 2048,
+    physicalBatchSize: 512,
     concurrency: 1,
     unifiedKv: true,
     offloadKv: true,
@@ -556,17 +556,20 @@ function App() {
                     <div style={{ marginBottom: '20px' }}>
                       <div className="form-row">
                         <span>Context Length</span>
-                        <input type="number" className="num-input" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                        <input type="number" className="num-input" name="ctxSize" value={config.ctxSize} max={selectedModel?.context_length || 128000} onChange={handleConfigChange} />
                       </div>
-                      <input type="range" className="range-slider" min="256" max="128000" step="256" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                      <input type="range" className="range-slider" min="256" max={selectedModel?.context_length || 128000} step="256" name="ctxSize" value={config.ctxSize} onChange={handleConfigChange} />
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                        Maximum context for this model is {selectedModel?.context_length ? selectedModel.context_length : '128000'}.
+                      </div>
                     </div>
 
                     <div>
                       <div className="form-row">
-                        <span>GPU Offload</span>
-                        <input type="number" className="num-input" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+                        <span>GPU Offload (Layers)</span>
+                        <input type="number" className="num-input" name="gpuLayers" value={config.gpuLayers} max={selectedModel?.block_count || 99} onChange={handleConfigChange} />
                       </div>
-                      <input type="range" className="range-slider" min="0" max="99" name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
+                      <input type="range" className="range-slider" min="0" max={selectedModel?.block_count || 99} name="gpuLayers" value={config.gpuLayers} onChange={handleConfigChange} />
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
                         <Info size={14}/> <span>Model offload limited to dedicated GPU memory.</span>
                       </div>
@@ -578,7 +581,7 @@ function App() {
                     
                     <div className="form-row" style={{marginBottom: '16px'}}>
                       <span>CPU Thread Pool Size</span>
-                      <input type="number" className="num-input" name="threads" value={config.threads} onChange={handleConfigChange} />
+                      <input type="number" className="num-input" name="threads" value={config.threads} max={navigator.hardwareConcurrency || 32} onChange={handleConfigChange} />
                     </div>
 
                     <div className="form-row" style={{marginBottom: '16px'}}>

@@ -31,6 +31,8 @@ struct Model {
     name: String,
     quantization: String,
     size_gb: f32,
+    context_length: u32,
+    block_count: u32,
 }
 
 #[derive(Deserialize, Debug)]
@@ -231,11 +233,49 @@ async fn get_local_models() -> Json<Vec<Model>> {
                 
                 let name = parts[0].to_string();
 
+                let mut context_length = 0;
+                let mut block_count = 0;
+
+                // Quick binary search for GGUF metadata
+                if let Ok(mut file) = fs::File::open(&path) {
+                    use std::io::Read;
+                    let mut buffer = vec![0u8; 1024 * 1024]; // Read first 1MB for metadata
+                    if let Ok(bytes_read) = file.read(&mut buffer) {
+                        buffer.truncate(bytes_read);
+                        
+                        // Search for ".context_length"
+                        let ctx_needle = b".context_length";
+                        if let Some(pos) = buffer.windows(ctx_needle.len()).position(|w| w == ctx_needle) {
+                            let type_pos = pos + ctx_needle.len();
+                            if type_pos + 8 <= buffer.len() {
+                                let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                if val_type == 4 { // u32 type
+                                    context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                }
+                            }
+                        }
+
+                        // Search for ".block_count"
+                        let blk_needle = b".block_count";
+                        if let Some(pos) = buffer.windows(blk_needle.len()).position(|w| w == blk_needle) {
+                            let type_pos = pos + blk_needle.len();
+                            if type_pos + 8 <= buffer.len() {
+                                let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                if val_type == 4 { // u32 type
+                                    block_count = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                }
+                            }
+                        }
+                    }
+                }
+
                 models.push(Model {
                     id: filename,
                     name,
                     quantization,
                     size_gb,
+                    context_length,
+                    block_count,
                 });
             }
         }
