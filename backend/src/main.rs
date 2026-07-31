@@ -70,7 +70,6 @@ struct CachedModelMetadata {
     block_count: u32,
     architecture: String,
     quantization: String,
-    tags: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -81,7 +80,6 @@ struct Model {
     size_gb: f32,
     context_length: u32,
     block_count: u32,
-    tags: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -293,15 +291,13 @@ async fn get_local_models() -> Json<Vec<Model>> {
                 let mut context_length = 0;
                 let mut block_count = 0;
                 let mut architecture = String::new();
-                let mut quantization = String::new();
-                let mut tags = Vec::new();
+                let mut quantization;
 
                 if let Some(cached_data) = cache.get(&filename) {
                     context_length = cached_data.context_length;
                     block_count = cached_data.block_count;
                     architecture = cached_data.architecture.clone();
                     quantization = cached_data.quantization.clone();
-                    tags = cached_data.tags.clone();
                 } else {
                     // Extract quantization from filename
                     let filename_lower = filename.to_lowercase();
@@ -393,7 +389,6 @@ async fn get_local_models() -> Json<Vec<Model>> {
                         block_count,
                         architecture: architecture.clone(),
                         quantization: quantization.clone(),
-                        tags: tags.clone(),
                     };
                     cache.insert(filename.clone(), new_metadata);
                     if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
@@ -414,7 +409,6 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     size_gb,
                     context_length,
                     block_count,
-                    tags,
                 });
             }
         }
