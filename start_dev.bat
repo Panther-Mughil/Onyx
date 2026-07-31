@@ -1,6 +1,10 @@
 @echo off
+setlocal EnableDelayedExpansion
 cd /d "%~dp0"
-echo Starting Onyx...
+echo =======================================
+echo     Starting Onyx Dev Environment
+echo =======================================
+echo.
 
 :: 1. Check for Node.js
 where npm >nul 2>nul
@@ -16,7 +20,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: 2. Check for Rust (cargo)
+:: 2. Check for Rust (Cargo)
 where cargo >nul 2>nul
 if %errorlevel% neq 0 (
     echo [!] Rust/Cargo not found. Installing via winget...
@@ -30,7 +34,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: Check for pre-compiled llama.cpp
+:: 3. Check for pre-compiled llama.cpp
 if exist "bin\llama-server.exe" goto skip_download
 
 echo [!] llama-server.exe not found in bin\
@@ -45,18 +49,19 @@ if %errorlevel% neq 0 (
 
 :skip_download
 
-:: Install frontend dependencies
+:: 4. Install frontend dependencies
+echo.
 echo Installing frontend dependencies...
-cd frontend
-call npm install
-cd ..
+call npm install --prefix frontend
 
-:: Try to use Windows Terminal (wt.exe) to open both processes in multiple tabs
-wt -d .\backend cmd /k "title Rust Backend && cargo run" ; new-tab -d .\frontend cmd /k "title Vite Frontend && npm run dev"
-
-:: If Windows Terminal is not installed, it will fallback to opening separate standard command prompt windows
+:: 5. Launch both servers using Windows Terminal (wt.exe) or fallback to cmd
+echo.
+echo Launching Rust Backend and Vite Frontend in separate tabs...
+wt cmd /k "title Rust Backend && cargo run --manifest-path backend/Cargo.toml" ; new-tab cmd /k "title Vite Frontend && npm run dev --prefix frontend"
 if %errorlevel% neq 0 (
     echo Windows Terminal not found, falling back to separate windows...
-    start "Onyx Backend" cmd /k "cd backend && cargo run"
-    start "Onyx Frontend" cmd /k "cd frontend && npm run dev"
+    start "Onyx Backend" cmd /k "cargo run --manifest-path backend/Cargo.toml"
+    start "Onyx Frontend" cmd /k "npm run dev --prefix frontend"
 )
+
+endlocal

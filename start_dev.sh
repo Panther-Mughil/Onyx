@@ -1,12 +1,10 @@
 #!/bin/bash
+cd "$(dirname "$0")"
+
 echo "======================================="
 echo "   Starting Onyx Dev Environment"
 echo "======================================="
-
-# Trap Ctrl+C (SIGINT) and clean up background processes
-trap 'echo "Stopping servers..."; kill $(jobs -p) 2>/dev/null; exit' SIGINT SIGTERM
-
-cd "$(dirname "$0")"
+echo ""
 
 # 1. Check for Node.js
 if ! command -v npm &> /dev/null; then
@@ -54,15 +52,12 @@ if [ ! -f "bin/llama-server" ]; then
         echo "[!] Pre-compiled macOS binaries contain a known BLAS bug."
         echo "[!] Compiling llama-server from source (this takes a moment)..."
         
-        # Ensure build tools are installed
         for cmd in cmake git make; do
             if ! command -v $cmd &> /dev/null; then
                 echo "[!] '$cmd' is not installed. Attempting to install via Homebrew..."
                 if ! command -v brew &> /dev/null; then
-                    echo "[!] Homebrew is not installed. Installing Homebrew first (you may be prompted for your password)..."
+                    echo "[!] Homebrew is not installed. Installing Homebrew first..."
                     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-                    
-                    # Ensure brew is in PATH for this session
                     if [ -x "/opt/homebrew/bin/brew" ]; then
                         eval "$(/opt/homebrew/bin/brew shellenv)"
                     elif [ -x "/usr/local/bin/brew" ]; then
@@ -122,7 +117,6 @@ if [ ! -f "bin/llama-server" ]; then
             tar -xzf llama_archive -C ./bin --strip-components=1
         else
             unzip -o llama_archive -d ./bin
-            # Unzip doesn't have strip-components, so move files up if nested
             for dir in ./bin/llama-*/; do
                 if [ -d "$dir" ]; then
                     mv "$dir"* ./bin/ 2>/dev/null || true
@@ -138,23 +132,30 @@ if [ ! -f "bin/llama-server" ]; then
     fi
 fi
 
+# Set dynamic library paths (Linux) so llama-server can find its GPU libraries
+export LD_LIBRARY_PATH="$(pwd)/bin:$LD_LIBRARY_PATH"
+
+# On macOS, System Integrity Protection (SIP) strips DYLD_LIBRARY_PATH.
+if [ "$(uname)" == "Darwin" ]; then
+    install_name_tool -add_rpath @executable_path ./bin/llama-server >/dev/null 2>&1 || true
+fi
+
 # 4. Install frontend dependencies
 echo ""
-echo "Installing frontend dependencies (if any are missing)..."
-cd frontend
-npm install
-cd ..
+echo "Installing frontend dependencies..."
+npm install --prefix frontend
 
-echo "Starting Rust Backend..."
-cd backend
-cargo run &
+# 5. Start the application
+echo ""
+echo "Starting Rust Backend and Vite Frontend..."
+
+trap 'echo "Stopping servers..."; kill $(jobs -p) 2>/dev/null; exit' SIGINT SIGTERM
+
+# Run from the root directory so the dynamic path resolver works perfectly
+cargo run --manifest-path backend/Cargo.toml &
 BACKEND_PID=$!
 
-cd ..
-
-echo "Starting Vite Frontend..."
-cd frontend
-npm run dev &
+npm run dev --prefix frontend &
 FRONTEND_PID=$!
 
 echo ""
