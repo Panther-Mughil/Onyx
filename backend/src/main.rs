@@ -643,7 +643,7 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
-fn compute_gpu_offloads(payload: &ServerConfig) -> (u32, Option<String>) {
+fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>) {
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
 
@@ -675,7 +675,7 @@ fn compute_gpu_offloads(payload: &ServerConfig) -> (u32, Option<String>) {
         
         actual_gpu_layers = total_offloaded;
         if splits.len() > 1 {
-            ts_arg = Some(splits.join(","));
+            ts_arg = Some(splits.join(delimiter));
         }
     } else {
         if let Some(gpus) = &payload.local_gpus {
@@ -695,7 +695,7 @@ fn compute_gpu_offloads(payload: &ServerConfig) -> (u32, Option<String>) {
                 if !any_active {
                     actual_gpu_layers = 0;
                 } else if !all_active {
-                    ts_arg = Some(splits.join(","));
+                    ts_arg = Some(splits.join(delimiter));
                 }
             }
         }
@@ -741,7 +741,7 @@ async fn start_server(
         });
     }
 
-    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload);
+    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, ",");
 
     let mut args = vec![
         "-m".to_string(), model_path.clone(),
@@ -927,7 +927,7 @@ async fn run_benchmark(
         format!("{}/bin/llama-bench", base_dir())
     };
     
-    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload);
+    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");
 
     let mut args = vec![
         "-m".to_string(), model_path,
