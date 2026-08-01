@@ -957,7 +957,7 @@ function App() {
                     )}
 
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
-                      <React.Fragment key={`rpc-${rpcIdx}`}>
+                      <div key={`rpc-${rpcIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div className="box" style={{ padding: '16px', border: '1px solid var(--accent)' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -1006,7 +1006,7 @@ function App() {
                              </div>
                           </div>
                         ))}
-                      </React.Fragment>
+                      </div>
                     ))}
                   </>
                 )}
