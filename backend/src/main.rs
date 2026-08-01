@@ -664,12 +664,13 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         }
         
         if let Some(rpcs) = &payload.rpc_servers {
-            let active_rpcs: Vec<_> = rpcs.iter().filter(|r| r.active).collect();
-            for i in 0..active_rpcs.len() {
-                let key = format!("rpc_{}", i);
-                let layers = allocs.get(&key).copied().unwrap_or(0);
-                splits.push(layers.to_string());
-                total_offloaded += layers;
+            for (idx, rpc) in rpcs.iter().enumerate() {
+                if rpc.active {
+                    let key = format!("rpc_{}", idx);
+                    let layers = allocs.get(&key).copied().unwrap_or(0);
+                    splits.push(layers.to_string());
+                    total_offloaded += layers;
+                }
             }
         }
         
