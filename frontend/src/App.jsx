@@ -347,19 +347,33 @@ function App() {
   const handleStartServer = async () => {
     if (!selectedModel) return;
     try {
+      let sanitizedConfig = { ...config };
+      if (sanitizedConfig.layerAllocations) {
+          const cleanAllocs = {};
+          if (sanitizedConfig.layerAllocations['cpu']) {
+              cleanAllocs['cpu'] = sanitizedConfig.layerAllocations['cpu'];
+          }
+          activeDevices.forEach(d => {
+              if (sanitizedConfig.layerAllocations[d.id]) {
+                  cleanAllocs[d.id] = sanitizedConfig.layerAllocations[d.id];
+              }
+          });
+          sanitizedConfig.layerAllocations = cleanAllocs;
+      }
+
       const newSavedConfigs = { ...savedModelConfigs };
       if (rememberSettings) {
-        newSavedConfigs[selectedModel.id] = config;
+        newSavedConfigs[selectedModel.id] = sanitizedConfig;
       } else {
         delete newSavedConfigs[selectedModel.id];
       }
 
-      const newAppliedConfigs = { ...appliedConfigs, [selectedModel.id]: config };
+      const newAppliedConfigs = { ...appliedConfigs, [selectedModel.id]: sanitizedConfig };
 
       const response = await fetch('http://127.0.0.1:3001/api/server/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelId: selectedModel.id, ...config, rpcServers: serverSettings.rpcServers || [] })
+        body: JSON.stringify({ modelId: selectedModel.id, ...sanitizedConfig, rpcServers: serverSettings.rpcServers || [] })
       });
       const result = await response.json();
       if (!result.success) {
