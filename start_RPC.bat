@@ -33,12 +33,15 @@ echo.
 where cargo >nul 2>nul
 if %errorlevel% neq 0 (
     echo [!] Rust/Cargo is not installed on this machine.
-    echo [!] Telemetry agent will not run, but the RPC worker will still function perfectly.
-    echo [!] Starting barebones RPC Server on %HOST%:%PORT%...
-    bin\ggml-rpc-server.exe -H %HOST% -p %PORT%
-) else (
-    echo [i] Rust detected. Starting RPC Server and Telemetry Agent on %HOST%:%PORT%...
-    cargo run --release --manifest-path rpc_agent/Cargo.toml -- %HOST%:%PORT% %HOST%:50053
+    echo [i] Downloading and installing Rust...
+    powershell -Command "Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile 'rustup-init.exe'"
+    rustup-init.exe -y -q
+    del rustup-init.exe
+    set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
 )
+
+echo [i] Starting RPC Server and Telemetry Agent on %HOST%:%PORT%...
+cargo run --release --manifest-path rpc_agent/Cargo.toml -- %HOST%:%PORT% %HOST%:50053
+
 pause
 endlocal

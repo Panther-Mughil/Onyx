@@ -116,12 +116,12 @@ echo "2. Go to 'RPC & Devices' tab"
 echo "3. Add a new RPC Server using this machine's local IP address and port $PORT"
 echo ""
 
-if command -v cargo >/dev/null 2>&1; then
-    echo "[i] Rust detected. Starting RPC Server and Telemetry Agent on $HOST:$PORT..."
-    cargo run --release --manifest-path rpc_agent/Cargo.toml -- $HOST:$PORT $HOST:50053
-else
+if ! command -v cargo >/dev/null 2>&1; then
     echo "[!] Rust/Cargo is not installed on this machine."
-    echo "[!] Telemetry agent will not run, but the RPC worker will still function perfectly."
-    echo "[!] Starting barebones RPC Server on $HOST:$PORT..."
-    ./bin/ggml-rpc-server -H $HOST -p $PORT
+    echo "[i] Installing Rust via rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
 fi
+
+echo "[i] Starting RPC Server and Telemetry Agent on $HOST:$PORT..."
+cargo run --release --manifest-path rpc_agent/Cargo.toml -- $HOST:$PORT $HOST:50053
