@@ -427,8 +427,9 @@ async fn proxy_models_handler(
     let mut data = Vec::new();
     
     for (model_id, _) in servers.iter() {
+        let clean_id = model_id.strip_suffix(".gguf").unwrap_or(model_id);
         data.push(serde_json::json!({
-            "id": model_id,
+            "id": clean_id,
             "object": "model",
             "created": chrono::Utc::now().timestamp(),
             "owned_by": "onyx"
