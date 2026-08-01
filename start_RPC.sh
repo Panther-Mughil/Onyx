@@ -110,11 +110,18 @@ if [ "$(uname)" == "Darwin" ]; then
     install_name_tool -add_rpath @executable_path ./bin/ggml-rpc-server >/dev/null 2>&1 || true
 fi
 
-echo "Starting RPC Server and Telemetry Agent on $HOST:$PORT..."
 echo "To connect to this worker from your main Onyx instance:"
 echo "1. Open the Onyx Dashboard on your main PC"
 echo "2. Go to 'RPC & Devices' tab"
 echo "3. Add a new RPC Server using this machine's local IP address and port $PORT"
 echo ""
 
-cargo run --release --manifest-path rpc_agent/Cargo.toml -- $HOST:$PORT $HOST:50053
+if command -v cargo >/dev/null 2>&1; then
+    echo "[i] Rust detected. Starting RPC Server and Telemetry Agent on $HOST:$PORT..."
+    cargo run --release --manifest-path rpc_agent/Cargo.toml -- $HOST:$PORT $HOST:50053
+else
+    echo "[!] Rust/Cargo is not installed on this machine."
+    echo "[!] Telemetry agent will not run, but the RPC worker will still function perfectly."
+    echo "[!] Starting barebones RPC Server on $HOST:$PORT..."
+    ./bin/ggml-rpc-server -H $HOST -p $PORT
+fi
