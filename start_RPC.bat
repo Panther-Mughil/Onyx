@@ -30,6 +30,14 @@ echo 2. Go to 'RPC ^& Devices' tab
 echo 3. Add a new RPC Server using this machine's local IP address and port %PORT%
 echo.
 
+if exist "bin\rpc_agent.exe" (
+    echo [i] Starting pre-compiled RPC Server and Telemetry Agent on %HOST%:%PORT%...
+    bin\rpc_agent.exe %HOST%:%PORT% %HOST%:50053
+    pause
+    endlocal
+    exit /b 0
+)
+
 where cargo >nul 2>nul
 if %errorlevel% neq 0 (
     echo [!] Rust/Cargo is not installed on this machine.
