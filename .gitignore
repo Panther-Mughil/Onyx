@@ -20,3 +20,7 @@ AI_DEVELOPMENT_GUIDE.md
 # Application Data
 data/settings.json
 models/metadata_cache.json
+TMR_work.md
+
+# Rust Build Artifacts
+**/target/

@@ -23,14 +23,14 @@ if %errorlevel% neq 0 (
 
 :skip_download
 
-echo Starting RPC Server on %HOST%:%PORT%...
+echo Starting RPC Server and Telemetry Agent on %HOST%:%PORT%...
 echo To connect to this worker from your main Onyx instance:
 echo 1. Open the Onyx Dashboard on your main PC
 echo 2. Go to 'RPC ^& Devices' tab
 echo 3. Add a new RPC Server using this machine's local IP address and port %PORT%
 echo.
 
-bin\ggml-rpc-server.exe -H %HOST% -p %PORT%
+cargo run --release --manifest-path rpc_agent/Cargo.toml -- %HOST%:%PORT% %HOST%:50053
 
 pause
 endlocal

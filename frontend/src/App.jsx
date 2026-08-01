@@ -146,13 +146,13 @@ function App() {
   }, [selectedModel]);
 
   useEffect(() => {
-    if (telemetry) {
-        if (telemetry.gpus && (!config.localGpus || config.localGpus.length === 0)) {
-            const initGpus = telemetry.gpus.map((g, i) => ({ index: i, name: g.name, active: true }));
+    if (telemetry && telemetry.host) {
+        if (telemetry.host.gpus && (!config.localGpus || config.localGpus.length === 0)) {
+            const initGpus = telemetry.host.gpus.map((g, i) => ({ index: i, name: g.name, active: true }));
             setConfig(prev => ({ ...prev, localGpus: initGpus }));
         }
-        if (telemetry.physical_cores && config.threads === (navigator.hardwareConcurrency || 4)) {
-            setConfig(prev => ({ ...prev, threads: telemetry.physical_cores }));
+        if (telemetry.host.physical_cores && config.threads === (navigator.hardwareConcurrency || 4)) {
+            setConfig(prev => ({ ...prev, threads: telemetry.host.physical_cores }));
         }
     }
   }, [telemetry]);
@@ -201,11 +201,37 @@ function App() {
   }, [logs, systemLogs]);
 
   useEffect(() => {
-    const fetchTelemetry = () => {
-        fetch('http://127.0.0.1:3001/api/server/telemetry', { cache: 'no-store' })
-          .then(res => res.json())
-          .then(data => setTelemetry(data))
-          .catch(() => {});
+    const fetchTelemetry = async () => {
+        try {
+            const res = await fetch('http://127.0.0.1:3001/api/server/telemetry', { cache: 'no-store' });
+            const hostData = await res.json();
+            
+            // If we have active RPC servers configured, fetch from their telemetry port (port 50053 default)
+            const rpcNodes = [];
+            if (config.rpcServers && config.rpcServers.length > 0) {
+                const activeRpcs = config.rpcServers.filter(r => r.active);
+                for (const rpc of activeRpcs) {
+                    try {
+                        const ip = rpc.address.split(':')[0];
+                        // Default telemetry port is 50053
+                        const rpcRes = await fetch(`http://${ip}:50053/telemetry`, { cache: 'no-store' });
+                        const rpcData = await rpcRes.json();
+                        // Tag the gpus and CPU so we know they are from RPC
+                        rpcData.cpu_name = `[RPC ${ip}] ${rpcData.cpu_name}`;
+                        if (rpcData.gpus) {
+                            rpcData.gpus = rpcData.gpus.map(g => ({ ...g, name: `[RPC ${ip}] ${g.name}` }));
+                        }
+                        rpcNodes.push(rpcData);
+                    } catch (e) {
+                        // Ignore offline RPC servers
+                    }
+                }
+            }
+            
+            setTelemetry({ host: hostData, rpcs: rpcNodes });
+        } catch (e) {
+            // Error handling
+        }
     };
     fetchTelemetry();
     const interval = setInterval(fetchTelemetry, 1000);
@@ -660,7 +686,7 @@ function App() {
                     
                     <div className="form-row" style={{marginBottom: '16px'}}>
                       <span>CPU Thread Pool Size</span>
-                      <input type="number" className="num-input" name="threads" value={config.threads} max={telemetry?.physical_cores || navigator.hardwareConcurrency || 32} onChange={handleConfigChange} />
+                      <input type="number" className="num-input" name="threads" value={config.threads} max={telemetry?.host?.physical_cores || navigator.hardwareConcurrency || 32} onChange={handleConfigChange} />
                     </div>
 
                     <div className="form-row" style={{marginBottom: '16px'}}>
@@ -874,20 +900,20 @@ function App() {
             {activeTab === 'monitoring' && (
               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
-                {!telemetry ? (
+                {!telemetry || !telemetry.host ? (
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>Fetching telemetry...</div>
                 ) : (
                   <>
                     <div className="box" style={{ padding: '16px' }}>
-                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.cpu_name}</h4>
+                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.host.cpu_name}</h4>
                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
-                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_usage_pct.toFixed(1)}%</div>
+                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.host.cpu_usage_pct.toFixed(1)}%</div>
                           </div>
                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.cpu_temp_c > 0 ? `${telemetry.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.host.cpu_temp_c > 0 ? `${telemetry.host.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
                           </div>
                        </div>
                     </div>
@@ -895,19 +921,17 @@ function App() {
                     <div className="box" style={{ padding: '16px' }}>
                        <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{telemetry.ram_total_gb.toFixed(2)} GB</span></div>
-                          <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.ram_total_gb - telemetry.ram_used_gb).toFixed(2)} GB</span></div>
-                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{telemetry.ram_used_gb.toFixed(2)} GB</span></div>
+                      <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{telemetry.host.ram_total_gb.toFixed(2)} GB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.host.ram_total_gb - telemetry.host.ram_used_gb).toFixed(2)} GB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{telemetry.host.ram_used_gb.toFixed(2)} GB</span></div>
                        </div>
                     </div>
-
-                    {telemetry.gpus.length === 0 ? (
+                    {telemetry.host.gpus.length === 0 ? (
                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
                     ) : (
-                      telemetry.gpus.map((gpu, idx) => (
+                      telemetry.host.gpus.map((gpu, idx) => (
                         <div key={idx} className="box" style={{ padding: '16px' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
-                           
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
@@ -918,7 +942,6 @@ function App() {
                                  <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
                               </div>
                            </div>
-
                            <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -932,6 +955,59 @@ function App() {
                         </div>
                       ))
                     )}
+
+                    {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
+                      <React.Fragment key={`rpc-${rpcIdx}`}>
+                        <div className="box" style={{ padding: '16px', border: '1px solid var(--accent)' }}>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
+                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{rpc.cpu_usage_pct.toFixed(1)}%</div>
+                              </div>
+                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{rpc.cpu_temp_c > 0 ? `${rpc.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                              </div>
+                           </div>
+                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>RAM Usage</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{rpc.ram_used_gb.toFixed(2)} GB</span>
+                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {rpc.ram_total_gb.toFixed(2)} GB</span>
+                              </div>
+                              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                 <div style={{ width: `${(rpc.ram_used_gb / rpc.ram_total_gb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                              </div>
+                           </div>
+                        </div>
+                        {rpc.gpus && rpc.gpus.map((gpu, idx) => (
+                          <div key={`rpc-gpu-${rpcIdx}-${idx}`} className="box" style={{ padding: '16px', border: '1px solid var(--accent)' }}>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent)' }}><Zap size={16}/> {gpu.name}</h4>
+                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
+                                </div>
+                                <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
+                                </div>
+                             </div>
+                             <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
+                                </div>
+                                <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                                </div>
+                             </div>
+                          </div>
+                        ))}
+                      </React.Fragment>
+                    ))}
                   </>
                 )}
               </div>
