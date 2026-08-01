@@ -208,8 +208,8 @@ function App() {
             
             // If we have active RPC servers configured, fetch from their telemetry port (port 50053 default)
             const rpcNodes = [];
-            if (config.rpcServers && config.rpcServers.length > 0) {
-                const activeRpcs = config.rpcServers.filter(r => r.active);
+            if (serverSettings.rpcServers && serverSettings.rpcServers.length > 0) {
+                const activeRpcs = serverSettings.rpcServers.filter(r => r.active);
                 for (const rpc of activeRpcs) {
                     try {
                         const ip = rpc.address.split(':')[0];
@@ -236,7 +236,7 @@ function App() {
     fetchTelemetry();
     const interval = setInterval(fetchTelemetry, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [serverSettings.rpcServers]);
 
   useEffect(() => {
     let interval;
