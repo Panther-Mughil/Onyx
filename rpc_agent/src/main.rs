@@ -1,14 +1,13 @@
 use axum::{routing::get, Json, Router};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Arc;
 use sysinfo::System;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
-use command_group::AsyncCommandGroup;
 use tokio::process::Command;
 use std::env;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct GpuTelemetry {
     name: String,
     gpu_usage_pct: u32,
