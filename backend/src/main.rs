@@ -953,7 +953,7 @@ async fn run_benchmark(
         format!("{}/bin/llama-bench", base_dir())
     };
     
-    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");
+    let (actual_gpu_layers, ts_arg, main_gpu_idx) = compute_gpu_offloads(&payload, "/");
 
     let mut args = vec![
         "-m".to_string(), model_path,
@@ -971,6 +971,11 @@ async fn run_benchmark(
     if let Some(ts) = ts_arg {
         args.push("-ts".to_string());
         args.push(ts);
+    }
+    
+    if let Some(mg_idx) = main_gpu_idx {
+        args.push("-mg".to_string());
+        args.push(mg_idx.to_string());
     }
 
     if let Some(servers) = &payload.rpc_servers {
