@@ -210,20 +210,32 @@ function App() {
             const rpcNodes = [];
             if (serverSettings.rpcServers && serverSettings.rpcServers.length > 0) {
                 const activeRpcs = serverSettings.rpcServers.filter(r => r.active);
-                for (const rpc of activeRpcs) {
+                const fetchPromises = activeRpcs.map(async (rpc) => {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 1000);
                     try {
                         const ip = rpc.address.split(':')[0];
-                        // Default telemetry port is 50053
-                        const rpcRes = await fetch(`http://${ip}:50053/telemetry`, { cache: 'no-store' });
+                        const rpcRes = await fetch(`http://${ip}:50053/telemetry`, { 
+                            cache: 'no-store',
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeoutId);
                         const rpcData = await rpcRes.json();
-                        // Tag the gpus and CPU so we know they are from RPC
                         rpcData.cpu_name = `[RPC ${ip}] ${rpcData.cpu_name}`;
                         if (rpcData.gpus) {
                             rpcData.gpus = rpcData.gpus.map(g => ({ ...g, name: `[RPC ${ip}] ${g.name}` }));
                         }
-                        rpcNodes.push(rpcData);
+                        return rpcData;
                     } catch (e) {
-                        // Ignore offline RPC servers
+                        clearTimeout(timeoutId);
+                        throw e;
+                    }
+                });
+
+                const results = await Promise.allSettled(fetchPromises);
+                for (const result of results) {
+                    if (result.status === 'fulfilled') {
+                        rpcNodes.push(result.value);
                     }
                 }
             }
@@ -762,8 +774,7 @@ function App() {
             )}
 
             {activeTab === 'rpc' && (
-              selectedModel ? (
-                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', overflowY: 'auto' }}>
                   <div className="form-section">
                     <h4 style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', marginTop: '4px', color: 'var(--text-main)' }}>GPUs</h4>
                     {(!config.localGpus || config.localGpus.length === 0) ? (
@@ -835,9 +846,6 @@ function App() {
                   </div>
                 </div>
               </div>
-              ) : (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>Select a model to configure Devices.</div>
-              )
             )}
 
             {activeTab === 'benchmark' && (
@@ -1014,7 +1022,7 @@ function App() {
             )}
           </div>
 
-          {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && !isModelRunning && (
+          {activeTab === 'load' && selectedModel && !isModelRunning && (
               <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
                   <input 
@@ -1034,7 +1042,7 @@ function App() {
               </div>
           )}
 
-          {(activeTab === 'load' || activeTab === 'rpc') && selectedModel && isModelRunning && isConfigDirty() && (
+          {activeTab === 'load' && selectedModel && isModelRunning && isConfigDirty() && (
               <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', cursor: 'pointer', width: 'fit-content' }}>
                   <input 
