@@ -643,16 +643,13 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
-fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>, Option<usize>) {
+fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>) {
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
-    let mut main_gpu_idx = None;
 
     if let Some(allocs) = &payload.layer_allocations {
         let mut total_offloaded = 0;
         let mut splits = Vec::new();
-        let mut max_layers = 0;
-        let mut current_idx = 0;
         
         if let Some(gpus) = &payload.local_gpus {
             if !gpus.is_empty() {
@@ -662,12 +659,6 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     let layers = allocs.get(&key).copied().unwrap_or(0);
                     splits.push(layers.to_string());
                     total_offloaded += layers;
-                    
-                    if layers > max_layers {
-                        max_layers = layers;
-                        main_gpu_idx = Some(current_idx);
-                    }
-                    current_idx += 1;
                 }
             }
         }
@@ -679,12 +670,6 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     let layers = allocs.get(&key).copied().unwrap_or(0);
                     splits.push(layers.to_string());
                     total_offloaded += layers;
-                    
-                    if layers > max_layers {
-                        max_layers = layers;
-                        main_gpu_idx = Some(current_idx);
-                    }
-                    current_idx += 1;
                 }
             }
         }
@@ -700,18 +685,13 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                 let mut splits = vec!["0"; max_index + 1];
                 let mut any_active = false;
                 let mut all_active = true;
-                let mut current_idx = 0;
                 for g in gpus.iter() {
                     if g.active {
                         splits[g.index] = "1";
                         any_active = true;
-                        if main_gpu_idx.is_none() {
-                            main_gpu_idx = Some(current_idx);
-                        }
                     } else {
                         all_active = false;
                     }
-                    current_idx += 1;
                 }
                 if !any_active {
                     actual_gpu_layers = 0;
@@ -722,7 +702,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         }
     }
     
-    (actual_gpu_layers, ts_arg, main_gpu_idx)
+    (actual_gpu_layers, ts_arg)
 }
 
 async fn start_server(
@@ -762,7 +742,7 @@ async fn start_server(
         });
     }
 
-    let (actual_gpu_layers, ts_arg, main_gpu_idx) = compute_gpu_offloads(&payload, ",");
+    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, ",");
 
     let mut args = vec![
         "-m".to_string(), model_path.clone(),
@@ -781,11 +761,6 @@ async fn start_server(
     if let Some(ts) = ts_arg {
         args.push("-ts".to_string());
         args.push(ts);
-    }
-    
-    if let Some(mg_idx) = main_gpu_idx {
-        args.push("-mg".to_string());
-        args.push(mg_idx.to_string());
     }
 
     if let Some(servers) = &payload.rpc_servers {
@@ -953,7 +928,7 @@ async fn run_benchmark(
         format!("{}/bin/llama-bench", base_dir())
     };
     
-    let (actual_gpu_layers, ts_arg, main_gpu_idx) = compute_gpu_offloads(&payload, "/");
+    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");
 
     let mut args = vec![
         "-m".to_string(), model_path,
@@ -971,11 +946,6 @@ async fn run_benchmark(
     if let Some(ts) = ts_arg {
         args.push("-ts".to_string());
         args.push(ts);
-    }
-    
-    if let Some(mg_idx) = main_gpu_idx {
-        args.push("-mg".to_string());
-        args.push(mg_idx.to_string());
     }
 
     if let Some(servers) = &payload.rpc_servers {
