@@ -921,9 +921,9 @@ function App() {
                     <div className="box" style={{ padding: '16px' }}>
                        <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{telemetry.host.ram_total_gb.toFixed(2)} GB</span></div>
-                          <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{(telemetry.host.ram_total_gb - telemetry.host.ram_used_gb).toFixed(2)} GB</span></div>
-                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{telemetry.host.ram_used_gb.toFixed(2)} GB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{Math.round(telemetry.host.ram_total_gb * 1024)} MB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{Math.round((telemetry.host.ram_total_gb - telemetry.host.ram_used_gb) * 1024)} MB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{Math.round(telemetry.host.ram_used_gb * 1024)} MB</span></div>
                        </div>
                     </div>
                     {telemetry.host.gpus.length === 0 ? (
@@ -973,8 +973,8 @@ function App() {
                            <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>RAM Usage</div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{rpc.ram_used_gb.toFixed(2)} GB</span>
-                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {rpc.ram_total_gb.toFixed(2)} GB</span>
+                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{Math.round(rpc.ram_used_gb * 1024)} MB</span>
+                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {Math.round(rpc.ram_total_gb * 1024)} MB</span>
                               </div>
                               <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
                                  <div style={{ width: `${(rpc.ram_used_gb / rpc.ram_total_gb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
