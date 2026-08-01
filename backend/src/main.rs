@@ -420,6 +420,27 @@ async fn get_local_models() -> Json<Vec<Model>> {
     Json(models)
 }
 
+async fn proxy_models_handler(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let servers = state.active_servers.lock().await;
+    let mut data = Vec::new();
+    
+    for (model_id, _) in servers.iter() {
+        data.push(serde_json::json!({
+            "id": model_id,
+            "object": "model",
+            "created": chrono::Utc::now().timestamp(),
+            "owned_by": "onyx"
+        }));
+    }
+    
+    Json(serde_json::json!({
+        "object": "list",
+        "data": data
+    }))
+}
+
 async fn proxy_handler(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     req: Request,
@@ -521,6 +542,8 @@ async fn update_network_config(
     }
     
     let app = Router::new()
+        .route("/v1/models", axum::routing::get(proxy_models_handler))
+        .route("/models", axum::routing::get(proxy_models_handler))
         .fallback(proxy_handler)
         .with_state(state.clone());
     
