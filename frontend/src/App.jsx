@@ -823,7 +823,7 @@ function App() {
                         {serverSettings.rpcServers.map((server, idx) => (
                           <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <Network size={16} color={server.active ? "var(--accent)" : "var(--text-muted)"} />
+                              <Network size={16} color="var(--text-muted)" />
                               <span style={{ color: 'var(--text-main)', fontSize: '13px', fontFamily: 'monospace' }}>{server.address}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
