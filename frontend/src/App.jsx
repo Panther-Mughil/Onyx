@@ -958,8 +958,8 @@ function App() {
 
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
                       <div key={`rpc-${rpcIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div className="box" style={{ padding: '16px', border: '1px solid var(--accent)' }}>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
+                        <div className="box" style={{ padding: '16px' }}>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
@@ -982,8 +982,8 @@ function App() {
                            </div>
                         </div>
                         {rpc.gpus && rpc.gpus.map((gpu, idx) => (
-                          <div key={`rpc-gpu-${rpcIdx}-${idx}`} className="box" style={{ padding: '16px', border: '1px solid var(--accent)' }}>
-                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent)' }}><Zap size={16}/> {gpu.name}</h4>
+                          <div key={`rpc-gpu-${rpcIdx}-${idx}`} className="box" style={{ padding: '16px' }}>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
