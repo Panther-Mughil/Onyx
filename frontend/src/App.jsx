@@ -51,15 +51,42 @@ function App() {
       const applied = serverSettings.appliedConfigs?.[model.id];
       const savedConfig = serverSettings.savedModelConfigs?.[model.id];
       
+      let targetConfig = initialConfig;
+      let shouldRemember = false;
+
       if (applied) {
-        setConfig(applied);
-        setRememberSettings(!!savedConfig);
+        targetConfig = applied;
+        shouldRemember = !!savedConfig;
       } else if (savedConfig) {
-        setConfig(savedConfig);
-        setRememberSettings(true);
-      } else {
-        setConfig(initialConfig);
-        setRememberSettings(false);
+        targetConfig = savedConfig;
+        shouldRemember = true;
+      }
+      
+      setConfig(targetConfig);
+      setRememberSettings(shouldRemember);
+      
+      if (targetConfig.layerAllocations) {
+         let newGpus = serverSettings.localGpus ? [...serverSettings.localGpus] : [];
+         let newRpcs = serverSettings.rpcServers ? [...serverSettings.rpcServers] : [];
+         let settingsChanged = false;
+
+         newGpus = newGpus.map((gpu) => {
+             const key = `gpu_${gpu.index}`;
+             const used = (targetConfig.layerAllocations[key] || 0) > 0;
+             if (gpu.active !== used) { settingsChanged = true; return { ...gpu, active: used }; }
+             return gpu;
+         });
+
+         newRpcs = newRpcs.map((rpc, idx) => {
+             const key = `rpc_${idx}`;
+             const used = (targetConfig.layerAllocations[key] || 0) > 0;
+             if (rpc.active !== used) { settingsChanged = true; return { ...rpc, active: used }; }
+             return rpc;
+         });
+
+         if (settingsChanged) {
+             saveSettings({ ...serverSettings, localGpus: newGpus, rpcServers: newRpcs });
+         }
       }
     }
   };
@@ -209,8 +236,8 @@ function App() {
             // If we have active RPC servers configured, fetch from their telemetry port (port 50053 default)
             const rpcNodes = [];
             if (serverSettings.rpcServers && serverSettings.rpcServers.length > 0) {
-                const activeRpcs = serverSettings.rpcServers.filter(r => r.active);
-                const fetchPromises = activeRpcs.map(async (rpc) => {
+                const allRpcs = serverSettings.rpcServers;
+                const fetchPromises = allRpcs.map(async (rpc) => {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 1000);
                     try {
