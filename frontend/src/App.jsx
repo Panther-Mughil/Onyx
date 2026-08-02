@@ -118,7 +118,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
     if (willCrash) {
         statusColor = 'var(--danger)';
     } else if (isPartialOffload) {
-        statusColor = 'var(--accent-hover)';
+        statusColor = '#3b82f6';
     }
     
     return (
