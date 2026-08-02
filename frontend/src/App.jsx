@@ -705,9 +705,7 @@ function App() {
                              <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.host.cpu_temp_c > 0 ? `${telemetry.host.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
                           </div>
                        </div>
-                    </div>
-
-                    <div className="box" style={{ padding: '16px' }}>
+                       <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
                        <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{Math.round(telemetry.host.ram_total_gb * 1024)} MB</span></div>
@@ -718,31 +716,34 @@ function App() {
                     {telemetry.host.gpus.length === 0 ? (
                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
                     ) : (
-                      telemetry.host.gpus.map((gpu, idx) => (
-                        <div key={idx} className="box" style={{ padding: '16px' }}>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
-                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
-                              </div>
-                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
-                              </div>
-                           </div>
-                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
-                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
-                              </div>
-                              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                                 <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
-                              </div>
-                           </div>
-                        </div>
-                      ))
+                      <div className="box" style={{ padding: '16px' }}>
+                        {telemetry.host.gpus.map((gpu, idx) => (
+                          <div key={idx} style={{ marginBottom: idx < telemetry.host.gpus.length - 1 ? '16px' : '0' }}>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
+                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
+                                </div>
+                                <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
+                                </div>
+                             </div>
+                             <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
+                                </div>
+                                <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                                </div>
+                             </div>
+                             {idx < telemetry.host.gpus.length - 1 && <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0 0 0' }}></div>}
+                          </div>
+                        ))}
+                      </div>
                     )}
 
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
