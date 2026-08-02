@@ -962,7 +962,7 @@ function App() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '32px' }}>
                         {config.localGpus.map((gpu, idx) => (
                           <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
-                            <span style={{ fontSize: '13px', fontWeight: '500' }}>GPU {gpu.index}: <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span></span>
+                            <span style={{ fontSize: '13px', fontWeight: '500' }}>{gpu.index}: <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span></span>
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                               <div className={`toggle-switch ${gpu.active ? 'active' : ''}`} onClick={() => {
                                 const newGpus = [...config.localGpus];
