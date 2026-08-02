@@ -814,9 +814,10 @@ function App() {
         
         {/* LEFT PANE */}
         <div className="left-pane" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '600', flexShrink: 0 }}>Loaded Models</h3>
-            <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', borderRadius: 0 }}>
+          <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', height: '100%', gap: '24px' }}>
+            <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', flexShrink: 0 }}>ACTIVE MODELS</h3>
+              <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', borderRadius: 0, marginTop: '-1px' }}>
               {activeServers.length > 0 ? (
                 activeServers.map(server => {
                   const modelDetails = models.find(m => m.id === server.modelId);
@@ -899,16 +900,14 @@ function App() {
             </div>
           </div>
 
-          <div style={{ flex: '1 1 40%', display: 'flex', flexDirection: 'column', marginTop: '24px', minHeight: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: '600' }}>Developer Logs {selectedModel ? `(${selectedModel.name})` : ''}</h3>
+          <div style={{ flex: '1 1 40%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Developer Logs {selectedModel ? `(${selectedModel.name})` : ''}</h3>
+                <button className="secondary-btn" onClick={handleClearLogs} style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: 0 }}>
+                  <Trash2 size={12} /> Clear Logs
+                </button>
               </div>
-              <button className="secondary-btn" onClick={handleClearLogs} style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Trash2 size={12} /> Clear Logs
-              </button>
-            </div>
-            <div className="terminal">
+            <div className="terminal" style={{ borderRadius: 0 }}>
               {!selectedModel ? (
                  systemLogs.length === 0 ? 
                    <div style={{ color: 'var(--text-muted)' }}>System logs empty...</div> :
@@ -917,6 +916,7 @@ function App() {
                  logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)
               )}
               <div ref={logsEndRef} />
+            </div>
             </div>
           </div>
         </div>
