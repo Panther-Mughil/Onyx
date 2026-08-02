@@ -299,6 +299,18 @@ async fn stop_proxy(
     Json(StartResponse { success: false, message: "Gateway not running".to_string() })
 }
 
+#[derive(Serialize)]
+struct ProxyStatus {
+    running: bool,
+}
+
+async fn get_proxy_status(
+    State(state): State<Arc<AppState>>,
+) -> Json<ProxyStatus> {
+    let running = state.proxy_task.lock().await.is_some();
+    Json(ProxyStatus { running })
+}
+
 async fn get_system_logs(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<Vec<String>> {
@@ -1243,12 +1255,13 @@ async fn main() {
         .route("/api/server/network", post(update_network_config))
         .route("/api/server/start", post(start_server))
         .route("/api/server/stop", post(stop_server))
+        .route("/api/server/proxy/stop", post(stop_proxy))
+        .route("/api/server/proxy/status", get(get_proxy_status))
         .route("/api/server/benchmark/start", post(run_benchmark))
         .route("/api/server/benchmark/status", get(get_benchmark_status))
         .route("/api/server/benchmark/clear", post(clear_benchmark_logs))
         .route("/api/settings", get(get_settings))
         .route("/api/settings/save", post(save_settings))
-        .route("/api/server/proxy/stop", post(stop_proxy))
         .route("/api/system/logs", get(get_system_logs))
         .route("/api/system/logs/clear", post(clear_system_logs))
         .fallback(static_handler)

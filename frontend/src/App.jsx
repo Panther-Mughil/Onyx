@@ -156,15 +156,16 @@ function App() {
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [serverSettings, setServerSettings] = useState({
-    port: 1234,
+    port: "8080",
     networkHost: false,
     cors: true,
     jitModelLoading: false,
-    autoUnload: false,
+    autoUnload: true,
+    localGpus: [],
     rpcServers: []
   });
-
-  const [isProxyRunning, setIsProxyRunning] = useState(true);
+  
+  const [isProxyRunning, setIsProxyRunning] = useState(false);
   const [systemLogs, setSystemLogs] = useState([]);
 
   const saveSettings = (newSettings) => {
@@ -424,12 +425,11 @@ function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:3001/api/server/network', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ port: serverSettings.port, networkHost: serverSettings.networkHost })
-    }).catch(err => console.error("Failed to update network proxy", err));
-  }, [serverSettings.port, serverSettings.networkHost]);
+    fetch('http://127.0.0.1:3001/api/server/proxy/status', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => setIsProxyRunning(data.running))
+      .catch(() => {});
+  }, []);
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1292,6 +1292,17 @@ function App() {
                     saveSettings({...serverSettings, port: val === "" ? "" : val});
                   }} 
                 />
+              </div>
+
+              <div className="form-row" style={{ alignItems: 'flex-start' }}>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ color: isProxyRunning ? 'var(--ready-green)' : 'var(--text-main)' }}>API Gateway</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{isProxyRunning ? `Running on port ${serverSettings.port}` : 'Stopped (Port inaccessible)'}</span>
+                </span>
+                <div 
+                  className={`toggle-switch ${isProxyRunning ? 'active' : ''}`} 
+                  onClick={toggleProxy}
+                ></div>
               </div>
 
               <div className="form-row" style={{ alignItems: 'flex-start' }}>
