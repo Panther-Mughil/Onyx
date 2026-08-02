@@ -903,7 +903,7 @@ function App() {
           <div style={{ flex: '1 1 40%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Logs {selectedModel ? `(${selectedModel.name})` : ''}</h3>
-                <button className="secondary-btn" onClick={handleClearLogs} title="Clear Logs" style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}>
+                <button className="secondary-btn" onClick={handleClearLogs} title="Clear Logs" style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 0 }}>
                   <Trash2 size={14} color="var(--text-muted)" />
                 </button>
               </div>
