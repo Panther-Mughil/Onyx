@@ -1096,7 +1096,7 @@ function App() {
                         {config.localGpus.map((gpu, idx) => (
                           <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
                             <span style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ width: '20px', textAlign: 'right', display: 'inline-block' }}>{gpu.index}:</span>
+                              <span style={{ width: '20px', textAlign: 'left', display: 'inline-block' }}>{gpu.index}:</span>
                               <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span>
                             </span>
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
