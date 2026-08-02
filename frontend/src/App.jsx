@@ -988,7 +988,7 @@ function App() {
             {activeTab === 'info' && (
               selectedModel ? (
                 <div style={{ padding: '16px' }}>
-                  <div className="form-section-title"><Info size={16}/> Model Information</div>
+                  <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Info size={16} color="var(--text-main)" /> Model Information</div>
                   <div style={{ background: 'var(--bg-input)', borderRadius: '8px', padding: '0 16px' }}>
                     <div className="info-row"><span>Model</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.name}</span></div>
                     <div className="info-row"><span>File</span> <span style={{background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px'}}>{selectedModel.id.substring(0, 20)}...</span></div>
@@ -1008,7 +1008,7 @@ function App() {
                 <>
                   <MemoryEstimator selectedModel={selectedModel} config={config} activeDevices={activeDevices} telemetry={telemetry} />
                   <div className="form-section">
-                    <div className="form-section-title"><Settings size={16}/> Context and Offload</div>
+                    <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={16} color="var(--text-main)" /> Context and Offload</div>
                     
                     <div style={{ marginBottom: '20px' }}>
                       <div className="form-row">
@@ -1056,7 +1056,7 @@ function App() {
                   </div>
 
                   <div className="form-section">
-                    <div className="form-section-title"><BookOpen size={16}/> Advanced</div>
+                    <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><BookOpen size={16} color="var(--text-main)" /> Advanced</div>
                     
                     <div className="form-row" style={{marginBottom: '16px'}}>
                       <span>CPU Thread Pool Size</span>
@@ -1217,7 +1217,7 @@ function App() {
               selectedModel ? (
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div className="form-section-title" style={{ padding: 0, border: 'none' }}><Gauge size={16}/> Hardware Benchmark</div>
+                    <div style={{ fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Gauge size={16} color="var(--text-main)" /> Hardware Benchmark</div>
                     <button className="primary-btn" disabled={benchmarkStatus.isRunning} onClick={() => {
                       fetch('http://127.0.0.1:3001/api/server/benchmark/start', {
                         method: 'POST',
