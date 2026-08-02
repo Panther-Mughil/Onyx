@@ -68,7 +68,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
             vram += computeBufferGb; // Every active GPU needs its own Compute Buffer for matrix multiplication
         }
         
-        const shortName = id.startsWith('gpu') ? `G${id.split('_')[1]}` : (id.startsWith('rpc') ? `R${id.split('_')[1]}` : name);
+        const shortName = id.startsWith('gpu') ? `GPU ${id.split('_')[1]}` : (id.startsWith('rpc') ? `RPC ${id.split('_')[1]}` : name);
         if (vram > 0) stats.push({ name: shortName, type: isRam ? 'RAM' : 'VRAM', gb: vram });
         
         // --- Crash Check Logic ---
