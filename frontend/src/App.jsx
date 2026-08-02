@@ -665,7 +665,7 @@ function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button className="primary-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsModalOpen(true)}>
-            + Load New Model
+            + LOAD MODEL
           </button>
         </div>
       </div>
