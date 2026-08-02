@@ -155,10 +155,11 @@ function App() {
   // Layout State
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
-  const [rightSidebarWidth, setRightSidebarWidth] = useState(500);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(470);
 
   const startRightResize = () => {
     document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
     const handleMouseMove = (e) => {
       let newWidth = window.innerWidth - e.clientX;
       if (newWidth < 470) newWidth = 470;
@@ -167,6 +168,7 @@ function App() {
     };
     const handleMouseUp = () => {
       document.body.style.cursor = '';
+      document.body.style.userSelect = '';
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
