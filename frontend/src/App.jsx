@@ -684,7 +684,6 @@ function App() {
         {/* Left Sidebar (Collapsible) */}
         <div className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''}`}>
            <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
-             <Activity size={20} color="var(--text-muted)" />
              <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Monitoring</h2>
            </div>
            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
@@ -924,7 +923,6 @@ function App() {
         {/* Right Sidebar */}
         <div className="right-pane" style={{ width: '470px', display: 'flex', overflow: 'hidden' }}>
           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
-            <Cpu size={20} color="var(--text-muted)" />
             <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
               {selectedModel ? selectedModel.name : 'Settings'}
             </h2>
