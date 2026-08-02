@@ -712,11 +712,11 @@ function App() {
                           <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{Math.round((telemetry.host.ram_total_gb - telemetry.host.ram_used_gb) * 1024)} MB</span></div>
                           <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{Math.round(telemetry.host.ram_used_gb * 1024)} MB</span></div>
                        </div>
-                    </div>
+                       <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
                     {telemetry.host.gpus.length === 0 ? (
                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No NVIDIA GPUs detected.</div>
                     ) : (
-                      <div className="box" style={{ padding: '16px' }}>
+                      <>
                         {telemetry.host.gpus.map((gpu, idx) => (
                           <div key={idx} style={{ marginBottom: idx < telemetry.host.gpus.length - 1 ? '16px' : '0' }}>
                              <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
@@ -743,8 +743,9 @@ function App() {
                              {idx < telemetry.host.gpus.length - 1 && <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0 0 0' }}></div>}
                           </div>
                         ))}
-                      </div>
+                      </>
                     )}
+                    </div>
 
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
                       rpc ? (
