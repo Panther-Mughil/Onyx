@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Zap, Network, Plus, Gauge, BookOpen, Power , ChevronLeft, ChevronRight} from 'lucide-react';
+import { Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Zap, Network, Plus, Gauge, BookOpen, Power , ChevronLeft, ChevronRight, Eye} from 'lucide-react';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -684,7 +684,8 @@ function App() {
         {/* Left Sidebar (Collapsible) */}
         <div className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''}`}>
            <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
-             <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Monitoring</h2>
+             <Eye size={20} color="var(--text-muted)" />
+             <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>Monitoring</h2>
            </div>
            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
                 
@@ -923,7 +924,8 @@ function App() {
         {/* Right Sidebar */}
         <div className="right-pane" style={{ width: '470px', display: 'flex', overflow: 'hidden' }}>
           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
+            <Settings2 size={20} color="var(--text-muted)" />
+            <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>
               {selectedModel ? selectedModel.name : 'Settings'}
             </h2>
           </div>
