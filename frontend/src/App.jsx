@@ -411,7 +411,7 @@ function App() {
 
   useEffect(() => {
     let interval;
-    if (activeTab === 'benchmark') {
+    if (activeTab === 'benchmark' && benchmarkStatus.isRunning) {
        const fetchBench = () => {
          fetch('http://127.0.0.1:3001/api/server/benchmark/status', { cache: 'no-store' })
            .then(res => res.json())
@@ -423,13 +423,6 @@ function App() {
     }
     return () => clearInterval(interval);
   }, [activeTab]);
-
-  useEffect(() => {
-    fetch('http://127.0.0.1:3001/api/server/proxy/status', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => setIsProxyRunning(data.running))
-      .catch(() => {});
-  }, []);
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
