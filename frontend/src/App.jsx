@@ -161,8 +161,8 @@ function App() {
     document.body.style.cursor = 'col-resize';
     const handleMouseMove = (e) => {
       let newWidth = window.innerWidth - e.clientX;
-      if (newWidth < 300) newWidth = 300;
-      if (newWidth > 700) newWidth = 700;
+      if (newWidth < 470) newWidth = 470;
+      if (newWidth > 800) newWidth = 800;
       setRightSidebarWidth(newWidth);
     };
     const handleMouseUp = () => {
