@@ -749,8 +749,7 @@ function App() {
 
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
                       rpc ? (
-                      <div key={`rpc-${rpcIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div className="box" style={{ padding: '16px' }}>
+                      <div key={`rpc-${rpcIdx}`} className="box" style={{ padding: '16px' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
@@ -771,10 +770,10 @@ function App() {
                               <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
                                  <div style={{ width: `${(rpc.ram_used_gb / rpc.ram_total_gb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
                               </div>
-                           </div>
-                        </div>
+                            </div>
                         {rpc.gpus && rpc.gpus.map((gpu, idx) => (
-                          <div key={`rpc-gpu-${rpcIdx}-${idx}`} className="box" style={{ padding: '16px' }}>
+                          <div key={`rpc-gpu-${rpcIdx}-${idx}`} style={{ marginTop: '16px' }}>
+                             <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', marginBottom: '16px' }}></div>
                              <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
