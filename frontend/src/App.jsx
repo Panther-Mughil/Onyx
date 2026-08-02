@@ -1149,6 +1149,7 @@ function App() {
                     )}
 
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
+                      rpc ? (
                       <div key={`rpc-${rpcIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div className="box" style={{ padding: '16px' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
@@ -1199,6 +1200,11 @@ function App() {
                           </div>
                         ))}
                       </div>
+                      ) : (
+                        <div key={`rpc-${rpcIdx}`} className="box" style={{ padding: '16px', color: 'var(--danger)', textAlign: 'center', fontSize: '12px' }}>
+                            RPC Worker at {serverSettings.rpcServers[rpcIdx]?.address} is currently offline.
+                        </div>
+                      )
                     ))}
                   </>
                 )}
