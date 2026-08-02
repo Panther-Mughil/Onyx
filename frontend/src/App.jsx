@@ -10,7 +10,7 @@ const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
   </svg>
 );
 
-const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
+const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) => {
     if (!selectedModel) return null;
     
     // Model weight estimations
@@ -57,6 +57,8 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
        }
     });
     
+    let willCrash = false;
+
     const computeDevice = (id, name, isRam) => {
         const actualLayers = allocations[id] || 0;
         let vram = (actualLayers * layerSizeGb) + (config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0);
@@ -67,6 +69,28 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
         }
         
         if (vram > 0) stats.push({ name, type: isRam ? 'RAM' : 'VRAM', gb: vram });
+        
+        // --- Crash Check Logic ---
+        if (id.startsWith('gpu') && telemetry?.host?.gpus) {
+            const idx = parseInt(id.split('_')[1]);
+            const gpuTel = telemetry.host.gpus[idx];
+            if (gpuTel) {
+                const freeGb = (gpuTel.vram_total_mb - gpuTel.vram_used_mb) / 1024;
+                if (vram > freeGb) willCrash = true;
+            }
+        } else if (id.startsWith('rpc') && telemetry?.rpcs) {
+            const idx = parseInt(id.split('_')[1]);
+            const rpcTel = telemetry.rpcs[idx];
+            if (rpcTel) {
+                let freeGb = 0;
+                if (rpcTel.gpus && rpcTel.gpus.length > 0) {
+                    freeGb = rpcTel.gpus.reduce((acc, g) => acc + (g.vram_total_mb - g.vram_used_mb) / 1024, 0);
+                } else {
+                    freeGb = rpcTel.ram_total_gb - rpcTel.ram_used_gb;
+                }
+                if (vram > freeGb) willCrash = true;
+            }
+        }
     };
     
     activeDevices.filter(d => d.id.startsWith('gpu')).forEach(d => computeDevice(d.id, d.name, false));
@@ -80,7 +104,21 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
         hostRam += computeBufferGb;
     }
     
+    // Check Host RAM limit
+    if (telemetry?.host) {
+        const freeRam = telemetry.host.ram_total_gb - telemetry.host.ram_used_gb;
+        if (hostRam > freeRam) willCrash = true;
+    }
+    
     stats.unshift({ name: 'Host', type: 'RAM', gb: hostRam });
+    
+    const isPartialOffload = cpuActualLayers > 0;
+    let statusColor = 'var(--ready-green)';
+    if (willCrash) {
+        statusColor = 'var(--error)';
+    } else if (isPartialOffload) {
+        statusColor = 'var(--accent-hover)';
+    }
     
     return (
         <div style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-color)', padding: '16px' }}>
@@ -94,9 +132,9 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
                          <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{(s.gb * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
                      </div>
                  ))}
-                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: `1px solid ${statusColor}`, opacity: willCrash ? 0.9 : 1 }}>
                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>Total Footprint</span>
-                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)', whiteSpace: 'nowrap' }}>{((stats.reduce((a, b) => a + b.gb, 0)) * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
+                     <span style={{ fontSize: '14px', fontWeight: '600', color: statusColor, whiteSpace: 'nowrap' }}>{((stats.reduce((a, b) => a + b.gb, 0)) * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
                  </div>
              </div>
         </div>
@@ -786,7 +824,7 @@ function App() {
             {activeTab === 'load' && (
               selectedModel ? (
                 <>
-                  <MemoryEstimator selectedModel={selectedModel} config={config} activeDevices={activeDevices} />
+                  <MemoryEstimator selectedModel={selectedModel} config={config} activeDevices={activeDevices} telemetry={telemetry} />
                   <div className="form-section">
                     <div className="form-section-title"><Settings size={16}/> Context and Offload</div>
                     
