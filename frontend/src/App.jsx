@@ -816,7 +816,7 @@ function App() {
         <div className="left-pane" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '600', flexShrink: 0 }}>Loaded Models</h3>
-            <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', borderRadius: 0 }}>
               {activeServers.length > 0 ? (
                 activeServers.map(server => {
                   const modelDetails = models.find(m => m.id === server.modelId);
@@ -827,7 +827,7 @@ function App() {
                     <div key={server.modelId} style={{ 
                         border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-color)', 
                         padding: '16px', 
-                        borderRadius: '12px',
+                        borderRadius: 0,
                         background: isSelected ? 'rgba(34, 211, 238, 0.05)' : 'var(--bg-input)',
                         cursor: 'pointer',
                         transition: 'all 0.2s'
