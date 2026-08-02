@@ -712,14 +712,13 @@ function App() {
                   <>
                     <div className="box" style={{ padding: '16px' }}>
                        <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#f8fafc' }}><Cpu size={16}/> {telemetry.host.cpu_name}</h4>
-                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
-                             <div style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(telemetry.host.cpu_usage_pct) }}>{telemetry.host.cpu_usage_pct.toFixed(1)}%</div>
+                       <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>CPU Usage</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                             <span style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(telemetry.host.cpu_usage_pct) }}>{telemetry.host.cpu_usage_pct.toFixed(1)}%</span>
                           </div>
-                          <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                             <div style={{ fontSize: '16px', fontWeight: 'bold', color: getTempColor(telemetry.host.cpu_temp_c) }}>{telemetry.host.cpu_temp_c > 0 ? `${telemetry.host.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                          <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                             <div style={{ width: `${telemetry.host.cpu_usage_pct}%`, height: '100%', background: getUsageColor(telemetry.host.cpu_usage_pct), transition: 'width 0.3s' }}></div>
                           </div>
                        </div>
                        <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
@@ -769,14 +768,13 @@ function App() {
                       <div key={`rpc-${rpcIdx}`} className="box" style={{ padding: '16px' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#fb7185', textTransform: 'uppercase', letterSpacing: '0.5px' }}><ChevronsLeftRightEllipsis size={18}/> {serverSettings.rpcServers[rpcIdx]?.address}</h4>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#f8fafc' }}><Cpu size={16}/> {rpc.cpu_name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
-                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(rpc.cpu_usage_pct) }}>{rpc.cpu_usage_pct.toFixed(1)}%</div>
+                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>CPU Usage</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(rpc.cpu_usage_pct) }}>{rpc.cpu_usage_pct.toFixed(1)}%</span>
                               </div>
-                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold', color: getTempColor(rpc.cpu_temp_c) }}>{rpc.cpu_temp_c > 0 ? `${rpc.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                 <div style={{ width: `${rpc.cpu_usage_pct}%`, height: '100%', background: getUsageColor(rpc.cpu_usage_pct), transition: 'width 0.3s' }}></div>
                               </div>
                            </div>
                            <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
