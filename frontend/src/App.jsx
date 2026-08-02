@@ -774,7 +774,7 @@ function App() {
                         {rpc.gpus && rpc.gpus.map((gpu, idx) => (
                           <div key={`rpc-gpu-${rpcIdx}-${idx}`} style={{ marginTop: '16px' }}>
                              <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', marginBottom: '16px' }}></div>
-                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
