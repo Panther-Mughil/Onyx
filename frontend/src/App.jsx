@@ -395,6 +395,8 @@ function App() {
                 for (const result of results) {
                     if (result.status === 'fulfilled') {
                         rpcNodes.push(result.value);
+                    } else {
+                        rpcNodes.push(null);
                     }
                 }
             }
@@ -567,14 +569,30 @@ function App() {
 
   const maxLayers = selectedModel?.block_count ? selectedModel.block_count : 100;
   const activeDevices = [];
+  let displayIndex = 0;
   if (config.localGpus) {
       config.localGpus.forEach(g => {
-          if (g.active) activeDevices.push({ id: `gpu_${g.index}`, name: `GPU ${g.index}` });
+          if (g.active) {
+              activeDevices.push({ id: `gpu_${g.index}`, name: `${displayIndex}: ${g.name || 'GPU ' + g.index}` });
+              displayIndex++;
+          }
       });
   }
   if (serverSettings.rpcServers) {
       serverSettings.rpcServers.forEach((r, idx) => {
-          if (r.active) activeDevices.push({ id: `rpc_${idx}`, name: `RPC ${r.address}` });
+          if (r.active) {
+              let displayName = `RPC ${r.address}`;
+              if (telemetry && telemetry.rpcs && telemetry.rpcs[idx]) {
+                  const rpcTel = telemetry.rpcs[idx];
+                  if (rpcTel.gpus && rpcTel.gpus.length > 0) {
+                      displayName = rpcTel.gpus.map(g => g.name.replace(/^\[RPC .*?\] /, '')).join(' & ');
+                  } else if (rpcTel.cpu_name) {
+                      displayName = rpcTel.cpu_name.replace(/^\[RPC .*?\] /, '');
+                  }
+              }
+              activeDevices.push({ id: `rpc_${idx}`, name: `${displayIndex}: ${displayName}` });
+              displayIndex++;
+          }
       });
   }
 
@@ -837,7 +855,7 @@ function App() {
                       
                       <div style={{ marginBottom: '16px' }}>
                         <div className="form-row">
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Cpu size={14}/> Host (CPU)</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Cpu size={14}/> {telemetry?.host?.cpu_name || 'Host (CPU)'}</span>
                           <input type="number" className="num-input" value={cpuLayers} max={maxLayers} onChange={(e) => handleAllocationChange('cpu', e.target.value)} />
                         </div>
                         <input type="range" className="range-slider" min="0" max={maxLayers} value={cpuLayers} onChange={(e) => handleAllocationChange('cpu', e.target.value)} />
