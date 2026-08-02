@@ -63,11 +63,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
         
         if (id.startsWith('gpu') && actualLayers > 0) {
             vram += cudaOverheadGb; // Add CUDA context overhead
-        }
-        
-        // GPU 0 bears the brunt of the Context Compute Buffer
-        if (id === 'gpu_0' && actualLayers > 0) {
-            vram += computeBufferGb;
+            vram += computeBufferGb; // Every active GPU needs its own Compute Buffer for matrix multiplication
         }
         
         if (vram > 0) stats.push({ name, type: isRam ? 'RAM' : 'VRAM', gb: vram });
