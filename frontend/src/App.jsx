@@ -144,7 +144,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
 
 const getUsageColor = (pct) => {
    if (pct >= 90) return 'var(--danger)';
-   if (pct >= 75) return '#f59e0b';
+   if (pct >= 50) return '#f59e0b';
    return '#f8fafc';
 };
 const getTempColor = (temp) => {
