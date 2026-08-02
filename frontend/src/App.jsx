@@ -782,12 +782,15 @@ function App() {
                                    <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
                                 </div>
                              </div>
-                             <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
-                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Database size={16}/> VRAM</h4>
-                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{gpu.vram_total_mb} MB</span></div>
-                                <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{gpu.vram_total_mb - gpu.vram_used_mb} MB</span></div>
-                                <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{gpu.vram_used_mb} MB</span></div>
+                             <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
+                                </div>
+                                <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                                </div>
                              </div>
                           </div>
                         ))}
