@@ -115,7 +115,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
     const isPartialOffload = cpuActualLayers > 0;
     let statusColor = 'var(--ready-green)';
     if (willCrash) {
-        statusColor = 'var(--error)';
+        statusColor = 'var(--danger)';
     } else if (isPartialOffload) {
         statusColor = 'var(--accent-hover)';
     }
