@@ -923,7 +923,7 @@ function App() {
           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
             <Cpu size={20} color="var(--text-muted)" />
             <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
-              {selectedModel ? selectedModel.name : 'System & Settings'}
+              {selectedModel ? selectedModel.name : 'Settings'}
             </h2>
           </div>
            <div className="tab-header">
