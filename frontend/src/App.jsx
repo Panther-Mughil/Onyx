@@ -161,19 +161,30 @@ const getVramColor = (used, total) => {
 
 const CpuLineGraph = ({ usage, color }) => {
   const [history, setHistory] = useState(Array(60).fill(0));
+  const gradientId = `grad-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
   
   useEffect(() => {
     setHistory(prev => [...prev.slice(1), usage]);
   }, [usage]);
 
   const maxH = 40;
-  const points = history.map((val, i) => `${(i / 59) * 100},${maxH - (val / 100) * maxH}`).join(' ');
+  const mapY = (val) => 38 - (val / 100) * 36;
+  const points = history.map((val, i) => `${(i / 59) * 100},${mapY(val)}`).join(' ');
 
   return (
     <div style={{ width: '100%', height: `${maxH}px`, marginTop: '12px' }}>
       <svg width="100%" height="100%" preserveAspectRatio="none" viewBox={`0 0 100 ${maxH}`}>
-        <polygon points={`0,${maxH} ${points} 100,${maxH}`} fill={color} opacity="0.15" />
-        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.4" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <line x1="0" y1={mapY(25)} x2="100" y2={mapY(25)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1,2" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={mapY(50)} x2="100" y2={mapY(50)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1,2" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={mapY(75)} x2="100" y2={mapY(75)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="1,2" vectorEffect="non-scaling-stroke" />
+        <polygon points={`0,${maxH} ${points} 100,${maxH}`} fill={`url(#${gradientId})`} />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
     </div>
   );
