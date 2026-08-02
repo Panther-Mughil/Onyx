@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Square, Settings, Cpu, HardDrive, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Zap, Network, Plus, Gauge, BookOpen, Power , ChevronLeft, ChevronRight, Eye} from 'lucide-react';
+import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis } from 'lucide-react';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -140,6 +140,23 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
              </div>
         </div>
     );
+};
+
+const getUsageColor = (pct) => {
+   if (pct >= 90) return 'var(--danger)';
+   if (pct >= 75) return '#f59e0b';
+   return 'var(--text-main)';
+};
+const getTempColor = (temp) => {
+   if (temp >= 85) return 'var(--danger)';
+   if (temp >= 75) return '#f59e0b';
+   return 'var(--text-main)';
+};
+const getVramColor = (used, total) => {
+   const pct = (used / total) * 100;
+   if (pct >= 90) return 'var(--danger)';
+   if (pct >= 75) return '#f59e0b';
+   return '#10b981'; // Default GPU green
 };
 
 function App() {
@@ -694,23 +711,23 @@ function App() {
                 ) : (
                   <>
                     <div className="box" style={{ padding: '16px' }}>
-                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {telemetry.host.cpu_name}</h4>
+                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#3b82f6' }}><Cpu size={16}/> {telemetry.host.cpu_name}</h4>
                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
-                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.host.cpu_usage_pct.toFixed(1)}%</div>
+                             <div style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(telemetry.host.cpu_usage_pct) }}>{telemetry.host.cpu_usage_pct.toFixed(1)}%</div>
                           </div>
                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                             <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{telemetry.host.cpu_temp_c > 0 ? `${telemetry.host.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                             <div style={{ fontSize: '16px', fontWeight: 'bold', color: getTempColor(telemetry.host.cpu_temp_c) }}>{telemetry.host.cpu_temp_c > 0 ? `${telemetry.host.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
                           </div>
                        </div>
                        <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
-                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
+                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#06b6d4' }}><MemoryStick size={16}/> System RAM</h4>
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{Math.round(telemetry.host.ram_total_gb * 1024)} MB</span></div>
                           <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{Math.round((telemetry.host.ram_total_gb - telemetry.host.ram_used_gb) * 1024)} MB</span></div>
-                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{Math.round(telemetry.host.ram_used_gb * 1024)} MB</span></div>
+                          <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span style={{ color: getUsageColor((telemetry.host.ram_used_gb/telemetry.host.ram_total_gb)*100) }}>{Math.round(telemetry.host.ram_used_gb * 1024)} MB</span></div>
                        </div>
                        <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
                     {telemetry.host.gpus.length === 0 ? (
@@ -719,25 +736,25 @@ function App() {
                       <>
                         {telemetry.host.gpus.map((gpu, idx) => (
                           <div key={idx} style={{ marginBottom: idx < telemetry.host.gpus.length - 1 ? '16px' : '0' }}>
-                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name}</h4>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#10b981' }}><Gpu size={16}/> {gpu.name}</h4>
                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
-                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(gpu.gpu_usage_pct) }}>{gpu.gpu_usage_pct}%</div>
                                 </div>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: getTempColor(gpu.temp_c) }}>{gpu.temp_c} °C</div>
                                 </div>
                              </div>
                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: getVramColor(gpu.vram_used_mb, gpu.vram_total_mb) }}>{gpu.vram_used_mb} MB</span>
                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
                                 </div>
                                 <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: getVramColor(gpu.vram_used_mb, gpu.vram_total_mb), transition: 'width 0.3s' }}></div>
                                 </div>
                              </div>
                              {idx < telemetry.host.gpus.length - 1 && <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0 0 0' }}></div>}
@@ -750,46 +767,47 @@ function App() {
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
                       rpc ? (
                       <div key={`rpc-${rpcIdx}`} className="box" style={{ padding: '16px' }}>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ec4899', textTransform: 'uppercase', letterSpacing: '0.5px' }}><ChevronsLeftRightEllipsis size={18}/> {serverSettings.rpcServers[rpcIdx]?.address}</h4>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#3b82f6' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{rpc.cpu_usage_pct.toFixed(1)}%</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(rpc.cpu_usage_pct) }}>{rpc.cpu_usage_pct.toFixed(1)}%</div>
                               </div>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{rpc.cpu_temp_c > 0 ? `${rpc.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
+                                 <div style={{ fontSize: '16px', fontWeight: 'bold', color: getTempColor(rpc.cpu_temp_c) }}>{rpc.cpu_temp_c > 0 ? `${rpc.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
                               </div>
                            </div>
                            <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#06b6d4' }}><MemoryStick size={16}/> System RAM</h4>
                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{Math.round(rpc.ram_total_gb * 1024)} MB</span></div>
                               <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{Math.round((rpc.ram_total_gb - rpc.ram_used_gb) * 1024)} MB</span></div>
-                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{Math.round(rpc.ram_used_gb * 1024)} MB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span style={{ color: getUsageColor((rpc.ram_used_gb/rpc.ram_total_gb)*100) }}>{Math.round(rpc.ram_used_gb * 1024)} MB</span></div>
                            </div>
                         {rpc.gpus && rpc.gpus.map((gpu, idx) => (
                           <div key={`rpc-gpu-${rpcIdx}-${idx}`}>
                              <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
-                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#10b981' }}><Gpu size={16}/> {gpu.name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>GPU Usage</div>
-                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.gpu_usage_pct}%</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: getUsageColor(gpu.gpu_usage_pct) }}>{gpu.gpu_usage_pct}%</div>
                                 </div>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Temperature</div>
-                                   <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: getTempColor(gpu.temp_c) }}>{gpu.temp_c} °C</div>
                                 </div>
                              </div>
                              <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
+                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: getVramColor(gpu.vram_used_mb, gpu.vram_total_mb) }}>{gpu.vram_used_mb} MB</span>
                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
                                 </div>
                                 <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
+                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: getVramColor(gpu.vram_used_mb, gpu.vram_total_mb), transition: 'width 0.3s' }}></div>
                                 </div>
                              </div>
                           </div>
