@@ -45,7 +45,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
     const computeBufferGb = attentionBufferGb + baseGraphGb;
           
     const hostOverheadGb = 0.40; // Host OS / Llama.cpp base binary overhead
-    const cudaOverheadGb = 0.45; // Base CUDA Context initialization overhead per GPU
+    const cudaOverheadGb = 0.25; // Base CUDA Context initialization overhead per GPU
     
     const allocations = { ...config.layerAllocations };
     const stats = [];
@@ -94,7 +94,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
                          <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{s.gb.toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
                      </div>
                  ))}
-                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', marginLeft: 'auto', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>Total Footprint</span>
                      <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)', whiteSpace: 'nowrap' }}>{(stats.reduce((a, b) => a + b.gb, 0)).toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
                  </div>
