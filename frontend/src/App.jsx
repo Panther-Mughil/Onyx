@@ -91,12 +91,12 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
                  {stats.map((s, i) => (
                      <div key={i} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0 }}>
                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>{s.name} <span style={{fontSize: '9px', opacity: 0.6}}>{s.type}</span></span>
-                         <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{s.gb.toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
+                         <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{(s.gb * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
                      </div>
                  ))}
                  <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>Total Footprint</span>
-                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)', whiteSpace: 'nowrap' }}>{(stats.reduce((a, b) => a + b.gb, 0)).toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
+                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)', whiteSpace: 'nowrap' }}>{((stats.reduce((a, b) => a + b.gb, 0)) * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
                  </div>
              </div>
         </div>
