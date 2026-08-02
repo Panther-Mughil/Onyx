@@ -711,7 +711,7 @@ function App() {
                 ) : (
                   <>
                     <div className="box" style={{ padding: '16px' }}>
-                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#a855f7' }}><Cpu size={16}/> {telemetry.host.cpu_name}</h4>
+                       <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#f8fafc' }}><Cpu size={16}/> {telemetry.host.cpu_name}</h4>
                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
@@ -767,8 +767,8 @@ function App() {
                     {telemetry.rpcs && telemetry.rpcs.map((rpc, rpcIdx) => (
                       rpc ? (
                       <div key={`rpc-${rpcIdx}`} className="box" style={{ padding: '16px' }}>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ec4899', textTransform: 'uppercase', letterSpacing: '0.5px' }}><ChevronsLeftRightEllipsis size={18}/> {serverSettings.rpcServers[rpcIdx]?.address}</h4>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#a855f7' }}><Cpu size={16}/> {rpc.cpu_name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#fb7185', textTransform: 'uppercase', letterSpacing: '0.5px' }}><ChevronsLeftRightEllipsis size={18}/> {serverSettings.rpcServers[rpcIdx]?.address}</h4>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#f8fafc' }}><Cpu size={16}/> {rpc.cpu_name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
