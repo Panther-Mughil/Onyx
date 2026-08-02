@@ -106,20 +106,6 @@ button {
   position: relative;
 }
 
-/* Resizer for Right Sidebar */
-.resizer {
-  position: absolute;
-  left: -3px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: col-resize;
-  z-index: 10;
-  transition: background 0.2s;
-}
-.resizer:hover, .resizer.resizing {
-  background: var(--accent);
-}
 
 /* Activity Bar */
 .activity-bar {
@@ -163,7 +149,10 @@ button {
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .left-sidebar.open {
-  width: 320px;
+  width: 380px;
+}
+.left-sidebar > div {
+  min-width: 380px;
 }
 
 /* Panel Boxes */

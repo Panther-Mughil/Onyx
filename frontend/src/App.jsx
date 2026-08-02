@@ -153,28 +153,7 @@ function App() {
   const [selectedModel, setSelectedModel] = useState(null); 
   const [activeTab, setActiveTab] = useState('load');
   // Layout State
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
-  const [rightSidebarWidth, setRightSidebarWidth] = useState(470);
-
-  const startRightResize = () => {
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    const handleMouseMove = (e) => {
-      let newWidth = window.innerWidth - e.clientX;
-      if (newWidth < 470) newWidth = 470;
-      if (newWidth > 800) newWidth = 800;
-      setRightSidebarWidth(newWidth);
-    };
-    const handleMouseUp = () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }; 
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false); 
   const [telemetry, setTelemetry] = useState(null);
 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
@@ -706,7 +685,6 @@ function App() {
         <div className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''}`}>
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
              <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold' }}>Monitoring</h3>
-             <button className="icon-btn" onClick={() => setIsLeftSidebarOpen(false)} title="Collapse"><ChevronLeft size={16} /></button>
            </div>
            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
                 
@@ -940,28 +918,15 @@ function App() {
           </div>
         </div>
 
-        {/* RIGHT PANE */}
-        {/* Right Sidebar Resizer & Toggle */}
-        {!isRightSidebarOpen && (
-           <div style={{ width: '32px', background: 'var(--bg-panel)', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '16px', zIndex: 10 }}>
-              <button className="icon-btn" style={{ color: 'var(--text-muted)' }} onClick={() => setIsRightSidebarOpen(true)} title="Open Sidebar">
-                 <ChevronLeft size={16} />
-              </button>
-           </div>
-        )}
-        <div className="right-pane" style={{ width: isRightSidebarOpen ? `${rightSidebarWidth}px` : '0px', display: isRightSidebarOpen ? 'flex' : 'none', overflow: 'hidden' }} >
+        {/* Right Sidebar */}
+        <div className="right-pane" style={{ width: '470px', display: 'flex', overflow: 'hidden' }}>
           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
             <Cpu size={20} color="var(--text-muted)" />
             <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
               {selectedModel ? selectedModel.name : 'System & Settings'}
             </h2>
           </div>
-          
-                 {isRightSidebarOpen && <div className="resizer" onMouseDown={startRightResize}></div>}
            <div className="tab-header">
-            <button className="icon-btn" style={{ padding: '8px', color: 'var(--text-muted)' }} onClick={() => setIsRightSidebarOpen(false)} title="Close Sidebar">
-              <ChevronRight size={16} />
-            </button>
             <div className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')} title="Info">
               <Info size={16} /> <span className="tab-label">Info</span>
             </div>
