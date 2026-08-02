@@ -1296,17 +1296,6 @@ function App() {
 
               <div className="form-row" style={{ alignItems: 'flex-start' }}>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ color: isProxyRunning ? 'var(--ready-green)' : 'var(--text-main)' }}>API Gateway</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{isProxyRunning ? `Running on port ${serverSettings.port}` : 'Stopped (Port inaccessible)'}</span>
-                </span>
-                <div 
-                  className={`toggle-switch ${isProxyRunning ? 'active' : ''}`} 
-                  onClick={toggleProxy}
-                ></div>
-              </div>
-
-              <div className="form-row" style={{ alignItems: 'flex-start' }}>
-                <span style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span>Host on Local Network</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{serverSettings.networkHost ? '0.0.0.0 (Exposed to network)' : '127.0.0.1 (Localhost only)'}</span>
                 </span>
