@@ -761,19 +761,16 @@ function App() {
                                  <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{rpc.cpu_temp_c > 0 ? `${rpc.cpu_temp_c.toFixed(1)} °C` : 'N/A'}</div>
                               </div>
                            </div>
-                           <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>RAM Usage</div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{Math.round(rpc.ram_used_gb * 1024)} MB</span>
-                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {Math.round(rpc.ram_total_gb * 1024)} MB</span>
-                              </div>
-                              <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                                 <div style={{ width: `${(rpc.ram_used_gb / rpc.ram_total_gb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
-                              </div>
-                            </div>
+                           <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><HardDrive size={16}/> System RAM</h4>
+                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{Math.round(rpc.ram_total_gb * 1024)} MB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{Math.round((rpc.ram_total_gb - rpc.ram_used_gb) * 1024)} MB</span></div>
+                              <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{Math.round(rpc.ram_used_gb * 1024)} MB</span></div>
+                           </div>
                         {rpc.gpus && rpc.gpus.map((gpu, idx) => (
-                          <div key={`rpc-gpu-${rpcIdx}-${idx}`} style={{ marginTop: '16px' }}>
-                             <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', marginBottom: '16px' }}></div>
+                          <div key={`rpc-gpu-${rpcIdx}-${idx}`}>
+                             <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
                              <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Zap size={16}/> {gpu.name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                 <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
@@ -785,15 +782,12 @@ function App() {
                                    <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{gpu.temp_c} °C</div>
                                 </div>
                              </div>
-                             <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
-                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>VRAM Usage</div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                   <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--accent-hover)' }}>{gpu.vram_used_mb} MB</span>
-                                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {gpu.vram_total_mb} MB</span>
-                                </div>
-                                <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
-                                   <div style={{ width: `${(gpu.vram_used_mb / gpu.vram_total_mb) * 100}%`, height: '100%', background: 'var(--accent-hover)', transition: 'width 0.3s' }}></div>
-                                </div>
+                             <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', margin: '16px 0' }}></div>
+                             <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-main)' }}><Database size={16}/> VRAM</h4>
+                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div className="info-row" style={{ padding: '4px 0' }}><span>Total Memory</span> <span>{gpu.vram_total_mb} MB</span></div>
+                                <div className="info-row" style={{ padding: '4px 0' }}><span>Available Memory</span> <span>{gpu.vram_total_mb - gpu.vram_used_mb} MB</span></div>
+                                <div className="info-row" style={{ padding: '4px 0', borderBottom: 'none' }}><span>Used Memory</span> <span>{gpu.vram_used_mb} MB</span></div>
                              </div>
                           </div>
                         ))}
