@@ -59,18 +59,18 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
     return (
         <div style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-color)', padding: '16px' }}>
              <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Estimated Memory Usage (Beta)
+                Resource Usage Estimator
              </div>
-             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+             <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }} className="custom-scrollbar">
                  {stats.map((s, i) => (
-                     <div key={i} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', minWidth: '70px' }}>
-                         <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>{s.name} <span style={{fontSize: '9px', opacity: 0.6}}>{s.type}</span></span>
-                         <span style={{ fontSize: '14px', fontWeight: '600', color: s.type === 'RAM' ? 'var(--text-main)' : 'var(--accent-hover)' }}>{s.gb.toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
+                     <div key={i} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0 }}>
+                         <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>{s.name} <span style={{fontSize: '9px', opacity: 0.6}}>{s.type}</span></span>
+                         <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{s.gb.toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
                      </div>
                  ))}
-                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginLeft: 'auto', minWidth: '80px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Total Footprint</span>
-                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)' }}>{(stats.reduce((a, b) => a + b.gb, 0)).toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
+                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', marginLeft: 'auto', flexShrink: 0, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>Total Footprint</span>
+                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)', whiteSpace: 'nowrap' }}>{(stats.reduce((a, b) => a + b.gb, 0)).toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
                  </div>
              </div>
         </div>
