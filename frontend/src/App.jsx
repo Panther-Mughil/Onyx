@@ -173,7 +173,7 @@ const CpuLineGraph = ({ usage, color }) => {
     <div style={{ width: '100%', height: `${maxH}px`, marginTop: '12px' }}>
       <svg width="100%" height="100%" preserveAspectRatio="none" viewBox={`0 0 100 ${maxH}`}>
         <polygon points={`0,${maxH} ${points} 100,${maxH}`} fill={color} opacity="0.15" />
-        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
     </div>
   );
