@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis } from 'lucide-react';
+import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers } from 'lucide-react';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -1022,7 +1022,7 @@ function App() {
                     </div>
 
                     <div style={{ marginTop: '24px' }}>
-                      <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px' }}>Device Layer Allocation</div>
+                      <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Layers size={16} color="var(--text-main)" /> Device Layer Allocation</div>
                       
                       <div style={{ marginBottom: '16px' }}>
                         <div className="form-row">
