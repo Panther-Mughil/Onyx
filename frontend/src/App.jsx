@@ -33,13 +33,19 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
     const kvSizeBytes = 2 * totalLayers * (nEmbd * gqaFactor) * bpe * config.ctxSize * config.concurrency;
     const kvSizeGb = kvSizeBytes / (1024 * 1024 * 1024);
     
-    // Compute Buffer (Graph overhead) - scales heavily with ctxSize
-    // Flash Attention drastically reduces this.
-    const computeBufferGb = config.flashAttention ? 
-          (config.ctxSize / 100000) * 0.5 : 
-          (config.ctxSize / 100000) * 2.5; 
+    // Context Compute Buffer (Graph overhead) - scales heavily with ctxSize
+    // If Flash Attention is OFF, the QK^T Attention Matrix takes a MASSIVE amount of memory.
+    const nHead = nEmbd / 64; // Conservative approximation of attention heads
+    let attentionBufferGb = 0;
+    if (!config.flashAttention) {
+        // Elements = heads * batch_size * context_size. Each is 4 bytes (f32)
+        attentionBufferGb = (nHead * config.physicalBatchSize * config.ctxSize * 4) / (1024 * 1024 * 1024);
+    }
+    const baseGraphGb = (config.ctxSize / 100000) * 0.5; // ~500MB graph logic per 100k tokens
+    const computeBufferGb = attentionBufferGb + baseGraphGb;
           
-    const overheadGb = 0.40; // Host OS / Llama.cpp base binary overhead
+    const hostOverheadGb = 0.40; // Host OS / Llama.cpp base binary overhead
+    const cudaOverheadGb = 0.45; // Base CUDA Context initialization overhead per GPU
     
     const allocations = { ...config.layerAllocations };
     const stats = [];
@@ -55,6 +61,10 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
         const actualLayers = allocations[id] || 0;
         let vram = (actualLayers * layerSizeGb) + (config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0);
         
+        if (id.startsWith('gpu') && actualLayers > 0) {
+            vram += cudaOverheadGb; // Add CUDA context overhead
+        }
+        
         // GPU 0 bears the brunt of the Context Compute Buffer
         if (id === 'gpu_0' && actualLayers > 0) {
             vram += computeBufferGb;
@@ -67,7 +77,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
     activeDevices.filter(d => d.id.startsWith('rpc')).forEach(d => computeDevice(d.id, d.name, false));
     
     const cpuActualLayers = Math.max(0, totalLayers - offloadedLayers);
-    let hostRam = (cpuActualLayers * layerSizeGb) + (!config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb)) + overheadGb;
+    let hostRam = (cpuActualLayers * layerSizeGb) + (!config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb)) + hostOverheadGb;
     
     // If no GPU offload, Host bears the Compute Buffer
     if (offloadedLayers === 0) {
