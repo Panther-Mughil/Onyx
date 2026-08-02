@@ -156,7 +156,7 @@ function App() {
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [serverSettings, setServerSettings] = useState({
-    port: "8080",
+    port: "12057",
     networkHost: false,
     cors: true,
     jitModelLoading: false,
