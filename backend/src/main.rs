@@ -222,7 +222,7 @@ struct GpuTelemetry {
 struct TelemetryResponse {
     cpu_name: String,
     cpu_usage_pct: f32,
-    cpu_temp_c: f32,
+
     physical_cores: Option<usize>,
     ram_used_gb: f32,
     ram_total_gb: f32,
@@ -1140,7 +1140,7 @@ async fn main() {
     let telemetry_cache = Arc::new(Mutex::new(TelemetryResponse {
         cpu_name: "Loading...".to_string(),
         cpu_usage_pct: 0.0,
-        cpu_temp_c: 0.0,
+
         physical_cores: None,
         ram_used_gb: 0.0,
         ram_total_gb: 0.0,
@@ -1162,16 +1162,7 @@ async fn main() {
             let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
             let physical_cores = sys.physical_core_count();
             
-            let mut cpu_temp_c = 0.0; 
-            for component in &components {
-                let label = component.label().to_lowercase();
-                if label.contains("cpu") || label.contains("core") || label.contains("tctl") {
-                    let temp = component.temperature();
-                    if temp > cpu_temp_c {
-                        cpu_temp_c = temp;
-                    }
-                }
-            }
+
 
             let mut ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
             
@@ -1210,7 +1201,7 @@ async fn main() {
                 let mut cache = cache_clone.lock().await;
                 cache.cpu_name = cpu_name;
                 cache.cpu_usage_pct = cpu_usage_pct;
-                cache.cpu_temp_c = cpu_temp_c;
+
                 cache.physical_cores = physical_cores;
                 cache.ram_used_gb = ram_used_gb;
                 cache.ram_total_gb = ram_total_gb;
