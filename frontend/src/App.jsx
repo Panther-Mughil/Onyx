@@ -354,12 +354,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logs, systemLogs]);
-
-  useEffect(() => {
     const fetchTelemetry = async () => {
         try {
             const res = await fetch('http://127.0.0.1:3001/api/server/telemetry', { cache: 'no-store' });
