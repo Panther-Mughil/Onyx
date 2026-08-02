@@ -946,7 +946,7 @@ function App() {
                   <Trash2 size={14} color="var(--text-muted)" />
                 </button>
               </div>
-            <div className="terminal" style={{ borderRadius: 0 }}>
+            <div className="terminal">
               {!selectedModel ? (
                  systemLogs.length === 0 ? 
                    <div style={{ color: 'var(--text-muted)' }}>System logs empty...</div> :
@@ -1231,7 +1231,7 @@ function App() {
                     </button>
                   </div>
                   
-                  <div className="box" style={{ flex: 1, minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
+                  <div className="box" style={{ flex: 1, minHeight: '300px', display: 'flex', flexDirection: 'column', borderRadius: 0 }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       Terminal Output
                       <button style={{ background: 'transparent', color: 'var(--text-muted)', display: 'flex', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => {
@@ -1241,7 +1241,7 @@ function App() {
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    <div className="terminal" style={{ margin: 0, borderRadius: '0 0 12px 12px', border: 'none', borderTop: 'none', flex: 1, minHeight: 0 }}>
+                    <div className="terminal" style={{ margin: 0, border: 'none', borderTop: 'none', flex: 1, minHeight: 0 }}>
                       {benchmarkStatus.logs.length === 0 ? (
                         <div style={{ color: '#555' }}>Ready to benchmark...</div>
                       ) : (
