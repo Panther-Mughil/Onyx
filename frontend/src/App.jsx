@@ -153,7 +153,7 @@ function App() {
   const [selectedModel, setSelectedModel] = useState(null); 
   const [activeTab, setActiveTab] = useState('load');
   // Layout State
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false); 
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true); 
   const [telemetry, setTelemetry] = useState(null);
 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
