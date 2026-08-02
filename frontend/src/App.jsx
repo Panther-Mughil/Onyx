@@ -992,10 +992,10 @@ function App() {
                       {activeDevices.map(d => (
                         <div key={d.id} style={{ marginBottom: '16px' }}>
                           <div className="form-row">
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {d.name.includes(': ') ? (
                                 <>
-                                  <span style={{ width: '20px', textAlign: 'left', display: 'inline-block', flexShrink: 0 }}>{d.name.split(': ')[0]}:</span>
+                                  <span style={{ width: '16px', textAlign: 'left', display: 'inline-block', flexShrink: 0 }}>{d.name.split(': ')[0]}:</span>
                                   <span>{d.name.split(': ').slice(1).join(': ')}</span>
                                 </>
                               ) : d.name}
@@ -1102,8 +1102,8 @@ function App() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '32px' }}>
                         {config.localGpus.map((gpu, idx) => (
                           <div key={idx} className="form-row" style={{ background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginBottom: 0 }}>
-                            <span style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ width: '20px', textAlign: 'left', display: 'inline-block' }}>{gpu.index}:</span>
+                            <span style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ width: '16px', textAlign: 'left', display: 'inline-block' }}>{gpu.index}:</span>
                               <span style={{ color: 'var(--text-muted)' }}>{gpu.name}</span>
                             </span>
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
