@@ -462,14 +462,14 @@ function App() {
        const fetchBench = () => {
          fetch('http://127.0.0.1:3001/api/server/benchmark/status', { cache: 'no-store' })
            .then(res => res.json())
-           .then(data => setBenchmarkStatus({ isRunning: data.is_running, logs: data.logs, pp: data.pp, tg: data.tg }))
+           .then(data => setBenchmarkStatus(prev => ({ ...prev, isRunning: data.is_running, logs: data.logs, pp: data.pp, tg: data.tg })))
            .catch(() => {});
        };
        fetchBench();
        interval = setInterval(fetchBench, 1000);
     }
     return () => clearInterval(interval);
-  }, [activeTab]);
+  }, [activeTab, benchmarkStatus.isRunning]);
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
