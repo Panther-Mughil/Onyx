@@ -683,8 +683,9 @@ function App() {
 
         {/* Left Sidebar (Collapsible) */}
         <div className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''}`}>
-           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
-             <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold' }}>Monitoring</h3>
+           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+             <Activity size={20} color="var(--text-muted)" />
+             <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Monitoring</h2>
            </div>
            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
                 
