@@ -816,7 +816,7 @@ function App() {
         <div className="left-pane" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', height: '100%', gap: '24px' }}>
             <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', flexShrink: 0 }}>ACTIVE MODELS</h3>
+              <h3 style={{ fontSize: '14px', marginBottom: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', flexShrink: 0 }}>LOADED MODELS</h3>
               <div className="box" style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', borderRadius: 0, marginTop: '-1px' }}>
               {activeServers.length > 0 ? (
                 activeServers.map(server => {
