@@ -969,9 +969,6 @@ function App() {
             <div className={`tab-btn ${activeTab === 'rpc' ? 'active' : ''}`} onClick={() => setActiveTab('rpc')} title="Devices">
               <Network size={16} /> <span className="tab-label">Devices</span>
             </div>
-            <div className={`tab-btn ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')} title="Monitoring">
-              <Activity size={16} /> <span className="tab-label">Monitoring</span>
-            </div>
             <div className={`tab-btn ${activeTab === 'benchmark' ? 'active' : ''}`} onClick={() => setActiveTab('benchmark')} title="Benchmark">
               <Gauge size={16} /> <span className="tab-label">Benchmark</span>
             </div>
