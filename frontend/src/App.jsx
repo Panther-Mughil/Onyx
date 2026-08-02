@@ -768,7 +768,7 @@ function App() {
                       rpc ? (
                       <div key={`rpc-${rpcIdx}`} className="box" style={{ padding: '16px' }}>
                            <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ec4899', textTransform: 'uppercase', letterSpacing: '0.5px' }}><ChevronsLeftRightEllipsis size={18}/> {serverSettings.rpcServers[rpcIdx]?.address}</h4>
-                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#3b82f6' }}><Cpu size={16}/> {rpc.cpu_name}</h4>
+                           <h4 style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#3b82f6' }}><Cpu size={16}/> {rpc.cpu_name.replace(/^\[RPC.*?\]\s*/, '')}</h4>
                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                               <div style={{ background: 'var(--bg-input)', padding: '12px', borderRadius: '8px' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Usage</div>
