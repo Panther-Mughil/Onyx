@@ -992,7 +992,14 @@ function App() {
                       {activeDevices.map(d => (
                         <div key={d.id} style={{ marginBottom: '16px' }}>
                           <div className="form-row">
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{d.name}</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {d.name.includes(': ') ? (
+                                <>
+                                  <span style={{ width: '20px', textAlign: 'left', display: 'inline-block', flexShrink: 0 }}>{d.name.split(': ')[0]}:</span>
+                                  <span>{d.name.split(': ').slice(1).join(': ')}</span>
+                                </>
+                              ) : d.name}
+                            </span>
                             <input type="number" className="num-input" value={allocs[d.id] || 0} max={maxLayers} onChange={(e) => handleAllocationChange(d.id, e.target.value)} />
                           </div>
                           <input type="range" className="range-slider" min="0" max={maxLayers} value={allocs[d.id] || 0} onChange={(e) => handleAllocationChange(d.id, e.target.value)} />
