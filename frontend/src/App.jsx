@@ -19,7 +19,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
     
     // KV Cache Estimations
     const nEmbd = totalLayers <= 16 ? 2048 : (totalLayers <= 32 ? 4096 : (totalLayers <= 40 ? 5120 : (totalLayers <= 60 ? 6144 : 8192)));
-    const gqaFactor = totalLayers >= 32 ? 0.25 : 1.0; 
+    const gqaFactor = 0.25; 
     
     const getQuantBytes = (q) => {
        if (q === 'f16' || q === 'f32') return 2.0;
@@ -33,26 +33,46 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
     const kvSizeBytes = 2 * totalLayers * (nEmbd * gqaFactor) * bpe * config.ctxSize * config.concurrency;
     const kvSizeGb = kvSizeBytes / (1024 * 1024 * 1024);
     
-    const overheadGb = config.flashAttention ? 0.2 : 0.4;
+    // Compute Buffer (Graph overhead) - scales heavily with ctxSize
+    // Flash Attention drastically reduces this.
+    const computeBufferGb = config.flashAttention ? 
+          (config.ctxSize / 100000) * 0.5 : 
+          (config.ctxSize / 100000) * 2.5; 
+          
+    const overheadGb = 0.40; // Host OS / Llama.cpp base binary overhead
     
     const allocations = { ...config.layerAllocations };
     const stats = [];
     
-    let totalAssignedLayers = allocations['cpu'] || 0;
-    activeDevices.forEach(d => totalAssignedLayers += (allocations[d.id] || 0));
-    const factor = totalAssignedLayers > 0 ? (totalLayers / totalAssignedLayers) : 1;
+    let offloadedLayers = 0;
+    activeDevices.forEach(d => {
+       if (d.id.startsWith('gpu') || d.id.startsWith('rpc')) {
+           offloadedLayers += (allocations[d.id] || 0);
+       }
+    });
     
     const computeDevice = (id, name, isRam) => {
-        const actualLayers = (allocations[id] || 0) * factor;
-        const vram = (actualLayers * layerSizeGb) + (config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0);
+        const actualLayers = allocations[id] || 0;
+        let vram = (actualLayers * layerSizeGb) + (config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0);
+        
+        // GPU 0 bears the brunt of the Context Compute Buffer
+        if (id === 'gpu_0' && actualLayers > 0) {
+            vram += computeBufferGb;
+        }
+        
         if (vram > 0) stats.push({ name, type: isRam ? 'RAM' : 'VRAM', gb: vram });
     };
     
     activeDevices.filter(d => d.id.startsWith('gpu')).forEach(d => computeDevice(d.id, d.name, false));
     activeDevices.filter(d => d.id.startsWith('rpc')).forEach(d => computeDevice(d.id, d.name, false));
     
-    const cpuActualLayers = ((allocations['cpu'] || 0) * factor) + Math.max(0, totalLayers - (totalAssignedLayers * factor));
-    const hostRam = (cpuActualLayers * layerSizeGb) + (!config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb)) + overheadGb;
+    const cpuActualLayers = Math.max(0, totalLayers - offloadedLayers);
+    let hostRam = (cpuActualLayers * layerSizeGb) + (!config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb)) + overheadGb;
+    
+    // If no GPU offload, Host bears the Compute Buffer
+    if (offloadedLayers === 0) {
+        hostRam += computeBufferGb;
+    }
     
     stats.unshift({ name: 'Host', type: 'RAM', gb: hostRam });
     
