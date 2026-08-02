@@ -97,7 +97,7 @@ button {
 }
 
 .right-pane {
-  width: 420px;
+  width: 500px;
   background: var(--bg-panel);
   border-left: 1px solid var(--border-color);
   display: flex;

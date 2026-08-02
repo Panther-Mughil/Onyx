@@ -10,6 +10,73 @@ const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
   </svg>
 );
 
+const MemoryEstimator = ({ selectedModel, config, activeDevices }) => {
+    if (!selectedModel) return null;
+    
+    // Model weight estimations
+    const totalLayers = selectedModel.block_count || 32;
+    const layerSizeGb = selectedModel.size_gb / totalLayers;
+    
+    // KV Cache Estimations
+    const nEmbd = totalLayers <= 16 ? 2048 : (totalLayers <= 32 ? 4096 : (totalLayers <= 40 ? 5120 : (totalLayers <= 60 ? 6144 : 8192)));
+    const gqaFactor = totalLayers >= 32 ? 0.25 : 1.0; 
+    
+    const getQuantBytes = (q) => {
+       if (q === 'f16' || q === 'f32') return 2.0;
+       if (q === 'q8_0') return 1.0;
+       if (q.startsWith('q4')) return 0.5;
+       if (q.startsWith('q5')) return 0.625;
+       return 2.0;
+    };
+    
+    const bpe = (getQuantBytes(config.kCacheQuant) + getQuantBytes(config.vCacheQuant)) / 2;
+    const kvSizeBytes = 2 * totalLayers * (nEmbd * gqaFactor) * bpe * config.ctxSize * config.concurrency;
+    const kvSizeGb = kvSizeBytes / (1024 * 1024 * 1024);
+    
+    const overheadGb = config.flashAttention ? 0.2 : 0.4;
+    
+    const allocations = { ...config.layerAllocations };
+    const stats = [];
+    
+    let totalAssignedLayers = allocations['cpu'] || 0;
+    activeDevices.forEach(d => totalAssignedLayers += (allocations[d.id] || 0));
+    const factor = totalAssignedLayers > 0 ? (totalLayers / totalAssignedLayers) : 1;
+    
+    const computeDevice = (id, name, isRam) => {
+        const actualLayers = (allocations[id] || 0) * factor;
+        const vram = (actualLayers * layerSizeGb) + (config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0);
+        if (vram > 0) stats.push({ name, type: isRam ? 'RAM' : 'VRAM', gb: vram });
+    };
+    
+    activeDevices.filter(d => d.id.startsWith('gpu')).forEach(d => computeDevice(d.id, d.name, false));
+    activeDevices.filter(d => d.id.startsWith('rpc')).forEach(d => computeDevice(d.id, d.name, false));
+    
+    const cpuActualLayers = ((allocations['cpu'] || 0) * factor) + Math.max(0, totalLayers - (totalAssignedLayers * factor));
+    const hostRam = (cpuActualLayers * layerSizeGb) + (!config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb)) + overheadGb;
+    
+    stats.unshift({ name: 'Host', type: 'RAM', gb: hostRam });
+    
+    return (
+        <div style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-color)', padding: '16px' }}>
+             <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Estimated Memory Usage (Beta)
+             </div>
+             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                 {stats.map((s, i) => (
+                     <div key={i} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', minWidth: '70px' }}>
+                         <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>{s.name} <span style={{fontSize: '9px', opacity: 0.6}}>{s.type}</span></span>
+                         <span style={{ fontSize: '14px', fontWeight: '600', color: s.type === 'RAM' ? 'var(--text-main)' : 'var(--accent-hover)' }}>{s.gb.toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
+                     </div>
+                 ))}
+                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 12px', borderRadius: '6px', marginLeft: 'auto', minWidth: '80px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>Total Footprint</span>
+                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--ready-green)' }}>{(stats.reduce((a, b) => a + b.gb, 0)).toFixed(2)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>GB</span></span>
+                 </div>
+             </div>
+        </div>
+    );
+};
+
 function App() {
   const [backendStatus, setBackendStatus] = useState({ status: 'checking', message: '' });
   const [activeServers, setActiveServers] = useState([]); // Array of { modelId, port, isReady }
@@ -693,6 +760,7 @@ function App() {
             {activeTab === 'load' && (
               selectedModel ? (
                 <>
+                  <MemoryEstimator selectedModel={selectedModel} config={config} activeDevices={activeDevices} />
                   <div className="form-section">
                     <div className="form-section-title"><Settings size={16}/> Context and Offload</div>
                     
