@@ -13,31 +13,28 @@ A high-performance, ultra-sleek, locally hosted web dashboard for managing and r
 - **Premium UI/UX**: Designed with sleek glassmorphism, dynamic expanding tabs, smooth micro-animations, and a highly responsive layout.
 - **Incredibly Lightweight**: By ditching Electron in favor of a native Rust backend + Web SPA, background RAM usage sits at a mere ~15MB instead of 300MB+.
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Compiling from Source)
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (For the React Frontend)
-- [Rust & Cargo](https://rustup.rs/) (For the Backend middleware)
+Onyx is designed to be compiled directly from source to ensure the Rust backend and `llama.cpp` binaries are perfectly optimized for your specific CPU and OS architecture.
 
-### Installation
+### Installation & Launch
 1. Clone the repository:
    ```bash
    git clone https://github.com/Panther-Mughil/Onyx.git
    cd Onyx
    ```
 2. Place your downloaded `.gguf` models into the `models/` folder.
-3. Make sure the official `llama.cpp` binaries (`llama-server.exe`, `llama-bench.exe`, etc.) are placed inside the `bin/` folder.
-4. Run the setup script to install dependencies:
-   ```cmd
-   setup.bat
-   ```
-
-### Launch
-Run the start script to boot both the Rust backend and the React frontend simultaneously:
-```cmd
-start.bat
-```
-The dashboard will automatically open in your browser at `http://localhost:5173`.
+3. Make sure your architecture's official `llama.cpp` binaries (`llama-server.exe`, `llama-bench.exe`, etc.) are placed inside the `bin/` folder.
+4. Run the unified Onyx interactive terminal:
+   - **Windows**: Double-click `onyx.bat`
+   - **Mac/Linux**: Run `./onyx.sh`
+   
+### The Onyx Terminal Menu
+When you run the script, you will be presented with a simple interactive menu:
+1. **Verify & Install System Dependencies** (Run this first! It will check for Rust/Node and compile the entire application natively for your machine).
+2. **Start Primary Node** (Boots the compiled Rust backend which statically serves the beautiful React frontend at `http://127.0.0.1:3001`).
+3. **Start RPC Worker Node** (Runs the lightweight RPC agent for distributed multi-GPU tensor offloading).
+4. **Start Development Environment** (For developers who want frontend hot-reloading).
 
 ## 📡 API Integration
 Onyx acts strictly as a model host. It exposes your active model as a standard OpenAI-compatible API on your selected port.

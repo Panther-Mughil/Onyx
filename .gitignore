@@ -1,26 +1,32 @@
+# Models & Binaries
 models/
 bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.app
 
-# Future Rust backend ignores
-backend/target/
-**/*.rs.bk
-
-# Future Node/Vite frontend ignores
-frontend/node_modules/
-frontend/dist/
-.env
-.env.*
-!.env.example
-.DS_Store
-
-# Documentation
-PRD.md
-AI_DEVELOPMENT_GUIDE.md
-
-# Application Data
-data/settings.json
-models/metadata_cache.json
-TMR_work.md
+# Application Data & Configs
+data/
+*.json
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/.oxlintrc.json
 
 # Rust Build Artifacts
 **/target/
+**/*.rs.bk
+
+# Node/Vite
+**/node_modules/
+**/dist/
+.env*
+!.env.example
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Markdown Scratchpads (except the main ones)
+TMR_work.md
