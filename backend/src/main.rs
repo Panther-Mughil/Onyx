@@ -1164,6 +1164,7 @@ async fn main() {
             
 
 
+            #[allow(unused_mut)]
             let mut ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
             
             #[cfg(target_os = "macos")]
