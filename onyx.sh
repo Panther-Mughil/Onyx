@@ -11,7 +11,7 @@ install_deps_routine() {
     echo -e "${CYAN}       VERIFYING & INSTALLING DEPENDENCIES       ${NC}"
     echo -e "${CYAN}=================================================${NC}"
 
-    echo -e "${GREEN}[1/4] Checking for Rust/Cargo...${NC}"
+    echo -e "${GREEN}[1/5] Checking for Rust/Cargo...${NC}"
     if ! command -v cargo &> /dev/null; then
         echo -e "${RED}[!] Rust not found. Installing via rustup...${NC}"
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -21,7 +21,7 @@ install_deps_routine() {
         echo "[OK] Rust is installed."
     fi
 
-    echo -e "${GREEN}[2/4] Checking for Node.js/npm...${NC}"
+    echo -e "${GREEN}[2/5] Checking for Node.js/npm...${NC}"
     if ! command -v npm &> /dev/null; then
         echo -e "${RED}[!] Node.js not found. Attempting to install...${NC}"
         if command -v brew &> /dev/null; then
@@ -40,7 +40,7 @@ install_deps_routine() {
         echo "[OK] Node.js is installed."
     fi
 
-    echo -e "${GREEN}[3/4] Checking for CMake...${NC}"
+    echo -e "${GREEN}[3/5] Checking for CMake...${NC}"
     if ! command -v cmake &> /dev/null; then
         echo -e "${RED}[!] CMake not found. Attempting to install...${NC}"
         if command -v brew &> /dev/null; then
@@ -59,7 +59,10 @@ install_deps_routine() {
         echo "[OK] CMake is installed."
     fi
 
-    echo -e "${GREEN}[4/4] Compiling and Baking application...${NC}"
+    echo -e "${GREEN}[4/5] Downloading and Setting up Llama.cpp Engine...${NC}"
+    node scripts/setup_engine.js
+
+    echo -e "${GREEN}[5/5] Compiling and Baking application...${NC}"
     echo "Installing Frontend Dependencies..."
     cd frontend || exit
     npm install

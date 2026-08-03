@@ -1,6 +1,6 @@
 # Models & Binaries
 models/
-bin/
+llama-cpp/
 *.exe
 *.dll
 *.so

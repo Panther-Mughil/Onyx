@@ -101,9 +101,9 @@ async fn main() {
 
     // Launch llama-rpc-server in the background
     let rpc_binary = if cfg!(windows) {
-        "bin\\ggml-rpc-server.exe"
+        "./llama-cpp/ggml-rpc-server.exe"
     } else {
-        "./bin/ggml-rpc-server"
+        "./llama-cpp/ggml-rpc-server"
     };
     
     let mut child = Command::new(rpc_binary)

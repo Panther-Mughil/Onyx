@@ -807,9 +807,9 @@ async fn start_server(
     
     let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
     let binary_path = if cfg!(windows) {
-        format!("{}/bin/llama-server.exe", base_dir())
+        format!("{}/llama-cpp/llama-server.exe", base_dir())
     } else {
-        format!("{}/bin/llama-server", base_dir())
+        format!("{}/llama-cpp/llama-server", base_dir())
     };
 
     if !Path::new(&binary_path).exists() {
@@ -1000,9 +1000,9 @@ async fn run_benchmark(
 
     let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
     let binary_path = if cfg!(windows) {
-        format!("{}/bin/llama-bench.exe", base_dir())
+        format!("{}/llama-cpp/llama-bench.exe", base_dir())
     } else {
-        format!("{}/bin/llama-bench", base_dir())
+        format!("{}/llama-cpp/llama-bench", base_dir())
     };
     
     let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");

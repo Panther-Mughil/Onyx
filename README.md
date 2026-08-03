@@ -24,7 +24,7 @@ Onyx is designed to be compiled directly from source to ensure the Rust backend 
    cd Onyx
    ```
 2. Place your downloaded `.gguf` models into the `models/` folder.
-3. Make sure your architecture's official `llama.cpp` binaries (`llama-server.exe`, `llama-bench.exe`, etc.) are placed inside the `bin/` folder.
+3. The built-in auto-installer will automatically detect your hardware, download the correct engine binaries, and place them inside the `llama-cpp/` folder for you!
 4. Run the unified Onyx interactive terminal:
    - **Windows**: Double-click `onyx.bat`
    - **Mac/Linux**: Run `./onyx.sh`
