@@ -24,7 +24,10 @@ goto MENU
 
 :START_PRIMARY
 echo Starting Primary Node...
-echo If this is your first time, please run option [4] first.
+if not exist "backend\target\release\onyx.exe" (
+    echo [INFO] First time setup detected. Automatically installing dependencies and compiling...
+    call :INSTALL_DEPS_ROUTINE
+)
 cd backend
 cargo run --release
 pause
@@ -32,6 +35,10 @@ goto MENU
 
 :START_RPC
 echo Starting RPC Worker Node...
+if not exist "rpc_agent\target\release\rpc_agent.exe" (
+    echo [INFO] First time setup detected. Automatically installing dependencies and compiling...
+    call :INSTALL_DEPS_ROUTINE
+)
 cd rpc_agent
 cargo run --release
 pause
@@ -48,6 +55,15 @@ pause
 goto MENU
 
 :INSTALL_DEPS
+call :INSTALL_DEPS_ROUTINE
+echo =================================================
+echo All dependencies installed and compiled successfully!
+echo You can now use option [1] or [2] to start Onyx.
+echo =================================================
+pause
+goto MENU
+
+:INSTALL_DEPS_ROUTINE
 echo =================================================
 echo        VERIFYING ^& INSTALLING DEPENDENCIES
 echo =================================================
@@ -105,10 +121,4 @@ echo Building RPC Agent...
 cd rpc_agent
 call cargo build --release
 cd ..
-
-echo =================================================
-echo All dependencies installed and compiled successfully!
-echo You can now use option [1] or [2] to start Onyx.
-echo =================================================
-pause
-goto MENU
+exit /b
