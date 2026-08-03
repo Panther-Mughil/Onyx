@@ -1,1 +1,7 @@
-frontend/** linguist-detectable=false
+# Hide Shell and Batch scripts from GitHub language stats
+*.sh linguist-detectable=false
+*.bat linguist-detectable=false
+
+# Ignore generated assets or config files
+package-lock.json linguist-generated=true
+Cargo.lock linguist-generated=true
