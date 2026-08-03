@@ -28,5 +28,7 @@ data/
 .DS_Store
 Thumbs.db
 
-# Markdown Scratchpads (except the main ones)
+# Markdown Scratchpads
 TMR_work.md
+PRD.md
+AI_DEVELOPMENT_GUIDE.md
