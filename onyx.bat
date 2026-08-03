@@ -46,11 +46,16 @@ goto MENU
 
 :START_DEV
 echo Starting Development Environment...
-cd frontend
-start cmd /k "npm run dev"
-cd ../backend
-start cmd /k "cargo run"
-cd ..
+where wt >nul 2>&1
+if %errorlevel% equ 0 (
+    wt new-tab -d "%cd%\frontend" cmd /k "npm run dev" ; new-tab -d "%cd%\backend" cmd /k "cargo run"
+) else (
+    cd frontend
+    start cmd /k "npm run dev"
+    cd ../backend
+    start cmd /k "cargo run"
+    cd ..
+)
 pause
 goto MENU
 
