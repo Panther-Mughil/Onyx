@@ -100,13 +100,44 @@ async fn main() {
     println!("Telemetry Server bound to: {}", telemetry_port);
 
     // Launch llama-rpc-server in the background
-    let rpc_binary = if cfg!(windows) {
-        "./llama-cpp/ggml-rpc-server.exe"
+    // Resolve the binary path relative to the executable's location (project root),
+    // with a fallback to CWD-relative paths for flexibility.
+    let rpc_binary_name = if cfg!(windows) {
+        "ggml-rpc-server.exe"
     } else {
-        "./llama-cpp/ggml-rpc-server"
+        "ggml-rpc-server"
     };
-    
-    let mut child = Command::new(rpc_binary)
+
+    let rpc_binary = {
+        // Try relative to the executable (e.g. rpc_agent/target/release/ -> project root)
+        let exe_dir = env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        
+        let candidates = vec![
+            // From exe dir: ../../.. gets us from target/release/ to project root
+            exe_dir.as_ref().map(|d| d.join("../../../llama-cpp").join(rpc_binary_name)),
+            // CWD-relative (when run from project root)
+            Some(std::path::PathBuf::from(format!("./llama-cpp/{}", rpc_binary_name))),
+            // CWD-relative (when run from rpc_agent/ via cargo run)
+            Some(std::path::PathBuf::from(format!("../llama-cpp/{}", rpc_binary_name))),
+        ];
+
+        candidates
+            .into_iter()
+            .flatten()
+            .find(|p| p.exists())
+            .unwrap_or_else(|| {
+                eprintln!("Error: Could not find '{}' in any expected location.", rpc_binary_name);
+                eprintln!("Searched relative to executable and current directory.");
+                eprintln!("Please run option [4] in the Onyx Terminal to install dependencies.");
+                std::process::exit(1);
+            })
+    };
+
+    println!("Using RPC binary: {:?}", rpc_binary);
+
+    let mut child = Command::new(&rpc_binary)
         .arg("--host")
         .arg(host_port.split(':').next().unwrap_or("0.0.0.0"))
         .arg("--port")
