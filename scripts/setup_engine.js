@@ -100,7 +100,7 @@ async function setupMac() {
     runCmd(`git clone https://github.com/ggerganov/llama.cpp.git "${tempDir}"`);
     
     const buildDir = path.join(tempDir, 'build');
-    runCmd(`cd "${tempDir}" && cmake -B build -DGGML_METAL=ON -DGGML_RPC=ON`);
+    runCmd(`cd "${tempDir}" && cmake -B build -DGGML_METAL=ON -DGGML_RPC=ON -DBUILD_SHARED_LIBS=OFF`);
     runCmd(`cd "${tempDir}" && cmake --build build --config Release`);
 
     console.log("Moving compiled binaries to llama-cpp/...");
@@ -113,6 +113,35 @@ async function setupMac() {
             fs.chmodSync(path.join(LLAMA_DIR, bin), 0o755);
         } else {
             console.error(`Warning: Could not find compiled binary ${bin}`);
+        }
+    }
+
+    // Copy any shared libraries (.dylib) that the binaries may depend on
+    const libDirs = [path.join(buildDir, 'bin'), path.join(buildDir, 'src'), buildDir];
+    for (const libDir of libDirs) {
+        if (fs.existsSync(libDir)) {
+            const files = fs.readdirSync(libDir);
+            for (const file of files) {
+                if (file.endsWith('.dylib')) {
+                    const src = path.join(libDir, file);
+                    const dest = path.join(LLAMA_DIR, file);
+                    fs.copyFileSync(src, dest);
+                    fs.chmodSync(dest, 0o755);
+                    console.log(`  Copied shared library: ${file}`);
+                }
+            }
+        }
+    }
+
+    // Fix rpath on binaries to look for libraries in their own directory
+    for (const bin of binaries) {
+        const binPath = path.join(LLAMA_DIR, bin);
+        if (fs.existsSync(binPath)) {
+            try {
+                execSync(`install_name_tool -add_rpath @executable_path "${binPath}"`, { stdio: 'ignore' });
+            } catch (e) {
+                // rpath may already exist, that's fine
+            }
         }
     }
 
