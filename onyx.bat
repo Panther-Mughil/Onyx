@@ -46,6 +46,10 @@ goto MENU
 
 :START_DEV
 echo Starting Development Environment...
+if not exist "llama-cpp\llama-server.exe" (
+    echo [INFO] First time setup detected. Automatically installing dependencies and compiling...
+    call :INSTALL_DEPS_ROUTINE
+)
 where wt >nul 2>&1
 if %errorlevel% equ 0 (
     wt new-tab -d "%cd%\frontend" cmd /k "npm run dev" ; new-tab -d "%cd%\backend" cmd /k "cargo run"

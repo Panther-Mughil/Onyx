@@ -119,6 +119,11 @@ while true; do
             ;;
         3)
             echo -e "${GREEN}Starting Development Environment...${NC}"
+            # Check if engine binaries exist (platform-aware)
+            if [ ! -f "llama-cpp/llama-server" ] && [ ! -f "llama-cpp/llama-server.exe" ]; then
+                echo -e "${CYAN}[INFO] First time setup detected. Automatically installing dependencies and compiling...${NC}"
+                install_deps_routine
+            fi
             cd frontend || exit
             npm run dev &
             FRONTEND_PID=$!
