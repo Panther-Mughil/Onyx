@@ -11,9 +11,9 @@ function ensureDir() {
     }
 }
 
-function runCmd(cmd) {
+function runCmd(cmd, opts = {}) {
     console.log(`> ${cmd}`);
-    execSync(cmd, { stdio: 'inherit' });
+    execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
 async function fetchLatestRelease() {
@@ -160,18 +160,103 @@ async function main() {
             await setupMac();
         } else {
             console.log("Linux detected. You can compile from source or download vulkan binaries manually.");
-            console.log("Attempting to clone and compile with standard make...");
+            console.log("Attempting to clone and compile with standard cmake...");
             const tempDir = path.join(__dirname, '..', 'llama_temp_src');
             if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
             runCmd(`git clone https://github.com/ggerganov/llama.cpp.git "${tempDir}"`);
-            runCmd(`cd "${tempDir}" && make -j4`);
-            const binaries = ['llama-server', 'llama-bench', 'ggml-rpc-server'];
-            for (const bin of binaries) {
-                if (fs.existsSync(path.join(tempDir, bin))) {
-                    fs.copyFileSync(path.join(tempDir, bin), path.join(LLAMA_DIR, bin));
-                    fs.chmodSync(path.join(LLAMA_DIR, bin), 0o755);
+            
+            const buildDir = path.join(tempDir, 'build');
+            let cmakeFlags = "-DGGML_RPC=ON -DBUILD_SHARED_LIBS=OFF";
+            let env = Object.assign({}, process.env);
+            
+            try {
+                // Try standard nvcc first, then arch linux default path
+                try {
+                    execSync('nvcc --version', { stdio: 'ignore' });
+                } catch (e) {
+                    execSync('/opt/cuda/bin/nvcc --version', { stdio: 'ignore' });
+                    env.PATH = '/opt/cuda/bin:' + (env.PATH || '');
+                    env.CUDACXX = '/opt/cuda/bin/nvcc';
+                    cmakeFlags += " -DCUDAToolkit_ROOT=/opt/cuda";
+                }
+                cmakeFlags += " -DGGML_CUDA=ON";
+                console.log("CUDA toolkit detected. Compiling with GGML_CUDA=ON for NVIDIA GPUs...");
+            } catch (e) {
+                let hasNvidia = false;
+                try {
+                    execSync('nvidia-smi', { stdio: 'ignore' });
+                    hasNvidia = true;
+                } catch (err) {}
+
+                if (hasNvidia) {
+                    console.log("NVIDIA GPU detected but CUDA toolkit is missing. Attempting to install CUDA toolkit...");
+                    try {
+                        execSync('command -v apt-get', { stdio: 'ignore' });
+                        runCmd('sudo apt-get update && sudo apt-get install -y nvidia-cuda-toolkit', { env });
+                        cmakeFlags += " -DGGML_CUDA=ON";
+                    } catch (errApt) {
+                        try {
+                            execSync('command -v pacman', { stdio: 'ignore' });
+                            runCmd('sudo pacman -S --noconfirm cuda', { env });
+                            env.PATH = '/opt/cuda/bin:' + (env.PATH || '');
+                            env.CUDACXX = '/opt/cuda/bin/nvcc';
+                            cmakeFlags += " -DCUDAToolkit_ROOT=/opt/cuda -DGGML_CUDA=ON";
+                        } catch (errPacman) {
+                            try {
+                                execSync('command -v dnf', { stdio: 'ignore' });
+                                runCmd('sudo dnf install -y cuda-toolkit', { env });
+                                cmakeFlags += " -DGGML_CUDA=ON";
+                            } catch (errDnf) {
+                                console.log("Could not detect package manager to install CUDA. Please install it manually.");
+                            }
+                        }
+                    }
+                } else {
+                    try {
+                        execSync('ls /usr/include/vulkan/vulkan.h', { stdio: 'ignore' });
+                        cmakeFlags += " -DGGML_VULKAN=ON";
+                        console.log("Vulkan headers detected. Compiling with GGML_VULKAN=ON...");
+                    } catch (e2) {
+                        console.log("No CUDA toolkit (nvcc) or Vulkan headers detected. Compiling for CPU only...");
+                    }
                 }
             }
+
+            runCmd(`cd "${tempDir}" && cmake -B build ${cmakeFlags}`, { env });
+            runCmd(`cd "${tempDir}" && cmake --build build --config Release -j4`, { env });
+
+            const binaries = ['llama-server', 'llama-bench', 'ggml-rpc-server'];
+            for (const bin of binaries) {
+                let src = path.join(buildDir, 'bin', bin);
+                if (!fs.existsSync(src)) src = path.join(buildDir, bin); // fallback if it built in root
+                if (fs.existsSync(src)) {
+                    fs.copyFileSync(src, path.join(LLAMA_DIR, bin));
+                    fs.chmodSync(path.join(LLAMA_DIR, bin), 0o755);
+                } else {
+                    console.error(`Warning: Could not find compiled binary ${bin}`);
+                }
+            }
+            
+            // Copy any shared libraries (.so) that the binaries may depend on
+            const libDirs = [path.join(buildDir, 'bin'), path.join(buildDir, 'src'), buildDir];
+            for (const libDir of libDirs) {
+                if (fs.existsSync(libDir)) {
+                    const files = fs.readdirSync(libDir);
+                    for (const file of files) {
+                        if (file.endsWith('.so') || file.includes('.so.')) {
+                            const src = path.join(libDir, file);
+                            const dest = path.join(LLAMA_DIR, file);
+                            fs.copyFileSync(src, dest);
+                            fs.chmodSync(dest, 0o755);
+                            console.log(`  Copied shared library: ${file}`);
+                        }
+                    }
+                }
+            }
+            
+            // Note: rpath might need adjustment similarly to mac, or we might need LD_LIBRARY_PATH
+            // However, copying the libraries to the same folder is often sufficient if rpath is $ORIGIN
+            
             fs.rmSync(tempDir, { recursive: true, force: true });
         }
         console.log("Engine setup complete! Binaries are securely placed in the llama-cpp/ directory.");
