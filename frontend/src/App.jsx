@@ -11,6 +11,7 @@ const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
 );
 
 const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
     if (!selectedModel) return null;
     
     // Model weight estimations
@@ -57,85 +58,163 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
        }
     });
     
-    let willCrash = false;
+    let hasDanger = false;
+    let hasWarning = false;
 
     const computeDevice = (id, name, isRam) => {
         const actualLayers = allocations[id] || 0;
-        let vram = (actualLayers * layerSizeGb) + (config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0);
+        let baseVram = actualLayers * layerSizeGb;
+        let kvPart = config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0;
+        
+        let initialVram = config.flashAttention ? baseVram : (baseVram + kvPart);
+        let maxVram = baseVram + kvPart;
         
         if (id.startsWith('gpu') && actualLayers > 0) {
-            vram += cudaOverheadGb; // Add CUDA context overhead
-            vram += computeBufferGb; // Every active GPU needs its own Compute Buffer for matrix multiplication
+            initialVram += cudaOverheadGb + computeBufferGb;
+            maxVram += cudaOverheadGb + computeBufferGb;
         }
         
-        const shortName = id.startsWith('gpu') ? `GPU ${id.split('_')[1]}` : (id.startsWith('rpc') ? `RPC ${id.split('_')[1]}` : name);
-        if (vram > 0) stats.push({ name: shortName, type: isRam ? 'RAM' : 'VRAM', gb: vram });
+        let status = 'ok';
+        let freeGb = Infinity;
         
         // --- Crash Check Logic ---
         if (id.startsWith('gpu') && telemetry?.host?.gpus) {
             const idx = parseInt(id.split('_')[1]);
             const gpuTel = telemetry.host.gpus[idx];
-            if (gpuTel) {
-                const freeGb = (gpuTel.vram_total_mb - gpuTel.vram_used_mb) / 1024;
-                if (vram > freeGb) willCrash = true;
-            }
+            if (gpuTel) freeGb = (gpuTel.vram_total_mb - gpuTel.vram_used_mb) / 1024;
         } else if (id.startsWith('rpc') && telemetry?.rpcs) {
             const idx = parseInt(id.split('_')[1]);
             const rpcTel = telemetry.rpcs[idx];
             if (rpcTel) {
-                let freeGb = 0;
                 if (rpcTel.gpus && rpcTel.gpus.length > 0) {
                     freeGb = rpcTel.gpus.reduce((acc, g) => acc + (g.vram_total_mb - g.vram_used_mb) / 1024, 0);
                 } else {
                     freeGb = rpcTel.ram_total_gb - rpcTel.ram_used_gb;
                 }
-                if (vram > freeGb) willCrash = true;
             }
         }
+        
+        if (freeGb !== Infinity) {
+            if (initialVram > freeGb) {
+                status = 'danger';
+                hasDanger = true;
+            } else if (maxVram > freeGb) {
+                status = 'warning';
+                hasWarning = true;
+            }
+        }
+        
+        const shortName = id.startsWith('gpu') ? `GPU ${id.split('_')[1]}` : (id.startsWith('rpc') ? `RPC ${id.split('_')[1]}` : name);
+        if (maxVram > 0) stats.push({ name: shortName, type: isRam ? 'RAM' : 'VRAM', gb: maxVram, status });
     };
     
     activeDevices.filter(d => d.id.startsWith('gpu')).forEach(d => computeDevice(d.id, d.name, false));
     activeDevices.filter(d => d.id.startsWith('rpc')).forEach(d => computeDevice(d.id, d.name, false));
     
     const cpuActualLayers = Math.max(0, totalLayers - offloadedLayers);
-    let hostRam = (cpuActualLayers * layerSizeGb) + (!config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb)) + hostOverheadGb;
+    let hostBaseRam = (cpuActualLayers * layerSizeGb) + hostOverheadGb;
+    let hostKvPart = !config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb);
+    
+    let hostInitialRam = config.flashAttention ? hostBaseRam : (hostBaseRam + hostKvPart);
+    let hostMaxRam = hostBaseRam + hostKvPart;
     
     // If no GPU offload, Host bears the Compute Buffer
     if (offloadedLayers === 0) {
-        hostRam += computeBufferGb;
+        hostInitialRam += computeBufferGb;
+        hostMaxRam += computeBufferGb;
     }
     
+    let hostStatus = 'ok';
     // Check Host RAM limit
     if (telemetry?.host) {
         const freeRam = telemetry.host.ram_total_gb - telemetry.host.ram_used_gb;
-        if (hostRam > freeRam) willCrash = true;
+        if (hostInitialRam > freeRam) {
+            hostStatus = 'danger';
+            hasDanger = true;
+        } else if (hostMaxRam > freeRam) {
+            hostStatus = 'warning';
+            hasWarning = true;
+        }
     }
     
-    stats.unshift({ name: 'Host', type: 'RAM', gb: hostRam });
+    stats.unshift({ name: 'Host', type: 'RAM', gb: hostMaxRam, status: hostStatus });
     
     const isPartialOffload = cpuActualLayers > 0;
-    let statusColor = 'var(--ready-green)';
-    if (willCrash) {
-        statusColor = 'var(--danger)';
-    } else if (isPartialOffload) {
-        statusColor = '#38bdf8';
+    
+    // Global Footprint Status Color Logic
+    let statusColor = 'var(--ready-green)'; // Green
+    if (hasDanger) {
+        statusColor = 'var(--danger)'; // Red
+    } else if (hasWarning && !isPartialOffload) {
+        statusColor = '#f97316'; // Orange
+    } else if (hasWarning && isPartialOffload) {
+        statusColor = '#78350f'; // Dark Brown (Blue + Orange)
+    } else if (!hasWarning && isPartialOffload) {
+        statusColor = '#38bdf8'; // Blue
     }
+    
+    const getDeviceColor = (status) => {
+        if (status === 'danger') return 'var(--danger)';
+        if (status === 'warning') return '#f97316';
+        return '#10b981'; // ok -> green
+    };
     
     return (
         <div style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-color)', padding: '16px' }}>
-             <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Resource Usage Estimator
+             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Resource Usage Estimator
+                 </div>
+                 <div 
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', cursor: 'help' }}
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                 >
+                     <Info size={14} color="var(--text-muted)" />
+                     {showTooltip && (
+                        <div style={{
+                            position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px',
+                            background: 'var(--bg-input)', border: '1px solid var(--border-color)',
+                            padding: '12px', borderRadius: '8px', width: '280px', zIndex: 100,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                            fontSize: '11px', color: 'var(--text-main)',
+                            lineHeight: '1.4'
+                        }}>
+                            <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '12px' }}>Status Colors</div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                                <div style={{ width: '10px', height: '10px', background: 'var(--ready-green)', borderRadius: '2px', marginTop: '2px', flexShrink: 0 }}></div>
+                                <span><b>Green:</b> Model fits completely with full GPU acceleration.</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                                <div style={{ width: '10px', height: '10px', background: '#38bdf8', borderRadius: '2px', marginTop: '2px', flexShrink: 0 }}></div>
+                                <span><b>Blue:</b> Model fits completely, with partial CPU/RAM offloading.</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                                <div style={{ width: '10px', height: '10px', background: '#f97316', borderRadius: '2px', marginTop: '2px', flexShrink: 0 }}></div>
+                                <span><b>Orange:</b> Model can load initially, but full context memory will exceed System limits (Warning).</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                                <div style={{ width: '10px', height: '10px', background: '#78350f', borderRadius: '2px', marginTop: '2px', flexShrink: 0 }}></div>
+                                <span><b>Brown:</b> Model can load initially with a partial offload to CPU/RAM, but full context memory will exceed System limits (Warning).</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                <div style={{ width: '10px', height: '10px', background: 'var(--danger)', borderRadius: '2px', marginTop: '2px', flexShrink: 0 }}></div>
+                                <span><b>Red:</b> Model requires more resources than available. Can't load.</span>
+                            </div>
+                        </div>
+                     )}
+                 </div>
              </div>
              <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }} className="custom-scrollbar">
                  {stats.map((s, i) => (
-                     <div key={i} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0 }}>
+                     <div key={i} style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: `1px solid ${getDeviceColor(s.status)}` }}>
                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>{s.name} <span style={{fontSize: '9px', opacity: 0.6}}>{s.type}</span></span>
                          <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{(s.gb * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
                      </div>
                  ))}
-                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: `1px solid ${statusColor}`, opacity: willCrash ? 0.9 : 1 }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-input)', padding: '8px 10px', borderRadius: '6px', flexShrink: 0, border: `1px solid ${statusColor}`, opacity: hasDanger ? 0.9 : 1 }}>
                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', whiteSpace: 'nowrap' }}>Total Footprint</span>
-                     <span style={{ fontSize: '14px', fontWeight: '600', color: statusColor, whiteSpace: 'nowrap' }}>{((stats.reduce((a, b) => a + b.gb, 0)) * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
+                     <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>{((stats.reduce((a, b) => a + b.gb, 0)) * 1024).toFixed(0)} <span style={{fontSize: '11px', fontWeight: 'normal'}}>MB</span></span>
                  </div>
              </div>
         </div>
