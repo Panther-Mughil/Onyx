@@ -1385,6 +1385,7 @@ async fn hf_download(
                                     dl.status = "error".to_string();
                                     dl.error = Some(e.to_string());
                                 }
+                                tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                                 return;
                             }
                             downloaded += chunk.len() as f64;
@@ -1400,12 +1401,14 @@ async fn hf_download(
                             dl.progress = 100.0;
                             dl.status = "completed".to_string();
                         }
+                        tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                     } else {
                         let mut d = state_clone.hf_downloads.lock().await;
                         if let Some(dl) = d.get_mut(&download_id) {
                             dl.status = "error".to_string();
                             dl.error = Some("Failed to create file".to_string());
                         }
+                        tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                     }
                 } else {
                     let mut d = state_clone.hf_downloads.lock().await;
@@ -1413,6 +1416,7 @@ async fn hf_download(
                         dl.status = "error".to_string();
                         dl.error = Some(format!("HTTP {}", res.status()));
                     }
+                    tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                 }
             }
             Err(e) => {
@@ -1421,6 +1425,7 @@ async fn hf_download(
                     dl.status = "error".to_string();
                     dl.error = Some(e.to_string());
                 }
+                tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
             }
         }
     });
