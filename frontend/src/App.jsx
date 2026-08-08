@@ -1066,7 +1066,7 @@ function App() {
 
                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                    {hfSearchResults.map(repo => (
-                     <div key={repo.id} className="box" style={{ padding: '12px', cursor: 'pointer', border: hfSelectedRepo === repo.id ? '1px solid var(--accent-color)' : '1px solid var(--border-color)' }} onClick={() => fetchRepoFiles(repo.id)}>
+                     <div key={repo.id} className="box" style={{ padding: '12px', cursor: 'pointer', border: hfSelectedRepo === repo.id ? '1px solid var(--accent-color)' : '1px solid var(--border-color)' }} onClick={() => hfSelectedRepo === repo.id ? setHfSelectedRepo(null) : fetchRepoFiles(repo.id)}>
                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main)', wordBreak: 'break-all' }}>{repo.id}</div>
                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Downloads: {repo.downloads}</div>
                        
