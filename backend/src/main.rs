@@ -343,6 +343,43 @@ async fn health_check() -> Json<HealthResponse> {
     })
 }
 
+#[derive(Deserialize)]
+struct DeleteModelQuery {
+    id: String,
+}
+
+async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<DeleteModelQuery>) -> Json<StartResponse> {
+    let base = base_dir();
+    let models_dir = std::path::Path::new(&base).join("models");
+    
+    // Safety check to prevent escaping models_dir
+    let clean_id = query.id.replace("..", "");
+    let mut target_path = models_dir.join(&clean_id);
+    
+    // If it's in a subdirectory, we should delete the whole subdirectory
+    if clean_id.contains('/') || clean_id.contains('\\') {
+        let parts: Vec<&str> = clean_id.split(|c| c == '/' || c == '\\').collect();
+        if !parts.is_empty() && !parts[0].is_empty() {
+            target_path = models_dir.join(parts[0]);
+        }
+    }
+    
+    if target_path.exists() && target_path.starts_with(&models_dir) {
+        if target_path.is_dir() {
+            if let Err(e) = std::fs::remove_dir_all(&target_path) {
+                return Json(StartResponse { success: false, message: e.to_string() });
+            }
+        } else {
+            if let Err(e) = std::fs::remove_file(&target_path) {
+                return Json(StartResponse { success: false, message: e.to_string() });
+            }
+        }
+        Json(StartResponse { success: true, message: "Model deleted".to_string() })
+    } else {
+        Json(StartResponse { success: false, message: "Model not found".to_string() })
+    }
+}
+
 async fn get_local_models() -> Json<Vec<Model>> {
     let mut models = Vec::new();
     let models_dir_str = format!("{}/models", base_dir());
@@ -1536,7 +1573,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/api/models", get(get_local_models))
+        .route("/api/models", get(get_local_models).delete(delete_local_model))
         .route("/api/server/status", get(get_server_status))
         .route("/api/server/logs", get(get_server_logs))
         .route("/api/server/logs/clear", post(clear_server_logs))

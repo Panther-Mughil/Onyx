@@ -147,12 +147,14 @@ button {
   flex-direction: column;
   overflow: hidden;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
-.left-sidebar.open {
-  width: 380px;
+.left-sidebar.dragging {
+  transition: none !important;
 }
 .left-sidebar > div {
-  min-width: 380px;
+  width: 100%;
+  min-width: 100%;
 }
 
 /* Panel Boxes */

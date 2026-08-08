@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers, Box, Download, Search } from 'lucide-react';
+import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers, Box, Download, Search, Database } from 'lucide-react';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -302,6 +302,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('load');
   // Layout State
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true); 
+  const [sidebarWidth, setSidebarWidth] = useState(380);
+  const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   const [activeLeftTab, setActiveLeftTab] = useState('monitoring');
   const [hfSearchQuery, setHfSearchQuery] = useState('');
   const [hfSearchResults, setHfSearchResults] = useState([]);
@@ -319,6 +321,7 @@ function App() {
     cors: true,
     jitModelLoading: false,
     autoUnload: true,
+    autoStartGateway: false,
     localGpus: [],
     rpcServers: []
   });
@@ -384,14 +387,20 @@ function App() {
   const toggleProxy = () => {
     if (isProxyRunning) {
       fetch('http://127.0.0.1:3001/api/server/proxy/stop', { method: 'POST' })
-        .then(() => setIsProxyRunning(false))
+        .then(() => {
+          setIsProxyRunning(false);
+          saveSettings({ ...serverSettings, autoStartGateway: false });
+        })
         .catch(() => {});
     } else {
       fetch('http://127.0.0.1:3001/api/server/network', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port: serverSettings.port, networkHost: serverSettings.networkHost })
-      }).then(() => setIsProxyRunning(true)).catch(() => {});
+      }).then(() => {
+        setIsProxyRunning(true);
+        saveSettings({ ...serverSettings, autoStartGateway: true });
+      }).catch(() => {});
     }
   };
 
@@ -478,6 +487,15 @@ function App() {
     }
   };
 
+  const handleDeleteLocalModel = (modelId) => {
+    if (!confirm('Are you sure you want to delete this model?')) return;
+    fetch(`http://127.0.0.1:3001/api/models?id=${encodeURIComponent(modelId)}`, { method: 'DELETE' })
+      .then(() => fetch('http://127.0.0.1:3001/api/models'))
+      .then(res => res.json())
+      .then(data => setModels(data))
+      .catch(() => {});
+  };
+
   const startHfDownload = async (repoId, filename) => {
     try {
         await fetch(`http://127.0.0.1:3001/api/huggingface/download`, {
@@ -539,6 +557,13 @@ function App() {
       .then(data => {
         if (Object.keys(data).length > 0) {
           setServerSettings(prev => ({ ...prev, ...data }));
+          if (data.autoStartGateway) {
+            fetch('http://127.0.0.1:3001/api/server/network', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ port: data.port || '12057', networkHost: data.networkHost || false })
+            }).then(() => setIsProxyRunning(true)).catch(() => {});
+          }
         }
       })
       .catch(() => {})
@@ -570,6 +595,39 @@ function App() {
     const interval = setInterval(fetchStatusAndLogs, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Global drag events for sidebar
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isSidebarDragging) return;
+      // Current value is 380. Min is 380, max is 600.
+      let newWidth = e.clientX - 60; // 60 is activity bar width
+      if (newWidth < 380) newWidth = 380;
+      if (newWidth > 600) newWidth = 600;
+      setSidebarWidth(newWidth);
+    };
+    
+    const handleMouseUp = () => {
+      if (isSidebarDragging) {
+        setIsSidebarDragging(false);
+      }
+    };
+    
+    if (isSidebarDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isSidebarDragging]);
 
   useEffect(() => {
     const fetchTelemetry = async () => {
@@ -901,11 +959,28 @@ function App() {
                else { setIsLeftSidebarOpen(true); setActiveLeftTab('huggingface'); }
            }} title="HuggingFace Hub">
               <Box size={24} />
+           <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'local-models') ? 'active' : ''}`} onClick={() => {
+               if (isLeftSidebarOpen && activeLeftTab === 'local-models') setIsLeftSidebarOpen(false);
+               else { setIsLeftSidebarOpen(true); setActiveLeftTab('local-models'); }
+           }} title="Local Models">
+              <Database size={24} />
            </button>
         </div>
 
         {/* Left Sidebar (Collapsible) */}
-        <div className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''}`}>
+        <div 
+          className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''} ${isSidebarDragging ? 'dragging' : ''}`}
+          style={{ width: isLeftSidebarOpen ? `${sidebarWidth}px` : '0px' }}
+        >
+          <div 
+            onMouseDown={(e) => { e.preventDefault(); setIsSidebarDragging(true); }}
+            style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: '4px',
+              cursor: 'col-resize', zIndex: 10,
+              background: isSidebarDragging ? 'var(--accent)' : 'transparent',
+              transition: 'background 0.2s'
+            }}
+          />
            {activeLeftTab === 'monitoring' && (
              <>
                <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
@@ -1101,6 +1176,31 @@ function App() {
                      </div>
                    ))}
                  </div>
+               </div>
+             </>
+           )}
+
+           {activeLeftTab === 'local-models' && (
+             <>
+               <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                 <Database size={20} color="var(--text-muted)" />
+                 <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>Local Models</h2>
+               </div>
+               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+                 {models.map(m => (
+                   <div key={m.id} className="box" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                       <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', wordBreak: 'break-all' }}>{m.id}</div>
+                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.size_gb.toFixed(2)} GB</div>
+                     </div>
+                     <button className="primary-btn" style={{ background: '#450a0a', borderColor: '#7f1d1d', color: '#fca5a5', padding: '8px' }} onClick={() => handleDeleteLocalModel(m.id)} title="Delete Model">
+                       <Trash2 size={16} />
+                     </button>
+                   </div>
+                 ))}
+                 {models.length === 0 && (
+                   <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', marginTop: '32px' }}>No local models found.</div>
+                 )}
                </div>
              </>
            )}
