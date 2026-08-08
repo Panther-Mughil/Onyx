@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers } from 'lucide-react';
+import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers, Box, Download, Search } from 'lucide-react';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -302,6 +302,13 @@ function App() {
   const [activeTab, setActiveTab] = useState('load');
   // Layout State
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true); 
+  const [activeLeftTab, setActiveLeftTab] = useState('monitoring');
+  const [hfSearchQuery, setHfSearchQuery] = useState('');
+  const [hfSearchResults, setHfSearchResults] = useState([]);
+  const [hfIsSearching, setHfIsSearching] = useState(false);
+  const [hfDownloads, setHfDownloads] = useState({});
+  const [hfSelectedRepo, setHfSelectedRepo] = useState(null);
+  const [hfRepoFiles, setHfRepoFiles] = useState([]); 
   const [telemetry, setTelemetry] = useState(null);
 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
@@ -424,6 +431,66 @@ function App() {
          setActiveServers(data.servers || []);
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    let interval;
+    if (activeLeftTab === 'huggingface') {
+        interval = setInterval(async () => {
+            try {
+                const res = await fetch(`http://127.0.0.1:3001/api/huggingface/downloads`);
+                const data = await res.json();
+                setHfDownloads(data);
+            } catch (e) {}
+        }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeLeftTab]);
+
+  const searchHuggingFace = async (e) => {
+    e.preventDefault();
+    if (!hfSearchQuery.trim()) return;
+    setHfIsSearching(true);
+    try {
+        const res = await fetch(`http://127.0.0.1:3001/api/huggingface/search?q=${encodeURIComponent(hfSearchQuery)}`);
+        const data = await res.json();
+        setHfSearchResults(data);
+        setHfSelectedRepo(null);
+    } catch(err) {
+        console.error(err);
+    } finally {
+        setHfIsSearching(false);
+    }
+  };
+
+  const fetchRepoFiles = async (repoId) => {
+    setHfSelectedRepo(repoId);
+    setHfRepoFiles([]);
+    try {
+        const res = await fetch(`http://127.0.0.1:3001/api/huggingface/model?id=${encodeURIComponent(repoId)}`);
+        const data = await res.json();
+        if (data.siblings) {
+            const ggufs = data.siblings.filter(f => f.rfilename.endsWith('.gguf'));
+            setHfRepoFiles(ggufs);
+        }
+    } catch(err) {
+        console.error(err);
+    }
+  };
+
+  const startHfDownload = async (repoId, filename) => {
+    try {
+        await fetch(`http://127.0.0.1:3001/api/huggingface/download`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ repo_id: repoId, filename })
+        });
+        const res = await fetch(`http://127.0.0.1:3001/api/huggingface/downloads`);
+        const data = await res.json();
+        setHfDownloads(data);
+    } catch(err) {
+        console.error(err);
+    }
   };
 
   useEffect(() => {
@@ -823,19 +890,29 @@ function App() {
         
         {/* Activity Bar */}
         <div className="activity-bar">
-           <button className={`activity-icon ${isLeftSidebarOpen ? 'active' : ''}`} onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} title="Monitoring">
+           <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'monitoring') ? 'active' : ''}`} onClick={() => {
+               if (isLeftSidebarOpen && activeLeftTab === 'monitoring') setIsLeftSidebarOpen(false);
+               else { setIsLeftSidebarOpen(true); setActiveLeftTab('monitoring'); }
+           }} title="Monitoring">
               <Activity size={24} />
            </button>
-           {/* Future icons go here */}
+           <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'huggingface') ? 'active' : ''}`} onClick={() => {
+               if (isLeftSidebarOpen && activeLeftTab === 'huggingface') setIsLeftSidebarOpen(false);
+               else { setIsLeftSidebarOpen(true); setActiveLeftTab('huggingface'); }
+           }} title="HuggingFace Hub">
+              <Box size={24} />
+           </button>
         </div>
 
         {/* Left Sidebar (Collapsible) */}
         <div className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''}`}>
-           <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
-             <Eye size={20} color="var(--text-muted)" />
-             <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>Monitoring</h2>
-           </div>
-           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+           {activeLeftTab === 'monitoring' && (
+             <>
+               <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                 <Eye size={20} color="var(--text-muted)" />
+                 <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>Monitoring</h2>
+               </div>
+               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
                 
                 {!telemetry || !telemetry.host ? (
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>Fetching telemetry...</div>
@@ -947,6 +1024,74 @@ function App() {
                   </>
                 )}
               </div>
+             </>
+           )}
+
+           {activeLeftTab === 'huggingface' && (
+             <>
+               <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                 <Box size={20} color="var(--text-muted)" />
+                 <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>Hugging Face Hub</h2>
+               </div>
+               
+               <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+                 <form onSubmit={searchHuggingFace} style={{ display: 'flex', gap: '8px' }}>
+                   <div style={{ position: 'relative', flex: 1 }}>
+                     <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                     <input type="text" value={hfSearchQuery} onChange={e => setHfSearchQuery(e.target.value)} placeholder="Search GGUF models..." style={{ width: '100%', padding: '8px 10px 8px 30px', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-main)', fontSize: '13px' }} />
+                   </div>
+                   <button type="submit" className="primary-btn" style={{ padding: '0 12px' }} disabled={hfIsSearching}>
+                     {hfIsSearching ? '...' : 'Go'}
+                   </button>
+                 </form>
+
+                 {Object.keys(hfDownloads).length > 0 && (
+                   <div className="box" style={{ padding: '12px' }}>
+                     <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Active Downloads</h4>
+                     {Object.entries(hfDownloads).map(([id, dl]) => (
+                       <div key={id} style={{ marginBottom: '12px' }}>
+                         <div style={{ fontSize: '12px', color: 'var(--text-main)', marginBottom: '4px', wordBreak: 'break-all' }}>{dl.filename}</div>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                           <div style={{ flex: 1, height: '4px', background: 'var(--bg-input)', borderRadius: '2px', overflow: 'hidden' }}>
+                             <div style={{ width: `${dl.progress}%`, height: '100%', background: dl.status === 'error' ? '#ef4444' : '#10b981', transition: 'width 0.5s ease' }}></div>
+                           </div>
+                           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{dl.progress.toFixed(1)}%</span>
+                         </div>
+                         {dl.status === 'error' && <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>{dl.error}</div>}
+                         {dl.status === 'completed' && <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>Completed</div>}
+                       </div>
+                     ))}
+                   </div>
+                 )}
+
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                   {hfSearchResults.map(repo => (
+                     <div key={repo.id} className="box" style={{ padding: '12px', cursor: 'pointer', border: hfSelectedRepo === repo.id ? '1px solid var(--accent-color)' : '1px solid var(--border-color)' }} onClick={() => fetchRepoFiles(repo.id)}>
+                       <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main)', wordBreak: 'break-all' }}>{repo.id}</div>
+                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Downloads: {repo.downloads}</div>
+                       
+                       {hfSelectedRepo === repo.id && (
+                         <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                           {hfRepoFiles.length === 0 ? (
+                             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Loading files...</div>
+                           ) : (
+                             hfRepoFiles.map(f => (
+                               <div key={f.rfilename} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--bg-input)' }}>
+                                 <div style={{ fontSize: '11px', color: 'var(--text-main)', wordBreak: 'break-all', flex: 1, paddingRight: '8px' }}>{f.rfilename}</div>
+                                 <button className="primary-btn" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={(e) => { e.stopPropagation(); startHfDownload(repo.id, f.rfilename); }}>
+                                   <Download size={12} />
+                                 </button>
+                               </div>
+                             ))
+                           )}
+                         </div>
+                       )}
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             </>
+           )}
             
         </div>
 

@@ -140,6 +140,7 @@ struct Model {
     expert_count: Option<u32>,
     embedding_length: Option<u32>,
     feed_forward_length: Option<u32>,
+    mmproj: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -181,6 +182,8 @@ struct ServerConfig {
     rpc_servers: Option<Vec<RpcServer>>,
     #[serde(default)]
     local_gpus: Option<Vec<LocalGpu>>,
+    #[serde(default)]
+    mmproj: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -248,6 +251,22 @@ struct ActiveServer {
     progress: f32,
 }
 
+
+#[derive(Clone, Serialize)]
+struct DownloadState {
+    repo_id: String,
+    filename: String,
+    progress: f32,
+    status: String,
+    error: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct DownloadRequest {
+    repo_id: String,
+    filename: String,
+}
+
 struct AppState {
     active_servers: Mutex<HashMap<String, ActiveServer>>,
     telemetry_cache: Arc<Mutex<TelemetryResponse>>,
@@ -258,6 +277,7 @@ struct AppState {
     benchmark_pp: Mutex<Option<f32>>,
     benchmark_tg: Mutex<Option<f32>>,
     system_logs: Mutex<Vec<String>>,
+    hf_downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
 }
 
 #[derive(Deserialize)]
@@ -328,17 +348,45 @@ async fn get_local_models() -> Json<Vec<Model>> {
     let models_dir_str = format!("{}/models", base_dir());
     let models_dir = Path::new(&models_dir_str);
 
+    let mut files_to_process = Vec::new();
+    let mut mmprojs_by_dir = std::collections::HashMap::new();
+
     if let Ok(entries) = fs::read_dir(models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().map_or(false, |ext| ext == "gguf") {
                 let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                
-                let size_gb = if let Ok(metadata) = entry.metadata() {
-                    (metadata.len() as f32) / (1024.0 * 1024.0 * 1024.0)
+                if filename.starts_with("mmproj-") {
+                    mmprojs_by_dir.insert("".to_string(), filename);
                 } else {
-                    0.0
-                };
+                    files_to_process.push((path, filename.clone(), filename));
+                }
+            } else if path.is_dir() {
+                let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                if let Ok(sub_entries) = fs::read_dir(&path) {
+                    for sub_entry in sub_entries.flatten() {
+                        let sub_path = sub_entry.path();
+                        if sub_path.is_file() && sub_path.extension().map_or(false, |ext| ext == "gguf") {
+                            let filename = sub_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                            let rel_path = format!("{}/{}", dir_name, filename);
+                            if filename.starts_with("mmproj-") {
+                                mmprojs_by_dir.insert(dir_name.clone(), rel_path);
+                            } else {
+                                files_to_process.push((sub_path, filename, rel_path));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (path, filename, rel_path) in files_to_process {
+        let size_gb = if let Ok(metadata) = fs::metadata(&path) {
+            (metadata.len() as f32) / (1024.0 * 1024.0 * 1024.0)
+        } else {
+            0.0
+        };
 
                 // Try to load from cache first
                 let cache_path_str = format!("{}/models/metadata_cache.json", base_dir());
@@ -545,8 +593,13 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     filename.clone()
                 };
 
+                let parent_dir = path.parent().and_then(|p| p.file_name()).unwrap_or_default().to_string_lossy().to_string();
+                let is_root = path.parent().map_or(true, |p| p == models_dir);
+                let dir_key = if is_root { "".to_string() } else { parent_dir };
+                let mmproj = mmprojs_by_dir.get(&dir_key).cloned();
+
                 models.push(Model {
-                    id: filename.clone(),
+                    id: rel_path.clone(),
                     name,
                     quantization,
                     size_gb,
@@ -556,9 +609,8 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     expert_count,
                     embedding_length,
                     feed_forward_length,
+                    mmproj,
                 });
-            }
-        }
     }
 
     models.sort_by(|a, b| a.name.cmp(&b.name));
@@ -968,6 +1020,12 @@ async fn start_server(
     args.push("--flash-attn".to_string());
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
 
+    if let Some(mmproj_path) = &payload.mmproj {
+        let full_mmproj_path = format!("{}/models/{}", base_dir(), mmproj_path);
+        args.push("--mmproj".to_string());
+        args.push(full_mmproj_path);
+    }
+
     let full_command = format!("{} {}", binary_path, args.join(" "));
     state.system_logs.lock().await.push(format!("I [SYSTEM] Booting llama-server with parameters:"));
     state.system_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
@@ -1232,6 +1290,143 @@ async fn clear_system_logs(
     })
 }
 
+
+#[derive(Deserialize)]
+struct HfSearchQuery {
+    q: String,
+}
+
+async fn hf_search(axum::extract::Query(query): axum::extract::Query<HfSearchQuery>) -> Json<serde_json::Value> {
+    let url = format!("https://huggingface.co/api/models?search={}&filter=gguf&limit=20", query.q);
+    let client = reqwest::Client::new();
+    let res = client.get(&url).send().await;
+    match res {
+        Ok(r) => {
+            if let Ok(json) = r.json::<serde_json::Value>().await {
+                Json(json)
+            } else {
+                Json(serde_json::json!([]))
+            }
+        },
+        Err(_) => Json(serde_json::json!([])),
+    }
+}
+
+#[derive(Deserialize)]
+struct HfModelQuery {
+    id: String,
+}
+
+async fn hf_model_files(axum::extract::Query(query): axum::extract::Query<HfModelQuery>) -> Json<serde_json::Value> {
+    let url = format!("https://huggingface.co/api/models/{}", query.id);
+    let client = reqwest::Client::new();
+    let res = client.get(&url).send().await;
+    match res {
+        Ok(r) => {
+            if let Ok(json) = r.json::<serde_json::Value>().await {
+                Json(json)
+            } else {
+                Json(serde_json::json!({}))
+            }
+        },
+        Err(_) => Json(serde_json::json!({})),
+    }
+}
+
+async fn hf_download(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<DownloadRequest>,
+) -> Json<StartResponse> {
+    let download_id = format!("{}/{}", payload.repo_id, payload.filename);
+    {
+        let mut downloads = state.hf_downloads.lock().await;
+        if downloads.contains_key(&download_id) {
+            return Json(StartResponse { success: false, message: "Download already in progress".to_string() });
+        }
+        downloads.insert(download_id.clone(), DownloadState {
+            repo_id: payload.repo_id.clone(),
+            filename: payload.filename.clone(),
+            progress: 0.0,
+            status: "downloading".to_string(),
+            error: None,
+        });
+    }
+
+    let state_clone = state.clone();
+    let repo_id = payload.repo_id.clone();
+    let filename = payload.filename.clone();
+    
+    tokio::spawn(async move {
+        let url = format!("https://huggingface.co/{}/resolve/main/{}", repo_id, filename);
+        let dest_dir = format!("{}/models/{}", base_dir(), repo_id.replace("/", "_"));
+        let _ = std::fs::create_dir_all(&dest_dir);
+        let dest_path = format!("{}/{}", dest_dir, filename);
+        
+        let client = reqwest::Client::new();
+        match client.get(&url).send().await {
+            Ok(mut res) => {
+                if res.status().is_success() {
+                    let total_size = res.content_length().unwrap_or(0) as f64;
+                    if let Ok(mut file) = std::fs::File::create(&dest_path) {
+                        use std::io::Write;
+                        let mut downloaded: f64 = 0.0;
+                        while let Ok(Some(chunk)) = res.chunk().await {
+                            if let Err(e) = file.write_all(&chunk) {
+                                let mut d = state_clone.hf_downloads.lock().await;
+                                if let Some(dl) = d.get_mut(&download_id) {
+                                    dl.status = "error".to_string();
+                                    dl.error = Some(e.to_string());
+                                }
+                                return;
+                            }
+                            downloaded += chunk.len() as f64;
+                            if total_size > 0.0 {
+                                let mut d = state_clone.hf_downloads.lock().await;
+                                if let Some(dl) = d.get_mut(&download_id) {
+                                    dl.progress = (downloaded / total_size * 100.0) as f32;
+                                }
+                            }
+                        }
+                        let mut d = state_clone.hf_downloads.lock().await;
+                        if let Some(dl) = d.get_mut(&download_id) {
+                            dl.progress = 100.0;
+                            dl.status = "completed".to_string();
+                        }
+                    } else {
+                        let mut d = state_clone.hf_downloads.lock().await;
+                        if let Some(dl) = d.get_mut(&download_id) {
+                            dl.status = "error".to_string();
+                            dl.error = Some("Failed to create file".to_string());
+                        }
+                    }
+                } else {
+                    let mut d = state_clone.hf_downloads.lock().await;
+                    if let Some(dl) = d.get_mut(&download_id) {
+                        dl.status = "error".to_string();
+                        dl.error = Some(format!("HTTP {}", res.status()));
+                    }
+                }
+            }
+            Err(e) => {
+                let mut d = state_clone.hf_downloads.lock().await;
+                if let Some(dl) = d.get_mut(&download_id) {
+                    dl.status = "error".to_string();
+                    dl.error = Some(e.to_string());
+                }
+            }
+        }
+    });
+
+    Json(StartResponse { success: true, message: "Download started".to_string() })
+}
+
+async fn hf_downloads_status(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<std::collections::HashMap<String, DownloadState>> {
+    let downloads = state.hf_downloads.lock().await.clone();
+    Json(downloads)
+}
+
 #[tokio::main]
 async fn main() {
     let models_dir = format!("{}/models", base_dir());
@@ -1323,7 +1518,8 @@ async fn main() {
         benchmark_pp: Mutex::new(None),
         benchmark_tg: Mutex::new(None),
         system_logs: Mutex::new(Vec::new()),
-    });
+            hf_downloads: Mutex::new(std::collections::HashMap::new()),
+});
 
     let app = Router::new()
         .route("/health", get(health_check))
@@ -1343,7 +1539,11 @@ async fn main() {
         .route("/api/settings/save", post(save_settings))
         .route("/api/system/logs", get(get_system_logs))
         .route("/api/system/logs/clear", post(clear_system_logs))
-        .fallback(static_handler)
+                .route("/api/huggingface/search", get(hf_search))
+        .route("/api/huggingface/model", get(hf_model_files))
+        .route("/api/huggingface/download", post(hf_download))
+        .route("/api/huggingface/downloads", get(hf_downloads_status))
+.fallback(static_handler)
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 
