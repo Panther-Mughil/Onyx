@@ -1318,18 +1318,26 @@ struct HfModelQuery {
 }
 
 async fn hf_model_files(axum::extract::Query(query): axum::extract::Query<HfModelQuery>) -> Json<serde_json::Value> {
-    let url = format!("https://huggingface.co/api/models/{}", query.id);
+    let url = format!("https://huggingface.co/api/models/{}/tree/main?recursive=true", query.id);
     let client = reqwest::Client::new();
     let res = client.get(&url).send().await;
     match res {
         Ok(r) => {
-            if let Ok(json) = r.json::<serde_json::Value>().await {
-                Json(json)
+            if let Ok(json) = r.json::<Vec<serde_json::Value>>().await {
+                let siblings: Vec<serde_json::Value> = json.into_iter().map(|v| {
+                    let path = v.get("path").and_then(|p| p.as_str()).unwrap_or("").to_string();
+                    let size = v.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
+                    serde_json::json!({
+                        "rfilename": path,
+                        "size": size
+                    })
+                }).collect();
+                Json(serde_json::json!({ "siblings": siblings }))
             } else {
-                Json(serde_json::json!({}))
+                Json(serde_json::json!({ "siblings": [] }))
             }
         },
-        Err(_) => Json(serde_json::json!({})),
+        Err(_) => Json(serde_json::json!({ "siblings": [] })),
     }
 }
 

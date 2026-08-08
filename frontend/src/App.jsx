@@ -1075,14 +1075,26 @@ function App() {
                            {hfRepoFiles.length === 0 ? (
                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Loading files...</div>
                            ) : (
-                             hfRepoFiles.map(f => (
+                             hfRepoFiles.map(f => {
+                               const formatBytes = (bytes) => {
+                                 if (!bytes) return '0 B';
+                                 const k = 1024;
+                                 const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                                 const i = Math.floor(Math.log(bytes) / Math.log(k));
+                                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                               };
+                               return (
                                <div key={f.rfilename} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--bg-input)' }}>
                                  <div style={{ fontSize: '11px', color: 'var(--text-main)', wordBreak: 'break-all', flex: 1, paddingRight: '8px' }}>{f.rfilename}</div>
-                                 <button className="primary-btn" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={(e) => { e.stopPropagation(); startHfDownload(repo.id, f.rfilename); }}>
-                                   <Download size={12} />
-                                 </button>
+                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatBytes(f.size)}</span>
+                                   <button className="primary-btn" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={(e) => { e.stopPropagation(); startHfDownload(repo.id, f.rfilename); }}>
+                                     <Download size={12} />
+                                   </button>
+                                 </div>
                                </div>
-                             ))
+                               );
+                             })
                            )}
                          </div>
                        )}
