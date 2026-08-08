@@ -973,15 +973,7 @@ function App() {
           className={`left-sidebar ${isLeftSidebarOpen ? 'open' : ''} ${isSidebarDragging ? 'dragging' : ''}`}
           style={{ width: isLeftSidebarOpen ? `${sidebarWidth}px` : '0px' }}
         >
-          <div 
-            onMouseDown={(e) => { e.preventDefault(); setIsSidebarDragging(true); }}
-            style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: '4px',
-              cursor: 'col-resize', zIndex: 10,
-              background: isSidebarDragging ? 'var(--accent)' : 'transparent',
-              transition: 'background 0.2s'
-            }}
-          />
+          <div className="sidebar-content" style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px`, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
            {activeLeftTab === 'monitoring' && (
              <>
                <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
@@ -1194,7 +1186,7 @@ function App() {
                        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', wordBreak: 'break-all' }}>{m.id}</div>
                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.size_gb.toFixed(2)} GB</div>
                      </div>
-                     <button className="primary-btn" style={{ background: '#450a0a', borderColor: '#7f1d1d', color: '#fca5a5', padding: '8px' }} onClick={() => handleDeleteLocalModel(m.id)} title="Delete Model">
+                     <button className="danger-btn" style={{ padding: '8px' }} onClick={() => handleDeleteLocalModel(m.id)} title="Delete Model">
                        <Trash2 size={16} />
                      </button>
                    </div>
@@ -1205,7 +1197,17 @@ function App() {
                </div>
              </>
            )}
-            
+          </div>
+          <div 
+            className="sidebar-resizer"
+            onMouseDown={(e) => { e.preventDefault(); setIsSidebarDragging(true); }}
+            style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: '4px', minWidth: '4px',
+              cursor: 'col-resize', zIndex: 10,
+              background: isSidebarDragging ? 'var(--accent)' : 'transparent',
+              transition: 'background 0.2s'
+            }}
+          />
         </div>
 
         

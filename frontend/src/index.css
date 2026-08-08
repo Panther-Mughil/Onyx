@@ -67,6 +67,24 @@ button {
 .primary-btn:active {
   transform: translateY(0);
 }
+.danger-btn {
+  background: #450a0a;
+  color: #fca5a5;
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: none;
+}
+.danger-btn:hover {
+  background: #7f1d1d;
+  color: #fecaca;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
+}
 
 .secondary-btn {
   background: var(--bg-input);
@@ -140,21 +158,16 @@ button {
 
 /* Left Sidebar */
 .left-sidebar {
-  width: 0;
   background: var(--bg-panel);
   border-right: 1px solid var(--border-color);
   display: flex;
-  flex-direction: column;
   overflow: hidden;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  will-change: width;
 }
 .left-sidebar.dragging {
   transition: none !important;
-}
-.left-sidebar > div {
-  width: 100%;
-  min-width: 380px;
 }
 
 /* Panel Boxes */
