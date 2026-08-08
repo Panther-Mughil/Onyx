@@ -959,6 +959,7 @@ function App() {
                else { setIsLeftSidebarOpen(true); setActiveLeftTab('huggingface'); }
            }} title="HuggingFace Hub">
               <Box size={24} />
+           </button>
            <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'local-models') ? 'active' : ''}`} onClick={() => {
                if (isLeftSidebarOpen && activeLeftTab === 'local-models') setIsLeftSidebarOpen(false);
                else { setIsLeftSidebarOpen(true); setActiveLeftTab('local-models'); }

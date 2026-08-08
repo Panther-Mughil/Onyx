@@ -154,7 +154,7 @@ button {
 }
 .left-sidebar > div {
   width: 100%;
-  min-width: 100%;
+  min-width: 380px;
 }
 
 /* Panel Boxes */
