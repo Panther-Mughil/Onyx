@@ -61,9 +61,30 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
     let hasDanger = false;
     let hasWarning = false;
 
+    let totalSavedVram = 0;
+    let expertRatio = 0;
+    
+    if (selectedModel?.architecture?.includes('moe') && config.moeCpuLayers > 0) {
+        const d_model = selectedModel.embedding_length || 4096;
+        const d_ff_exp = selectedModel.feed_forward_length || 14336;
+        const E = selectedModel.expert_count || 8;
+        
+        const attnParams = 4 * Math.pow(d_model, 2);
+        const expertParams = E * 3 * d_model * d_ff_exp;
+        const totalLayerParams = attnParams + expertParams;
+        expertRatio = expertParams / totalLayerParams; 
+        
+        totalSavedVram = Math.min(offloadedLayers, config.moeCpuLayers) * (layerSizeGb * expertRatio);
+    }
+
     const computeDevice = (id, name, isRam) => {
         const actualLayers = allocations[id] || 0;
         let baseVram = actualLayers * layerSizeGb;
+        
+        if (expertRatio > 0 && offloadedLayers > 0 && !isRam) {
+            const effectiveOffload = Math.min(1, config.moeCpuLayers / offloadedLayers);
+            baseVram -= actualLayers * (layerSizeGb * expertRatio * effectiveOffload);
+        }
         let kvPart = config.offloadKv ? (actualLayers / totalLayers * kvSizeGb) : 0;
         
         let initialVram = config.flashAttention ? baseVram : (baseVram + kvPart);
@@ -112,7 +133,7 @@ const MemoryEstimator = ({ selectedModel, config, activeDevices, telemetry }) =>
     activeDevices.filter(d => d.id.startsWith('rpc')).forEach(d => computeDevice(d.id, d.name, false));
     
     const cpuActualLayers = Math.max(0, totalLayers - offloadedLayers);
-    let hostBaseRam = (cpuActualLayers * layerSizeGb) + hostOverheadGb;
+    let hostBaseRam = (cpuActualLayers * layerSizeGb) + hostOverheadGb + totalSavedVram;
     let hostKvPart = !config.offloadKv ? kvSizeGb : (cpuActualLayers / totalLayers * kvSizeGb);
     
     let hostInitialRam = config.flashAttention ? hostBaseRam : (hostBaseRam + hostKvPart);
@@ -313,14 +334,14 @@ function App() {
       const applied = serverSettings.appliedConfigs?.[model.id];
       const savedConfig = serverSettings.savedModelConfigs?.[model.id];
       
-      let targetConfig = initialConfig;
+      let targetConfig = { ...initialConfig };
       let shouldRemember = false;
 
       if (applied) {
-        targetConfig = applied;
+        targetConfig = { ...targetConfig, ...applied };
         shouldRemember = !!savedConfig;
       } else if (savedConfig) {
-        targetConfig = savedConfig;
+        targetConfig = { ...targetConfig, ...savedConfig };
         shouldRemember = true;
       }
       
@@ -388,7 +409,7 @@ function App() {
     flashAttention: false,
     kCacheQuant: 'f16',
     vCacheQuant: 'f16',
-    cpuMoe: false,
+    moeCpuLayers: 0,
     localGpus: []
   };
 
@@ -1131,6 +1152,24 @@ function App() {
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
                         <Info size={14}/> <span>Distribute {maxLayers} layers explicitly across your compute devices.</span>
                       </div>
+                      
+                      {selectedModel?.architecture?.includes('moe') && (
+                        <div style={{ marginTop: '24px' }}>
+                          <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Cpu size={16} color="#10b981" /> MoE Expert Offload
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <div className="form-row">
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>Experts to CPU</span>
+                              <input type="number" className="num-input" name="moeCpuLayers" value={config.moeCpuLayers} max={selectedModel.block_count || maxLayers} onChange={handleConfigChange} />
+                            </div>
+                            <input type="range" className="range-slider" min="0" max={selectedModel.block_count || maxLayers} name="moeCpuLayers" value={config.moeCpuLayers} onChange={handleConfigChange} />
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', gap: '8px' }}>
+                            <Info size={14}/> <span>Offloads massive expert weights to System RAM to save VRAM, while keeping Attention on the GPU for speed.</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

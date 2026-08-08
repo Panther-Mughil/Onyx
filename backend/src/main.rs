@@ -123,6 +123,9 @@ struct CachedModelMetadata {
     block_count: u32,
     architecture: String,
     quantization: String,
+    expert_count: Option<u32>,
+    embedding_length: Option<u32>,
+    feed_forward_length: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -133,6 +136,10 @@ struct Model {
     size_gb: f32,
     context_length: u32,
     block_count: u32,
+    architecture: String,
+    expert_count: Option<u32>,
+    embedding_length: Option<u32>,
+    feed_forward_length: Option<u32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -156,6 +163,7 @@ struct ServerConfig {
     model_id: String,
     ctx_size: u32,
     gpu_layers: u32,
+    #[serde(default)]
     layer_allocations: Option<std::collections::HashMap<String, u32>>,
     threads: u32,
     eval_batch_size: u32,
@@ -168,8 +176,10 @@ struct ServerConfig {
     flash_attention: bool,
     k_cache_quant: String,
     v_cache_quant: String,
-    cpu_moe: bool,
+    #[serde(default)]
+    moe_cpu_layers: u32,
     rpc_servers: Option<Vec<RpcServer>>,
+    #[serde(default)]
     local_gpus: Option<Vec<LocalGpu>>,
 }
 
@@ -347,12 +357,18 @@ async fn get_local_models() -> Json<Vec<Model>> {
                 let mut block_count = 0;
                 let mut architecture = String::new();
                 let mut quantization;
+                let mut expert_count = None;
+                let mut embedding_length = None;
+                let mut feed_forward_length = None;
 
                 if let Some(cached_data) = cache.get(&filename) {
                     context_length = cached_data.context_length;
                     block_count = cached_data.block_count;
                     architecture = cached_data.architecture.clone();
                     quantization = cached_data.quantization.clone();
+                    expert_count = cached_data.expert_count;
+                    embedding_length = cached_data.embedding_length;
+                    feed_forward_length = cached_data.feed_forward_length;
                 } else {
                     // Extract quantization from filename
                     let filename_lower = filename.to_lowercase();
@@ -370,12 +386,13 @@ async fn get_local_models() -> Json<Vec<Model>> {
                     // Full reliable parser using gguf crate
                     if let Ok(mut file) = fs::File::open(&path) {
                         use std::io::Read;
-                        let mut buffer = vec![0u8; 1024 * 1024 * 5]; // Read first 5MB to ensure full header
+                        let mut buffer = vec![0u8; 1024 * 1024 * 64]; // Read first 64MB to ensure full header
                         if let Ok(bytes_read) = file.read(&mut buffer) {
                             buffer.truncate(bytes_read);
-                            if let Ok(Some(gguf_file)) = gguf::GGUFFile::read(&buffer) {
-                                for md in gguf_file.header.metadata {
-                                    if md.key.ends_with(".context_length") || md.key.ends_with(".n_ctx_train") {
+                            match gguf::GGUFFile::read(&buffer) {
+                                Ok(Some(gguf_file)) => {
+                                    for md in gguf_file.header.metadata {
+                                        if md.key.ends_with(".context_length") || md.key.ends_with(".n_ctx_train") {
                                         if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
                                             if context_length == 0 { context_length = v; }
                                         }
@@ -390,8 +407,30 @@ async fn get_local_models() -> Json<Vec<Model>> {
                                             architecture = v.clone();
                                         }
                                     }
+                                    if md.key.ends_with(".expert_count") {
+                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                            expert_count = Some(v);
+                                        }
+                                    }
+                                    if md.key.ends_with(".embedding_length") {
+                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                            embedding_length = Some(v);
+                                        }
+                                    }
+                                    if md.key.ends_with(".feed_forward_length") {
+                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                            feed_forward_length = Some(v);
+                                        }
+                                    }
                                 }
                             }
+                            Ok(None) => {
+                                println!("gguf parser returned None for {}", filename);
+                            }
+                            Err(_) => {
+                                println!("gguf parser failed for {}", filename);
+                            }
+                        }
                         }
                     }
                     
@@ -434,6 +473,52 @@ async fn get_local_models() -> Json<Vec<Model>> {
                                         }
                                     }
                                 }
+                                
+                                let exp_needle = b".expert_count";
+                                if let Some(pos) = buffer.windows(exp_needle.len()).position(|w| w == exp_needle) {
+                                    let type_pos = pos + exp_needle.len();
+                                    if type_pos + 8 <= buffer.len() {
+                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if val_type == 4 {
+                                            expert_count = Some(u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap()));
+                                        }
+                                    }
+                                }
+                                let emb_needle = b".embedding_length";
+                                if let Some(pos) = buffer.windows(emb_needle.len()).position(|w| w == emb_needle) {
+                                    let type_pos = pos + emb_needle.len();
+                                    if type_pos + 8 <= buffer.len() {
+                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if val_type == 4 {
+                                            embedding_length = Some(u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap()));
+                                        }
+                                    }
+                                }
+                                let ffn_needle = b".feed_forward_length";
+                                if let Some(pos) = buffer.windows(ffn_needle.len()).position(|w| w == ffn_needle) {
+                                    let type_pos = pos + ffn_needle.len();
+                                    if type_pos + 8 <= buffer.len() {
+                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if val_type == 4 {
+                                            feed_forward_length = Some(u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap()));
+                                        }
+                                    }
+                                }
+                                let arch_needle = b"general.architecture";
+                                if let Some(pos) = buffer.windows(arch_needle.len()).position(|w| w == arch_needle) {
+                                    let type_pos = pos + arch_needle.len();
+                                    if type_pos + 12 <= buffer.len() {
+                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if val_type == 8 {
+                                            let str_len = u64::from_le_bytes(buffer[type_pos+4..type_pos+12].try_into().unwrap()) as usize;
+                                            if type_pos + 12 + str_len <= buffer.len() {
+                                                if let Ok(s) = std::str::from_utf8(&buffer[type_pos+12..type_pos+12+str_len]) {
+                                                    architecture = s.to_string();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -444,6 +529,9 @@ async fn get_local_models() -> Json<Vec<Model>> {
                         block_count,
                         architecture: architecture.clone(),
                         quantization: quantization.clone(),
+                        expert_count,
+                        embedding_length,
+                        feed_forward_length,
                     };
                     cache.insert(filename.clone(), new_metadata);
                     if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
@@ -458,12 +546,16 @@ async fn get_local_models() -> Json<Vec<Model>> {
                 };
 
                 models.push(Model {
-                    id: filename,
+                    id: filename.clone(),
                     name,
                     quantization,
                     size_gb,
                     context_length,
                     block_count,
+                    architecture,
+                    expert_count,
+                    embedding_length,
+                    feed_forward_length,
                 });
             }
         }
@@ -860,7 +952,10 @@ async fn start_server(
 
     if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
     if !payload.unified_kv { args.push("--no-kv-unified".to_string()); }
-    if payload.cpu_moe { args.push("--cpu-moe".to_string()); }
+    if payload.moe_cpu_layers > 0 { 
+        args.push("--n-cpu-moe".to_string()); 
+        args.push(payload.moe_cpu_layers.to_string());
+    }
     
     if payload.keep_in_memory { 
         args.push("--load-mode".to_string()); 
@@ -1023,6 +1118,11 @@ async fn run_benchmark(
     if let Some(ts) = ts_arg {
         args.push("-ts".to_string());
         args.push(ts);
+    }
+
+    if payload.moe_cpu_layers > 0 {
+        args.push("--n-cpu-moe".to_string());
+        args.push(payload.moe_cpu_layers.to_string());
     }
 
     if let Some(servers) = &payload.rpc_servers {
