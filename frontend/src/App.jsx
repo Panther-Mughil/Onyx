@@ -396,8 +396,9 @@ function App() {
       fetch('http://127.0.0.1:3001/api/server/network', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ port: serverSettings.port, networkHost: serverSettings.networkHost })
-      }).then(() => {
+        body: JSON.stringify({ port: parseInt(serverSettings.port), networkHost: serverSettings.networkHost })
+      }).then(res => {
+        if (!res.ok) throw new Error("Failed to start proxy");
         setIsProxyRunning(true);
         saveSettings({ ...serverSettings, autoStartGateway: true });
       }).catch(() => {});
@@ -561,8 +562,10 @@ function App() {
             fetch('http://127.0.0.1:3001/api/server/network', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ port: data.port || '12057', networkHost: data.networkHost || false })
-            }).then(() => setIsProxyRunning(true)).catch(() => {});
+              body: JSON.stringify({ port: parseInt(data.port) || 12057, networkHost: data.networkHost || false })
+            }).then(res => {
+              if (res.ok) setIsProxyRunning(true);
+            }).catch(() => {});
           }
         }
       })
