@@ -356,6 +356,10 @@ function App() {
         targetConfig = { ...targetConfig, ...savedConfig };
         shouldRemember = true;
       }
+      if (targetConfig.engineId && installedEngines.length > 0 && !installedEngines.includes(targetConfig.engineId)) {
+          targetConfig.engineId = installedEngines[0];
+          shouldRemember = true;
+      }
       
       setConfig(targetConfig);
       setRememberSettings(shouldRemember);
@@ -482,7 +486,7 @@ function App() {
         .then(data => {
             setInstalledEngines(data);
             setConfig(prev => {
-                if (!prev.engineId && data.length > 0) {
+                if ((!prev.engineId || !data.includes(prev.engineId)) && data.length > 0) {
                     return { ...prev, engineId: data[0] };
                 }
                 return prev;
