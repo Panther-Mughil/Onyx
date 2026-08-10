@@ -107,7 +107,7 @@ export default function EngineManager({ apiBase }) {
     const deleteEngine = async (id) => {
         if (!confirm(`Are you sure you want to completely remove ${id}?`)) return;
         try {
-            await fetch(`${apiBase}/api/engines/${id}`, { method: 'DELETE' });
+            await fetch(`${apiBase}/api/engines/${encodeURIComponent(id)}`, { method: 'DELETE' });
             fetchInstalled();
         } catch(e) {
             console.error(e);
@@ -127,14 +127,16 @@ export default function EngineManager({ apiBase }) {
 
     if (isWin) {
         const cpuAsset = findAsset(['bin-win-cpu', 'x64']);
+        const cudart13 = releases.find(a => a.name.includes('cudart') && a.name.includes('cuda-13') && a.name.endsWith('.zip'));
+        const cudart12 = releases.find(a => a.name.includes('cudart') && a.name.includes('cuda-12') && a.name.endsWith('.zip'));
         if (hasNvidia) {
             const cuda13 = findAsset(['bin-win-cuda-13', 'x64']);
             const cuda12 = findAsset(['bin-win-cuda-12', 'x64']);
-            if (cuda13 && cpuAsset) {
-                options.push({ id: 'llama.cpp (CUDA 13)', label: 'llama.cpp (CUDA 13)', asset: { browser_download_url: `${cpuAsset.browser_download_url},${cuda13.browser_download_url}` } });
+            if (cuda13 && cpuAsset && cudart13) {
+                options.push({ id: 'llama.cpp (CUDA 13)', label: 'llama.cpp (CUDA 13)', asset: { browser_download_url: `${cpuAsset.browser_download_url},${cuda13.browser_download_url},${cudart13.browser_download_url}` } });
             }
-            if (cuda12 && cpuAsset) {
-                options.push({ id: 'llama.cpp (CUDA 12)', label: 'llama.cpp (CUDA 12)', asset: { browser_download_url: `${cpuAsset.browser_download_url},${cuda12.browser_download_url}` } });
+            if (cuda12 && cpuAsset && cudart12) {
+                options.push({ id: 'llama.cpp (CUDA 12)', label: 'llama.cpp (CUDA 12)', asset: { browser_download_url: `${cpuAsset.browser_download_url},${cuda12.browser_download_url},${cudart12.browser_download_url}` } });
             }
         }
         const vulkanAsset = findAsset(['bin-win-vulkan', 'x64']);
