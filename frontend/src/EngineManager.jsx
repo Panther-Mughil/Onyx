@@ -106,18 +106,18 @@ export default function EngineManager({ apiBase }) {
 
     if (isWin) {
         if (hasNvidia) {
-            options.push({ id: 'cuda-12', label: 'CUDA 12 (NVIDIA)', asset: findAsset(['bin-win-cuda-cu12']) });
-            options.push({ id: 'cuda-11', label: 'CUDA 11 (NVIDIA)', asset: findAsset(['bin-win-cuda-cu11']) });
+            options.push({ id: 'llama.cpp (CUDA 12)', label: 'llama.cpp (CUDA 12)', asset: findAsset(['bin-win-cuda-cu12']) });
+            options.push({ id: 'llama.cpp (CUDA 11)', label: 'llama.cpp (CUDA 11)', asset: findAsset(['bin-win-cuda-cu11']) });
         }
-        options.push({ id: 'vulkan-x64', label: 'Vulkan x64 (AMD/Intel)', asset: findAsset(['bin-win-vulkan-x64']) });
-        options.push({ id: 'avx2-x64', label: 'CPU AVX2 x64', asset: findAsset(['bin-win-avx2-x64']) });
+        options.push({ id: 'llama.cpp (Vulkan)', label: 'llama.cpp (Vulkan)', asset: findAsset(['bin-win-vulkan-x64']) });
+        options.push({ id: 'llama.cpp (CPU)', label: 'llama.cpp (CPU AVX2)', asset: findAsset(['bin-win-avx2-x64']) });
     } else if (isMac) {
-        options.push({ id: 'mac-silicon', label: 'Apple Silicon (M1/M2/M3)', compile: 'mac-silicon' });
-        options.push({ id: 'mac-intel', label: 'Apple Intel (x64)', compile: 'mac-intel' });
+        options.push({ id: 'llama.cpp (Metal Silicon)', label: 'llama.cpp (Metal Silicon)', compile: 'mac-silicon' });
+        options.push({ id: 'llama.cpp (Metal Intel)', label: 'llama.cpp (Metal Intel)', compile: 'mac-intel' });
     } else if (isLinux) {
-        options.push({ id: 'linux-cuda', label: 'CUDA (NVIDIA)', compile: 'linux-cuda' });
-        options.push({ id: 'linux-vulkan', label: 'Vulkan (AMD/Intel)', compile: 'linux-vulkan' });
-        options.push({ id: 'linux-cpu', label: 'CPU Only', compile: 'linux-cpu' });
+        options.push({ id: 'llama.cpp (CUDA)', label: 'llama.cpp (CUDA)', compile: 'linux-cuda' });
+        options.push({ id: 'llama.cpp (Vulkan)', label: 'llama.cpp (Vulkan)', compile: 'linux-vulkan' });
+        options.push({ id: 'llama.cpp (CPU)', label: 'llama.cpp (CPU)', compile: 'linux-cpu' });
     }
 
     return (

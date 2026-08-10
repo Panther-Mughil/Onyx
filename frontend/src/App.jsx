@@ -1427,7 +1427,7 @@ function App() {
                       <div className="form-row" style={{ marginBottom: '12px' }}>
                         <span>Execution Engine</span>
                         <select className="num-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange} style={{ width: '150px' }}>
-                           <option value="">llama-cpp (Default)</option>
+                           <option value="">llama.cpp (Legacy Default)</option>
                            {installedEngines.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
