@@ -1574,6 +1574,7 @@ async fn download_engine(
                 _ = child.wait() => {}
                 _ = rx => {
                     let _ = child.kill().await;
+                    let _ = child.wait().await;
                 }
             }
             *state_clone.engine_setup_killer.lock().await = None;
@@ -1614,6 +1615,7 @@ async fn compile_engine(
                 _ = child.wait() => {}
                 _ = rx => {
                     let _ = child.kill().await;
+                    let _ = child.wait().await;
                 }
             }
             *state_clone.engine_setup_killer.lock().await = None;

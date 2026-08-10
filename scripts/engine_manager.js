@@ -62,7 +62,7 @@ async function handleDownload() {
 
 async function handleCompile() {
     ensureDir();
-    const tempDir = path.join(__dirname, '..', `temp_src_${engineId}`);
+    const tempDir = path.join(__dirname, '..', 'engines', `temp_src_${engineId}`);
     if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
     
     runCmd(`git clone https://github.com/ggerganov/llama.cpp.git "${tempDir}"`);

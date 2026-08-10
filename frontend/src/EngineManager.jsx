@@ -95,10 +95,12 @@ export default function EngineManager({ apiBase }) {
 
     const stopEngine = async () => {
         try {
-            await fetch(`${apiBase}/api/engines/stop`, { method: 'POST' });
+            const res = await fetch(`${apiBase}/api/engines/stop`, { method: 'POST' });
+            if (!res.ok) throw new Error("Failed to stop");
             setActiveAction(null);
         } catch (e) {
             console.error(e);
+            alert("Stop failed. Please ensure the backend is restarted with the latest changes.");
         }
     };
 
