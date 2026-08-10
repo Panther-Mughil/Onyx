@@ -1117,7 +1117,7 @@ function App() {
            )}
 
            {activeLeftTab === 'engines' && (
-               <EngineManager apiBase={API_BASE} />
+               <EngineManager apiBase="http://127.0.0.1:3001" />
            )}
 
            {activeLeftTab === 'huggingface' && (
