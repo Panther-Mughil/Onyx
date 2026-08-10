@@ -280,6 +280,7 @@ struct AppState {
     benchmark_tg: Mutex<Option<f32>>,
     system_logs: Mutex<Vec<String>>,
     hf_downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
+    engine_setup_killer: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
 #[derive(Deserialize)]
@@ -1564,8 +1565,18 @@ async fn download_engine(
         spawn_log_reader(stdout, state.clone(), "engine_setup".to_string());
         spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
         
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        *state.engine_setup_killer.lock().await = Some(tx);
+        let state_clone = state.clone();
+        
         tokio::spawn(async move {
-            let _ = child.wait().await;
+            tokio::select! {
+                _ = child.wait() => {}
+                _ = rx => {
+                    let _ = child.kill().await;
+                }
+            }
+            *state_clone.engine_setup_killer.lock().await = None;
         });
         
         Json(serde_json::json!({"success": true}))
@@ -1594,14 +1605,35 @@ async fn compile_engine(
         spawn_log_reader(stdout, state.clone(), "engine_setup".to_string());
         spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
         
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        *state.engine_setup_killer.lock().await = Some(tx);
+        let state_clone = state.clone();
+        
         tokio::spawn(async move {
-            let _ = child.wait().await;
+            tokio::select! {
+                _ = child.wait() => {}
+                _ = rx => {
+                    let _ = child.kill().await;
+                }
+            }
+            *state_clone.engine_setup_killer.lock().await = None;
         });
         
         Json(serde_json::json!({"success": true}))
     } else {
         Json(serde_json::json!({"success": false, "message": "Failed to spawn engine_manager"}))
     }
+}
+
+async fn stop_engine_setup(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    if let Some(tx) = state.engine_setup_killer.lock().await.take() {
+        let _ = tx.send(());
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        state.system_logs.lock().await.push(format!("[{}] engine_setup: Process stopped by user.", timestamp));
+    }
+    Json(serde_json::json!({"success": true}))
 }
 
 #[tokio::main]
@@ -1695,7 +1727,8 @@ async fn main() {
         benchmark_pp: Mutex::new(None),
         benchmark_tg: Mutex::new(None),
         system_logs: Mutex::new(Vec::new()),
-            hf_downloads: Mutex::new(std::collections::HashMap::new()),
+        hf_downloads: Mutex::new(std::collections::HashMap::new()),
+        engine_setup_killer: Mutex::new(None),
 });
 
     let app = Router::new()
@@ -1724,6 +1757,7 @@ async fn main() {
         .route("/api/engines", get(get_installed_engines))
         .route("/api/engines/download", post(download_engine))
         .route("/api/engines/compile", post(compile_engine))
+        .route("/api/engines/stop", post(stop_engine_setup))
         .fallback(static_handler)
         .with_state(shared_state)
         .layer(CorsLayer::permissive());

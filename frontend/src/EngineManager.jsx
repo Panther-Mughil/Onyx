@@ -93,6 +93,15 @@ export default function EngineManager({ apiBase }) {
         }
     };
 
+    const stopEngine = async () => {
+        try {
+            await fetch(`${apiBase}/api/engines/stop`, { method: 'POST' });
+            setActiveAction(null);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     if (loading) return <div style={{ padding: '20px', color: 'var(--text-muted)' }}>Loading Engines...</div>;
 
     const isWin = sysInfo?.os === 'windows';
@@ -174,7 +183,7 @@ export default function EngineManager({ apiBase }) {
                             
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 {isActive ? (
-                                    <button className="secondary-btn" disabled style={{ opacity: 0.7 }}>Working...</button>
+                                    <button className="secondary-btn" onClick={stopEngine} style={{ opacity: 0.9, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>Stop</button>
                                 ) : isInstalled ? (
                                     <button className="secondary-btn" disabled style={{ color: '#10b981' }}><CheckCircle size={16} /> Ready</button>
                                 ) : opt.compile ? (
