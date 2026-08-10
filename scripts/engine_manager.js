@@ -45,18 +45,27 @@ async function downloadFile(url, dest) {
 async function handleDownload() {
     ensureDir();
     const platform = process.platform;
-    const zipPath = path.join(__dirname, '..', `temp_${engineId}.archive`);
-    await downloadFile(urlOrFlags, zipPath);
-    
-    console.log("Extracting archive...");
-    if (platform === 'win32') {
-        runCmd(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${ENGINE_DIR}' -Force"`);
-    } else {
-        runCmd(`unzip -o "${zipPath}" -d "${ENGINE_DIR}" || tar -xf "${zipPath}" -C "${ENGINE_DIR}"`);
+    const urls = urlOrFlags.split(',');
+
+    for (let i = 0; i < urls.length; i++) {
+        const url = urls[i].trim();
+        if (!url) continue;
+        
+        const zipPath = path.join(__dirname, '..', `temp_${engineId}_${i}.zip`);
+        console.log(`Downloading ${url}...`);
+        await downloadFile(url, zipPath);
+        
+        console.log("Extracting archive...");
+        if (platform === 'win32') {
+            runCmd(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${ENGINE_DIR}' -Force"`);
+        } else {
+            runCmd(`unzip -o "${zipPath}" -d "${ENGINE_DIR}" || tar -xf "${zipPath}" -C "${ENGINE_DIR}"`);
+        }
+        
+        console.log("Cleaning up temp zip...");
+        fs.unlinkSync(zipPath);
     }
     
-    console.log("Cleaning up...");
-    fs.unlinkSync(zipPath);
     console.log(`Engine ${engineId} successfully downloaded and extracted.`);
 }
 
