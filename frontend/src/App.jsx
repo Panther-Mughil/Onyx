@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers, Box, Download, Search, Database } from 'lucide-react';
+import { Square, Settings, Cpu, MemoryStick, Info, Activity, SlidersHorizontal, Settings2, Trash2, X, Gpu, Network, Plus, Gauge, BookOpen, Power, ChevronLeft, ChevronRight, Eye, ChevronsLeftRightEllipsis, Layers, Box, Download, Search, Database, Wrench } from 'lucide-react';
+import EngineManager from './EngineManager';
 import './index.css';
 
 const OnyxLogo = ({ size = 20, color = "#22d3ee" }) => (
@@ -312,6 +313,7 @@ function App() {
   const [hfSelectedRepo, setHfSelectedRepo] = useState(null);
   const [hfRepoFiles, setHfRepoFiles] = useState([]); 
   const [telemetry, setTelemetry] = useState(null);
+  const [installedEngines, setInstalledEngines] = useState([]);
 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
@@ -413,6 +415,7 @@ function App() {
   const [benchmarkStatus, setBenchmarkStatus] = useState({ isRunning: false, logs: [], pp: null, tg: null });
 
   const initialConfig = {
+    engineId: '',
     ctxSize: 2048,
     gpuLayers: 28,
     threads: navigator.hardwareConcurrency || 4,
@@ -456,6 +459,15 @@ function App() {
     }
     return () => clearInterval(interval);
   }, [activeLeftTab]);
+
+  useEffect(() => {
+    if (activeLeftTab === 'engines' || activeTab === 'load') {
+      fetch('http://127.0.0.1:3001/api/engines')
+        .then(res => res.json())
+        .then(data => setInstalledEngines(data))
+        .catch(() => {});
+    }
+  }, [activeLeftTab, activeTab, isModalOpen]);
 
   const searchHuggingFace = async (e) => {
     e.preventDefault();
@@ -969,6 +981,12 @@ function App() {
            }} title="Local Models">
               <Database size={24} />
            </button>
+           <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'engines') ? 'active' : ''}`} onClick={() => {
+               if (isLeftSidebarOpen && activeLeftTab === 'engines') setIsLeftSidebarOpen(false);
+               else { setIsLeftSidebarOpen(true); setActiveLeftTab('engines'); }
+           }} title="Engine Manager">
+              <Wrench size={24} />
+           </button>
         </div>
 
         {/* Left Sidebar (Collapsible) */}
@@ -1096,6 +1114,10 @@ function App() {
                 )}
               </div>
              </>
+           )}
+
+           {activeLeftTab === 'engines' && (
+               <EngineManager apiBase={API_BASE} />
            )}
 
            {activeLeftTab === 'huggingface' && (
@@ -1242,7 +1264,6 @@ function App() {
                         setActiveTab('load'); 
                       }
                     }}>
-                      
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <div style={{ 
                             border: `1px solid ${server.isReady ? 'var(--ready-green)' : '#eab308'}`, 
@@ -1374,6 +1395,13 @@ function App() {
                     <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={16} color="var(--text-main)" /> Context and Offload</div>
                     
                     <div style={{ marginBottom: '20px' }}>
+                      <div className="form-row" style={{ marginBottom: '12px' }}>
+                        <span>Execution Engine</span>
+                        <select className="num-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange} style={{ width: '150px' }}>
+                           <option value="">llama-cpp (Default)</option>
+                           {installedEngines.map(e => <option key={e} value={e}>{e}</option>)}
+                        </select>
+                      </div>
                       <div className="form-row">
                         <span>Context Length</span>
                         <input type="number" className="num-input" name="ctxSize" value={config.ctxSize} max={selectedModel?.context_length || 128000} onChange={handleConfigChange} />

@@ -162,6 +162,8 @@ struct LocalGpu {
 #[allow(dead_code)]
 struct ServerConfig {
     model_id: String,
+    #[serde(default)]
+    engine_id: Option<String>,
     ctx_size: u32,
     gpu_layers: u32,
     #[serde(default)]
@@ -987,10 +989,16 @@ async fn start_server(
     };
     
     let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
-    let binary_path = if cfg!(windows) {
-        format!("{}/llama-cpp/llama-server.exe", base_dir())
+    let engine_dir = if let Some(e) = &payload.engine_id {
+        format!("{}/engines/{}", base_dir(), e)
     } else {
-        format!("{}/llama-cpp/llama-server", base_dir())
+        format!("{}/llama-cpp", base_dir())
+    };
+    
+    let binary_path = if cfg!(windows) {
+        format!("{}/llama-server.exe", engine_dir)
+    } else {
+        format!("{}/llama-server", engine_dir)
     };
 
     if !Path::new(&binary_path).exists() {
@@ -1477,6 +1485,99 @@ async fn hf_downloads_status(
     Json(downloads)
 }
 
+#[derive(Deserialize)]
+struct EngineDownloadPayload {
+    engine_id: String,
+    url_or_flags: String,
+}
+
+async fn get_system_info() -> Json<serde_json::Value> {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let has_nvidia = nvml_wrapper::Nvml::init().is_ok();
+    
+    Json(serde_json::json!({
+        "os": os,
+        "arch": arch,
+        "has_nvidia": has_nvidia
+    }))
+}
+
+async fn get_installed_engines() -> Json<Vec<String>> {
+    let mut engines = Vec::new();
+    let engines_dir = format!("{}/engines", base_dir());
+    if let Ok(entries) = fs::read_dir(engines_dir) {
+        for entry in entries.flatten() {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    engines.push(entry.file_name().to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+    Json(engines)
+}
+
+async fn download_engine(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<EngineDownloadPayload>
+) -> Json<serde_json::Value> {
+    let script_path = format!("{}/scripts/engine_manager.js", base_dir());
+    let child_res = Command::new("node")
+        .arg(script_path)
+        .arg("download")
+        .arg(&payload.engine_id)
+        .arg(&payload.url_or_flags)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .group_spawn();
+        
+    if let Ok(mut child) = child_res {
+        let stdout = child.inner().stdout.take().unwrap();
+        let stderr = child.inner().stderr.take().unwrap();
+        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string());
+        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
+        
+        tokio::spawn(async move {
+            let _ = child.wait().await;
+        });
+        
+        Json(serde_json::json!({"success": true}))
+    } else {
+        Json(serde_json::json!({"success": false, "message": "Failed to spawn engine_manager"}))
+    }
+}
+
+async fn compile_engine(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<EngineDownloadPayload>
+) -> Json<serde_json::Value> {
+    let script_path = format!("{}/scripts/engine_manager.js", base_dir());
+    let child_res = Command::new("node")
+        .arg(script_path)
+        .arg("compile")
+        .arg(&payload.engine_id)
+        .arg(&payload.url_or_flags)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .group_spawn();
+        
+    if let Ok(mut child) = child_res {
+        let stdout = child.inner().stdout.take().unwrap();
+        let stderr = child.inner().stderr.take().unwrap();
+        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string());
+        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
+        
+        tokio::spawn(async move {
+            let _ = child.wait().await;
+        });
+        
+        Json(serde_json::json!({"success": true}))
+    } else {
+        Json(serde_json::json!({"success": false, "message": "Failed to spawn engine_manager"}))
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let models_dir = format!("{}/models", base_dir());
@@ -1589,11 +1690,15 @@ async fn main() {
         .route("/api/settings/save", post(save_settings))
         .route("/api/system/logs", get(get_system_logs))
         .route("/api/system/logs/clear", post(clear_system_logs))
-                .route("/api/huggingface/search", get(hf_search))
+        .route("/api/huggingface/search", get(hf_search))
         .route("/api/huggingface/model", get(hf_model_files))
         .route("/api/huggingface/download", post(hf_download))
         .route("/api/huggingface/downloads", get(hf_downloads_status))
-.fallback(static_handler)
+        .route("/api/system/info", get(get_system_info))
+        .route("/api/engines", get(get_installed_engines))
+        .route("/api/engines/download", post(download_engine))
+        .route("/api/engines/compile", post(compile_engine))
+        .fallback(static_handler)
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 

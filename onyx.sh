@@ -59,8 +59,7 @@ install_deps_routine() {
         echo "[OK] CMake is installed."
     fi
 
-    echo -e "${GREEN}[4/5] Downloading and Setting up Llama.cpp Engine...${NC}"
-    node scripts/setup_engine.js
+    echo -e "${GREEN}[4/5] Skipping Engine Setup (Handled in UI)...${NC}"
 
     echo -e "${GREEN}[5/5] Compiling and Baking application...${NC}"
     echo "Installing Frontend Dependencies..."
@@ -72,12 +71,18 @@ install_deps_routine() {
 
     echo "Building Backend Server (This may take a while)..."
     cd backend || exit
-    cargo build --release
+    if ! cargo build --release; then
+        echo -e "${RED}[!] Failed to compile Backend Server.${NC}"
+        exit 1
+    fi
     cd ..
 
     echo "Building RPC Agent..."
     cd rpc_agent || exit
-    cargo build --release
+    if ! cargo build --release; then
+        echo -e "${RED}[!] Failed to compile RPC Agent.${NC}"
+        exit 1
+    fi
     cd ..
 }
 

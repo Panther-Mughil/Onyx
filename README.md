@@ -24,17 +24,18 @@ Onyx is designed to be compiled directly from source to ensure the Rust backend 
    cd Onyx
    ```
 2. Place your downloaded `.gguf` models into the `models/` folder.
-3. The built-in auto-installer will automatically detect your hardware, download the correct engine binaries, and place them inside the `llama-cpp/` folder for you!
-4. Run the unified Onyx interactive terminal:
+3. Run the unified Onyx interactive terminal:
    - **Windows**: Double-click `onyx.bat`
    - **Mac/Linux**: Run `./onyx.sh`
    
 ### The Onyx Terminal Menu
 When you run the script, you will be presented with a simple interactive menu:
-1. **Verify & Install System Dependencies** (Run this first! It will check for Rust/Node and compile the entire application natively for your machine).
-2. **Start Primary Node** (Boots the compiled Rust backend which statically serves the beautiful React frontend at `http://127.0.0.1:3001`).
-3. **Start RPC Worker Node** (Runs the lightweight RPC agent for distributed multi-GPU tensor offloading).
-4. **Start Development Environment** (For developers who want frontend hot-reloading).
+1. **Start Primary Node** (Boots the compiled Rust backend which statically serves the beautiful React frontend at `http://127.0.0.1:3001`).
+2. **Start RPC Worker Node** (Runs the lightweight RPC agent for distributed multi-GPU tensor offloading).
+3. **Start Development Environment** (For developers who want frontend hot-reloading).
+4. **Verify & Install System Dependencies** (Run this first! It will check for Rust/Node and compile the entire application natively for your machine).
+
+*Note: Once you launch the Primary Node and visit the dashboard, navigate to the **Engine Manager** tab (Wrench icon) to automatically download or compile the best `llama.cpp` engine for your hardware.*
 
 ## 📡 API Integration
 Onyx acts strictly as a model host. It exposes your active model as a standard OpenAI-compatible API on your selected port.

@@ -135,8 +135,7 @@ if %errorlevel% neq 0 (
     echo [OK] CMake is installed.
 )
 
-echo [4/5] Downloading and Setting up Llama.cpp Engine...
-node scripts\setup_engine.js
+echo [4/5] Skipping Engine Setup (Handled in UI)
 
 echo [5/5] Compiling and Baking application...
 echo Installing Frontend Dependencies...

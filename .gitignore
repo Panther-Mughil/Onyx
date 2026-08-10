@@ -28,6 +28,9 @@ data/
 .DS_Store
 Thumbs.db
 
+# Pi Sub-agents
+.pi-subagents/
+
 # Markdown Scratchpads
 TMR_work.md
 PRD.md
