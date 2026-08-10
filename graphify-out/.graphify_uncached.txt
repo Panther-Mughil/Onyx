@@ -1,0 +1,4 @@
+/mnt/G/Onyx/README.md
+/mnt/G/Onyx/frontend/index.html
+/mnt/G/Onyx/frontend/public/favicon.svg
+/mnt/G/Onyx/frontend/public/icons.svg
