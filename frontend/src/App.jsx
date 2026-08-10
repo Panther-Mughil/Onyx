@@ -409,7 +409,6 @@ function App() {
 
   const terminalRef = useRef(null);
   const autoScrollEnabled = useRef(true);
-  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const handleTerminalScroll = () => {
     if (!terminalRef.current) return;
@@ -417,7 +416,6 @@ function App() {
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
     
     autoScrollEnabled.current = isAtBottom;
-    setShowScrollButton(!isAtBottom);
   };
 
   useEffect(() => {
@@ -1352,13 +1350,13 @@ function App() {
 
           <div style={{ position: 'relative', flex: '1 1 40%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Logs {selectedModel ? `(${selectedModel.name})` : ''}</h3>
+                <h3 style={{ fontSize: '14px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Logs {(!selectedModel || activeLeftTab === 'engines') ? '(System)' : `(${selectedModel.name})`}</h3>
                 <button className="secondary-btn" onClick={handleClearLogs} title="Clear Logs" style={{ padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 0 }}>
                   <Trash2 size={14} color="var(--text-muted)" />
                 </button>
               </div>
             <div className="terminal" ref={terminalRef} onScroll={handleTerminalScroll}>
-              {!selectedModel ? (
+              {(!selectedModel || activeLeftTab === 'engines') ? (
                  systemLogs.length === 0 ? 
                    <div style={{ color: 'var(--text-muted)' }}>System logs empty...</div> :
                    systemLogs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)
@@ -1366,19 +1364,6 @@ function App() {
                  logs.map((l, i) => <div key={i} className={`log-line ${formatLog(l)}`}>{l}</div>)
               )}
             </div>
-            {showScrollButton && (
-                <button 
-                    className="primary-btn" 
-                    style={{ position: 'absolute', bottom: '20px', right: '30px', padding: '6px 12px', opacity: 0.8, borderRadius: '4px', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.5)', border: '1px solid var(--border-color)' }}
-                    onClick={() => {
-                        terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-                        autoScrollEnabled.current = true;
-                        setShowScrollButton(false);
-                    }}
-                >
-                    ↓ Jump to Bottom
-                </button>
-            )}
             </div>
           </div>
         </div>

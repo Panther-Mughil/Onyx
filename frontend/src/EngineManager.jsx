@@ -13,7 +13,23 @@ export default function EngineManager({ apiBase }) {
         fetchSysInfo();
         fetchInstalled();
         fetchReleases();
+        checkActiveStatus();
     }, []);
+
+    const checkActiveStatus = async () => {
+        try {
+            const res = await fetch(`${apiBase}/api/engines/status`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.active_engine) {
+                    setActiveAction(data.active_engine);
+                    pollInstallStatus(data.active_engine);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     const fetchSysInfo = async () => {
         try {
@@ -173,9 +189,9 @@ export default function EngineManager({ apiBase }) {
                     <h4 style={{ margin: '0 0 8px 0', color: '#eab308', fontSize: '14px' }}>Linux Dependencies Required</h4>
                     <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'rgba(255,255,255,0.8)' }}>Before compiling, please run the following command in your terminal to ensure you have the required build tools:</p>
                     <code style={{ background: 'rgba(0,0,0,0.5)', padding: '12px', display: 'block', borderRadius: '8px', fontSize: '13px', fontFamily: 'monospace', color: '#a78bfa' }}>
-                        {sysInfo?.distro === 'arch' ? `sudo pacman -S --needed cmake base-devel ${hasNvidia ? 'cuda' : ''}`
-                         : sysInfo?.distro === 'fedora' ? `sudo dnf install -y cmake gcc gcc-c++ ${hasNvidia ? 'cuda-toolkit' : ''}`
-                         : `sudo apt-get update && sudo apt-get install -y cmake build-essential ${hasNvidia ? 'nvidia-cuda-toolkit' : ''}`}
+                        {sysInfo?.distro === 'arch' ? `sudo pacman -S --needed cmake base-devel vulkan-headers ${hasNvidia ? 'cuda' : ''}`
+                         : sysInfo?.distro === 'fedora' ? `sudo dnf install -y cmake gcc gcc-c++ vulkan-headers ${hasNvidia ? 'cuda-toolkit' : ''}`
+                         : `sudo apt-get update && sudo apt-get install -y cmake build-essential libvulkan-dev ${hasNvidia ? 'nvidia-cuda-toolkit' : ''}`}
                     </code>
                 </div>
             )}

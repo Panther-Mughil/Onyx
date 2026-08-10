@@ -280,7 +280,7 @@ struct AppState {
     benchmark_tg: Mutex<Option<f32>>,
     system_logs: Mutex<Vec<String>>,
     hf_downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
-    engine_setup_killer: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    engine_setup_killer: Mutex<Option<(String, tokio::sync::oneshot::Sender<()>)>>,
 }
 
 #[derive(Deserialize)]
@@ -1566,7 +1566,7 @@ async fn download_engine(
         spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
         
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-        *state.engine_setup_killer.lock().await = Some(tx);
+        *state.engine_setup_killer.lock().await = Some((payload.engine_id.clone(), tx));
         let state_clone = state.clone();
         
         tokio::spawn(async move {
@@ -1607,7 +1607,7 @@ async fn compile_engine(
         spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
         
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-        *state.engine_setup_killer.lock().await = Some(tx);
+        *state.engine_setup_killer.lock().await = Some((payload.engine_id.clone(), tx));
         let state_clone = state.clone();
         
         tokio::spawn(async move {
@@ -1630,7 +1630,7 @@ async fn compile_engine(
 async fn stop_engine_setup(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
-    if let Some(tx) = state.engine_setup_killer.lock().await.take() {
+    if let Some((_, tx)) = state.engine_setup_killer.lock().await.take() {
         let _ = tx.send(());
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         state.system_logs.lock().await.push(format!("[{}] engine_setup: Process stopped by user.", timestamp));
@@ -1638,6 +1638,15 @@ async fn stop_engine_setup(
     Json(serde_json::json!({"success": true}))
 }
 
+async fn get_engine_status(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    if let Some((engine_id, _)) = state.engine_setup_killer.lock().await.as_ref() {
+        Json(serde_json::json!({"active_engine": engine_id}))
+    } else {
+        Json(serde_json::json!({"active_engine": null}))
+    }
+}
 async fn delete_engine(
     axum::extract::Path(engine_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
@@ -1770,6 +1779,7 @@ async fn main() {
         .route("/api/engines/download", post(download_engine))
         .route("/api/engines/compile", post(compile_engine))
         .route("/api/engines/stop", post(stop_engine_setup))
+        .route("/api/engines/status", get(get_engine_status))
         .route("/api/engines/:id", axum::routing::delete(delete_engine))
         .fallback(static_handler)
         .with_state(shared_state)
