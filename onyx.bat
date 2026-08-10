@@ -89,6 +89,28 @@ if %errorlevel% neq 0 (
     echo [OK] Rust is installed.
 )
 
+echo [1.5/5] Checking for MSVC C++ Build Tools...
+set "vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%vswhere%" (
+    goto INSTALL_MSVC
+)
+"%vswhere%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | findstr /R "." >nul
+if %errorlevel% neq 0 (
+    goto INSTALL_MSVC
+) else (
+    echo [OK] MSVC C++ Build Tools are installed.
+    goto SKIP_MSVC
+)
+
+:INSTALL_MSVC
+echo [!] MSVC C++ Build Tools not found. Attempting to install via winget...
+winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --force --override "--wait --quiet --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+echo Please restart this terminal after installation completes.
+pause
+exit /b
+
+:SKIP_MSVC
+
 echo [2/5] Checking for Node.js/npm...
 call npm --version >nul 2>&1
 if %errorlevel% neq 0 (
