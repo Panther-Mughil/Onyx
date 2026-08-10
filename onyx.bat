@@ -149,10 +149,22 @@ cd ..
 echo Building Backend Server (This may take a while)...
 cd backend
 call cargo build --release
+if %errorlevel% neq 0 (
+    echo [!] Failed to compile Backend Server.
+    cd ..
+    pause
+    exit /b
+)
 cd ..
 
 echo Building RPC Agent...
 cd rpc_agent
 call cargo build --release
+if %errorlevel% neq 0 (
+    echo [!] Failed to compile RPC Agent.
+    cd ..
+    pause
+    exit /b
+)
 cd ..
 exit /b
