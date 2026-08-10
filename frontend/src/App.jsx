@@ -1433,7 +1433,7 @@ function App() {
                     
                     <div style={{ marginBottom: '20px' }}>
                       <div className="form-row" style={{ marginBottom: '12px' }}>
-                        <span>Execution Engine</span>
+                        <span>Engine</span>
                         <select className="select-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange}>
                            {installedEngines.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
