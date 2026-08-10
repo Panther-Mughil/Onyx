@@ -121,17 +121,17 @@ export default function EngineManager({ apiBase }) {
     const isLinux = sysInfo?.os === 'linux';
     const hasNvidia = sysInfo?.has_nvidia;
 
-    const findAsset = (includes) => releases.find(a => includes.every(i => a.name.includes(i)) && a.name.endsWith('.zip') && !a.name.includes('rpc'));
+    const findAsset = (includes) => releases.find(a => includes.every(i => a.name.includes(i)) && a.name.endsWith('.zip') && !a.name.includes('rpc') && !a.name.includes('cudart'));
 
     const options = [];
 
     if (isWin) {
         if (hasNvidia) {
-            options.push({ id: 'llama.cpp (CUDA 12)', label: 'llama.cpp (CUDA 12)', asset: findAsset(['bin-win-cuda-cu12']) });
-            options.push({ id: 'llama.cpp (CUDA 11)', label: 'llama.cpp (CUDA 11)', asset: findAsset(['bin-win-cuda-cu11']) });
+            options.push({ id: 'llama.cpp (CUDA 13)', label: 'llama.cpp (CUDA 13)', asset: findAsset(['bin-win-cuda-13', 'x64']) });
+            options.push({ id: 'llama.cpp (CUDA 12)', label: 'llama.cpp (CUDA 12)', asset: findAsset(['bin-win-cuda-12', 'x64']) });
         }
-        options.push({ id: 'llama.cpp (Vulkan)', label: 'llama.cpp (Vulkan)', asset: findAsset(['bin-win-vulkan-x64']) });
-        options.push({ id: 'llama.cpp (CPU)', label: 'llama.cpp (CPU AVX2)', asset: findAsset(['bin-win-avx2-x64']) });
+        options.push({ id: 'llama.cpp (Vulkan)', label: 'llama.cpp (Vulkan)', asset: findAsset(['bin-win-vulkan', 'x64']) });
+        options.push({ id: 'llama.cpp (CPU)', label: 'llama.cpp (CPU)', asset: findAsset(['bin-win-cpu', 'x64']) });
     } else if (isMac) {
         options.push({ id: 'llama.cpp (Metal Silicon)', label: 'llama.cpp (Metal Silicon)', compile: 'mac-silicon' });
         options.push({ id: 'llama.cpp (Metal Intel)', label: 'llama.cpp (Metal Intel)', compile: 'mac-intel' });
