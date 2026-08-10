@@ -1434,7 +1434,7 @@ function App() {
                     <div style={{ marginBottom: '20px' }}>
                       <div className="form-row" style={{ marginBottom: '12px' }}>
                         <span>Engine</span>
-                        <select className="select-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange}>
+                        <select className="dropdown-select" name="engineId" value={config.engineId || ''} onChange={handleConfigChange}>
                            {installedEngines.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
@@ -1550,7 +1550,7 @@ function App() {
 
                     <div className="form-row" style={{marginBottom: '16px'}}>
                       <span>K Cache Quantization</span>
-                      <select className="select-input" name="kCacheQuant" value={config.kCacheQuant} onChange={handleConfigChange} style={{ width: '140px' }}>
+                      <select className="dropdown-select" name="kCacheQuant" value={config.kCacheQuant} onChange={handleConfigChange} style={{ width: '140px' }}>
                         <option value="f16">f16 (Disable)</option>
                         <option value="q8_0">q8_0</option>
                         <option value="q4_0">q4_0</option>
@@ -1563,7 +1563,7 @@ function App() {
 
                     <div className="form-row" style={{marginBottom: '16px'}}>
                       <span>V Cache Quantization</span>
-                      <select className="select-input" name="vCacheQuant" value={config.vCacheQuant} onChange={handleConfigChange} style={{ width: '140px' }}>
+                      <select className="dropdown-select" name="vCacheQuant" value={config.vCacheQuant} onChange={handleConfigChange} style={{ width: '140px' }}>
                         <option value="f16">f16 (Disable)</option>
                         <option value="q8_0">q8_0</option>
                         <option value="q4_0">q4_0</option>

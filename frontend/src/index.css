@@ -133,7 +133,7 @@ button {
   transform: translateY(-1px);
 }
 
-.select-input {
+.dropdown-select {
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   color: white;
@@ -147,7 +147,7 @@ button {
   cursor: pointer;
   appearance: auto;
 }
-.select-input:focus { outline: none; border-color: var(--accent); }
+.dropdown-select:focus { outline: none; border-color: var(--accent); }
 
 .main-content {
   display: flex;
