@@ -873,31 +873,37 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     tokio::spawn(async move {
         let mut lines = BufReader::new(reader).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            let mut servers = state.active_servers.lock().await;
-            if let Some(server) = servers.get_mut(&model_id) {
-                server.logs.push(line.clone());
-                if server.logs.len() > 1000 { server.logs.remove(0); }
+            if model_id == "engine_setup" || model_id == "system" {
+                let mut sys_logs = state.system_logs.lock().await;
+                sys_logs.push(line.clone());
+                if sys_logs.len() > 1000 { sys_logs.remove(0); }
+            } else {
+                let mut servers = state.active_servers.lock().await;
+                if let Some(server) = servers.get_mut(&model_id) {
+                    server.logs.push(line.clone());
+                    if server.logs.len() > 1000 { server.logs.remove(0); }
 
-                if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
-                    server.is_ready = true;
-                }
+                    if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                        server.is_ready = true;
+                    }
 
-                if line.contains("llm_load_tensors:") {
-                    if let Some(idx) = line.find('%') {
-                        if let Some(start) = line[..idx].rfind(' ') {
-                            if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
-                                server.progress = pct;
+                    if line.contains("llm_load_tensors:") {
+                        if let Some(idx) = line.find('%') {
+                            if let Some(start) = line[..idx].rfind(' ') {
+                                if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
+                                    server.progress = pct;
+                                }
                             }
                         }
                     }
-                }
 
-                if line.to_lowercase().contains("error") {
-                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                    state.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id, line));
+                    if line.to_lowercase().contains("error") {
+                        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                        state.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id, line));
+                    }
+                } else {
+                    break;
                 }
-            } else {
-                break;
             }
         }
     });
@@ -990,7 +996,11 @@ async fn start_server(
     
     let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
     let engine_dir = if let Some(e) = &payload.engine_id {
-        format!("{}/engines/{}", base_dir(), e)
+        if e.is_empty() {
+            format!("{}/llama-cpp", base_dir())
+        } else {
+            format!("{}/engines/{}", base_dir(), e)
+        }
     } else {
         format!("{}/llama-cpp", base_dir())
     };
@@ -1522,7 +1532,11 @@ async fn get_installed_engines() -> Json<Vec<String>> {
         for entry in entries.flatten() {
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_dir() {
-                    engines.push(entry.file_name().to_string_lossy().to_string());
+                    let dir_path = entry.path();
+                    let bin_path = if cfg!(windows) { dir_path.join("llama-server.exe") } else { dir_path.join("llama-server") };
+                    if bin_path.exists() {
+                        engines.push(entry.file_name().to_string_lossy().to_string());
+                    }
                 }
             }
         }

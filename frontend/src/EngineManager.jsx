@@ -47,6 +47,22 @@ export default function EngineManager({ apiBase }) {
         }
     };
 
+    const pollInstallStatus = (id) => {
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`${apiBase}/api/engines`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setInstalled(data);
+                    if (data.includes(id)) {
+                        clearInterval(interval);
+                        setActiveAction(null);
+                    }
+                }
+            } catch (e) {}
+        }, 5000);
+    };
+
     const downloadEngine = async (engineId, url) => {
         setActiveAction(engineId);
         try {
@@ -55,7 +71,7 @@ export default function EngineManager({ apiBase }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ engine_id: engineId, url_or_flags: url })
             });
-            setTimeout(() => fetchInstalled(), 5000);
+            pollInstallStatus(engineId);
         } catch (e) {
             console.error(e);
             setActiveAction(null);
@@ -70,7 +86,7 @@ export default function EngineManager({ apiBase }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ engine_id: engineId, url_or_flags: flags })
             });
-            setTimeout(() => fetchInstalled(), 5000);
+            pollInstallStatus(engineId);
         } catch (e) {
             console.error(e);
             setActiveAction(null);
