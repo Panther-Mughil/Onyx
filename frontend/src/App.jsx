@@ -481,7 +481,15 @@ function App() {
     if (activeLeftTab === 'engines' || activeTab === 'load') {
       fetch('http://127.0.0.1:3001/api/engines')
         .then(res => res.json())
-        .then(data => setInstalledEngines(data))
+        .then(data => {
+            setInstalledEngines(data);
+            setConfig(prev => {
+                if (!prev.engineId && data.length > 0) {
+                    return { ...prev, engineId: data[0] };
+                }
+                return prev;
+            });
+        })
         .catch(() => {});
     }
   }, [activeLeftTab, activeTab, isModalOpen]);
@@ -1427,7 +1435,6 @@ function App() {
                       <div className="form-row" style={{ marginBottom: '12px' }}>
                         <span>Execution Engine</span>
                         <select className="num-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange} style={{ width: '150px' }}>
-                           <option value="">llama.cpp (Legacy Default)</option>
                            {installedEngines.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
