@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Terminal, Wrench, Settings, Search, CheckCircle } from 'lucide-react';
+import { Download, Terminal, Wrench, Settings, Search, CheckCircle, Trash2 } from 'lucide-react';
 
 export default function EngineManager({ apiBase }) {
     const [sysInfo, setSysInfo] = useState(null);
@@ -102,6 +102,16 @@ export default function EngineManager({ apiBase }) {
         }
     };
 
+    const deleteEngine = async (id) => {
+        if (!confirm(`Are you sure you want to completely remove ${id}?`)) return;
+        try {
+            await fetch(`${apiBase}/api/engines/${id}`, { method: 'DELETE' });
+            fetchInstalled();
+        } catch(e) {
+            console.error(e);
+        }
+    };
+
     if (loading) return <div style={{ padding: '20px', color: 'var(--text-muted)' }}>Loading Engines...</div>;
 
     const isWin = sysInfo?.os === 'windows';
@@ -131,13 +141,13 @@ export default function EngineManager({ apiBase }) {
 
     return (
         <div style={{ padding: '24px', color: 'var(--text-main)', height: '100%', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: '18px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '600' }}>
-                <Wrench size={24} color="#6366f1" /> Engine Manager
+            <h2 style={{ fontSize: '14px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <Wrench size={16} color="var(--text-main)" /> Engine Manager
             </h2>
             
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
-                <h3 style={{ fontSize: '13px', marginBottom: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Detected System</h3>
-                <div style={{ display: 'flex', gap: '24px', fontSize: '14px' }}>
+            <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '12px', marginBottom: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '500' }}>Detected System</h3>
+                <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
                     <div><span style={{color: 'var(--text-muted)'}}>OS:</span> {sysInfo?.os || 'Unknown'}</div>
                     <div><span style={{color: 'var(--text-muted)'}}>Architecture:</span> {sysInfo?.arch || 'Unknown'}</div>
                     <div><span style={{color: 'var(--text-muted)'}}>NVIDIA GPU:</span> {sysInfo?.has_nvidia ? 'Yes' : 'No'}</div>
@@ -156,40 +166,42 @@ export default function EngineManager({ apiBase }) {
                 </div>
             )}
 
-            <h3 style={{ fontSize: '15px', marginBottom: '16px', fontWeight: '500' }}>Recommended Engines</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h3 style={{ fontSize: '12px', marginBottom: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '500' }}>Available Engines</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {options.map(opt => {
                     const isInstalled = installed.includes(opt.id);
                     const isActive = activeAction === opt.id;
                     
                     return (
                         <div key={opt.id} style={{ 
-                            background: 'rgba(255,255,255,0.02)', 
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            padding: '16px 20px',
-                            borderRadius: '12px',
+                            background: 'var(--bg-panel)', 
+                            border: '1px solid var(--border-color)',
+                            padding: '12px 16px',
+                            borderRadius: '8px',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             transition: 'all 0.2s ease'
                         }}>
                             <div>
-                                <div style={{ fontWeight: '600', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ fontWeight: '500', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     {opt.label}
-                                    {isInstalled && <span style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', fontSize: '10px', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold' }}>INSTALLED</span>}
+                                    {isInstalled && <span style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>INSTALLED</span>}
                                 </div>
-                                {opt.asset && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>Asset: {opt.asset.name}</div>}
+                                {opt.asset && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Asset: {opt.asset.name}</div>}
                             </div>
                             
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 {isActive ? (
-                                    <button className="secondary-btn" onClick={stopEngine} style={{ opacity: 0.9, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>Stop</button>
+                                    <button className="engine-action-btn stop-btn" onClick={stopEngine}>Stop</button>
                                 ) : isInstalled ? (
-                                    <button className="secondary-btn" disabled style={{ color: '#10b981' }}><CheckCircle size={16} /> Ready</button>
+                                    <button className="danger-btn" onClick={() => deleteEngine(opt.id)} title="Uninstall Engine" style={{ padding: '6px 10px' }}>
+                                        <Trash2 size={16} />
+                                    </button>
                                 ) : opt.compile ? (
-                                    <button className="primary-btn" onClick={() => compileEngine(opt.id, opt.compile)}><Terminal size={16} /> Compile</button>
+                                    <button className="engine-action-btn compile-btn" onClick={() => compileEngine(opt.id, opt.compile)}>Compile</button>
                                 ) : opt.asset ? (
-                                    <button className="primary-btn" onClick={() => downloadEngine(opt.id, opt.asset.browser_download_url)}><Download size={16} /> Download</button>
+                                    <button className="engine-action-btn compile-btn" onClick={() => downloadEngine(opt.id, opt.asset.browser_download_url)}>Download</button>
                                 ) : (
                                     <span style={{ fontSize: '13px', color: '#ef4444' }}>Release Not Found</span>
                                 )}
@@ -197,10 +209,6 @@ export default function EngineManager({ apiBase }) {
                         </div>
                     );
                 })}
-            </div>
-            
-            <div style={{ marginTop: '32px', fontSize: '13px', color: 'var(--text-muted)', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                <p style={{ margin: 0 }}><strong>Note:</strong> Download and compilation progress is logged directly to the System Console. Click the <strong style={{color: '#fff'}}>Onyx Logo</strong> in the top left of the dashboard to view the live logs.</p>
             </div>
         </div>
     );

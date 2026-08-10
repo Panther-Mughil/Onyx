@@ -994,6 +994,12 @@ function App() {
            }} title="Monitoring">
               <Activity size={24} />
            </button>
+           <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'engines') ? 'active' : ''}`} onClick={() => {
+               if (isLeftSidebarOpen && activeLeftTab === 'engines') setIsLeftSidebarOpen(false);
+               else { setIsLeftSidebarOpen(true); setActiveLeftTab('engines'); }
+           }} title="Engine Manager">
+              <Wrench size={24} />
+           </button>
            <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'huggingface') ? 'active' : ''}`} onClick={() => {
                if (isLeftSidebarOpen && activeLeftTab === 'huggingface') setIsLeftSidebarOpen(false);
                else { setIsLeftSidebarOpen(true); setActiveLeftTab('huggingface'); }
@@ -1005,12 +1011,6 @@ function App() {
                else { setIsLeftSidebarOpen(true); setActiveLeftTab('local-models'); }
            }} title="Local Models">
               <Database size={24} />
-           </button>
-           <button className={`activity-icon ${(isLeftSidebarOpen && activeLeftTab === 'engines') ? 'active' : ''}`} onClick={() => {
-               if (isLeftSidebarOpen && activeLeftTab === 'engines') setIsLeftSidebarOpen(false);
-               else { setIsLeftSidebarOpen(true); setActiveLeftTab('engines'); }
-           }} title="Engine Manager">
-              <Wrench size={24} />
            </button>
         </div>
 
@@ -1429,12 +1429,12 @@ function App() {
                 <>
                   <MemoryEstimator selectedModel={selectedModel} config={config} activeDevices={activeDevices} telemetry={telemetry} />
                   <div className="form-section">
-                    <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={16} color="var(--text-main)" /> Context and Offload</div>
+                    <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={16} color="var(--text-main)" /> Engine & Context</div>
                     
                     <div style={{ marginBottom: '20px' }}>
                       <div className="form-row" style={{ marginBottom: '12px' }}>
                         <span>Execution Engine</span>
-                        <select className="num-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange} style={{ width: '150px' }}>
+                        <select className="select-input" name="engineId" value={config.engineId || ''} onChange={handleConfigChange}>
                            {installedEngines.map(e => <option key={e} value={e}>{e}</option>)}
                         </select>
                       </div>
@@ -1483,7 +1483,7 @@ function App() {
                       {selectedModel?.architecture?.includes('moe') && (
                         <div style={{ marginTop: '24px' }}>
                           <div style={{ marginBottom: '16px', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Cpu size={16} color="#10b981" /> MoE Expert Offload
+                            <Cpu size={16} color="var(--text-main)" /> MoE Expert Offload
                           </div>
                           <div style={{ marginBottom: '8px' }}>
                             <div className="form-row">

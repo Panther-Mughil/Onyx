@@ -1636,6 +1636,16 @@ async fn stop_engine_setup(
     Json(serde_json::json!({"success": true}))
 }
 
+async fn delete_engine(
+    axum::extract::Path(engine_id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let engine_dir = format!("{}/engines/{}", base_dir(), engine_id);
+    match fs::remove_dir_all(&engine_dir) {
+        Ok(_) => Json(serde_json::json!({"success": true})),
+        Err(e) => Json(serde_json::json!({"success": false, "message": e.to_string()}))
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let models_dir = format!("{}/models", base_dir());
@@ -1758,6 +1768,7 @@ async fn main() {
         .route("/api/engines/download", post(download_engine))
         .route("/api/engines/compile", post(compile_engine))
         .route("/api/engines/stop", post(stop_engine_setup))
+        .route("/api/engines/:id", axum::routing::delete(delete_engine))
         .fallback(static_handler)
         .with_state(shared_state)
         .layer(CorsLayer::permissive());

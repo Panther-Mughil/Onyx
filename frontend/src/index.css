@@ -99,6 +99,56 @@ button {
   border-color: #3f3f46;
 }
 
+.engine-action-btn {
+  width: 100px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+}
+.compile-btn {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  color: white;
+  box-shadow: 0 2px 10px rgba(79, 70, 229, 0.2);
+}
+.compile-btn:hover {
+  box-shadow: 0 0 12px rgba(79, 70, 229, 0.5);
+  transform: translateY(-1px);
+}
+.stop-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.stop-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
+}
+
+.select-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: white;
+  padding: 6px 8px;
+  border-radius: 6px;
+  width: 150px;
+  text-align: center;
+  text-align-last: center;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: auto;
+}
+.select-input:focus { outline: none; border-color: var(--accent); }
+
 .main-content {
   display: flex;
   flex: 1;
