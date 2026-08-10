@@ -16,19 +16,18 @@ function runCmd(cmd, opts = {}) {
     execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
-async function fetchLatestRelease() {
+async function fetchLatestRelease(url = 'https://api.github.com/repos/ggerganov/llama.cpp/releases/latest') {
     return new Promise((resolve, reject) => {
-        const options = {
-            hostname: 'api.github.com',
-            path: '/repos/ggerganov/llama.cpp/releases/latest',
-            headers: { 'User-Agent': 'Node.js' }
-        };
-        https.get(options, (res) => {
+        const options = { headers: { 'User-Agent': 'Node.js' } };
+        https.get(url, options, (res) => {
+            if (res.statusCode === 302 || res.statusCode === 301) {
+                return fetchLatestRelease(res.headers.location).then(resolve).catch(reject);
+            }
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
                 if (res.statusCode === 200) resolve(JSON.parse(data));
-                else reject(new Error(`Failed to fetch release: ${res.statusCode}`));
+                else reject(new Error(`Failed to fetch release: ${res.statusCode} from ${url}`));
             });
         }).on('error', reject);
     });
