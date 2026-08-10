@@ -137,9 +137,9 @@ button {
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   color: white;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-radius: 6px;
-  width: 150px;
+  width: 130px;
   text-align: center;
   text-align-last: center;
   font-family: inherit;
