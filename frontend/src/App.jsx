@@ -1231,14 +1231,16 @@ function App() {
                </div>
                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
                  {models.map(m => (
-                   <div key={m.id} className="box" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                       <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', wordBreak: 'break-all' }}>{m.id}</div>
-                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.size_gb.toFixed(2)} GB</div>
+                   <div key={m.id} className="box" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                     <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }} title={m.id}>
+                       {m.id}
                      </div>
-                     <button className="danger-btn" style={{ padding: '8px' }} onClick={() => handleDeleteLocalModel(m.id)} title="Delete Model">
-                       <Trash2 size={16} />
-                     </button>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{m.size_gb.toFixed(2)} GB</div>
+                       <button className="danger-btn" style={{ padding: '6px' }} onClick={() => handleDeleteLocalModel(m.id)} title="Delete Model">
+                         <Trash2 size={14} />
+                       </button>
+                     </div>
                    </div>
                  ))}
                  {models.length === 0 && (
