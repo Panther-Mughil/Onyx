@@ -142,11 +142,13 @@ export default function EngineManager({ apiBase }) {
     }
 
     return (
-        <div style={{ padding: '24px', color: 'var(--text-main)', height: '100%', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: '14px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                <Wrench size={16} color="var(--text-main)" /> Engine Manager
-            </h2>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                <Wrench size={20} color="var(--text-muted)" />
+                <h2 style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px', margin: 0, color: 'var(--text-main)' }}>Engine Manager</h2>
+            </div>
             
+            <div style={{ padding: '16px', color: 'var(--text-main)', overflowY: 'auto', flex: 1 }}>
             <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
                 <h3 style={{ fontSize: '12px', marginBottom: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '500' }}>Detected System</h3>
                 <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
@@ -211,6 +213,7 @@ export default function EngineManager({ apiBase }) {
                         </div>
                     );
                 })}
+            </div>
             </div>
         </div>
     );
