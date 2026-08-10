@@ -90,7 +90,7 @@ if %errorlevel% neq 0 (
 )
 
 echo [2/5] Checking for Node.js/npm...
-npm --version >nul 2>&1
+call npm --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Node.js not found. Attempting to install via winget...
     winget install -e --id OpenJS.NodeJS
