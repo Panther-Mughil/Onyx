@@ -1,6 +1,5 @@
 # Models & Binaries
 models/
-llama-cpp/
 engines/
 temp_*
 *.exe
@@ -33,5 +32,5 @@ Thumbs.db
 # Pi Sub-agents
 .pi-subagents/
 
-# Markdown Scratchpads
-TMR_work.md
+# Documentation
+docs/
