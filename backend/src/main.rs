@@ -1496,10 +1496,22 @@ async fn get_system_info() -> Json<serde_json::Value> {
     let arch = std::env::consts::ARCH;
     let has_nvidia = nvml_wrapper::Nvml::init().is_ok();
     
+    let mut distro = "unknown".to_string();
+    if os == "linux" {
+        if Path::new("/usr/bin/pacman").exists() || Path::new("/bin/pacman").exists() {
+            distro = "arch".to_string();
+        } else if Path::new("/usr/bin/apt-get").exists() || Path::new("/bin/apt-get").exists() {
+            distro = "debian".to_string();
+        } else if Path::new("/usr/bin/dnf").exists() || Path::new("/bin/dnf").exists() {
+            distro = "fedora".to_string();
+        }
+    }
+    
     Json(serde_json::json!({
         "os": os,
         "arch": arch,
-        "has_nvidia": has_nvidia
+        "has_nvidia": has_nvidia,
+        "distro": distro
     }))
 }
 
