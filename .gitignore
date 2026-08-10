@@ -1,6 +1,8 @@
 # Models & Binaries
 models/
 llama-cpp/
+engines/
+temp_*
 *.exe
 *.dll
 *.so
