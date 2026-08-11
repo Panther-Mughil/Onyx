@@ -15,7 +15,9 @@ const action = args[0];
 const engineId = args[1];
 const urlOrFlags = args[2] || "";
 
-const ENGINE_DIR = path.join(__dirname, "..", "engines", engineId);
+// Honor ONYX_BASE env for bundled/AppImage deployments; fallback to repo root
+const BASE_DIR = process.env.ONYX_BASE || path.join(__dirname, "..");
+const ENGINE_DIR = path.join(BASE_DIR, "engines", engineId);
 
 function ensureDir() {
 	if (!fs.existsSync(ENGINE_DIR)) {
@@ -57,7 +59,7 @@ async function handleDownload() {
 		const url = urls[i].trim();
 		if (!url) continue;
 
-		const zipPath = path.join(__dirname, "..", `temp_${engineId}_${i}.zip`);
+		const zipPath = path.join(BASE_DIR, `temp_${engineId}_${i}.zip`);
 		console.log(`Downloading ${url}...`);
 		await downloadFile(url, zipPath);
 
@@ -81,7 +83,7 @@ async function handleDownload() {
 
 async function handleCompile() {
 	ensureDir();
-	const tempDir = path.join(__dirname, "..", "engines", `temp_src_${engineId}`);
+	const tempDir = path.join(BASE_DIR, "engines", `temp_src_${engineId}`);
 	if (fs.existsSync(tempDir))
 		fs.rmSync(tempDir, { recursive: true, force: true });
 

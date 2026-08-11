@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Onyx
+Comment=Local LLM Dashboard
+Exec=onyx %u
+Icon=onyx
+Type=Application
+Categories=Development;
+Terminal=false

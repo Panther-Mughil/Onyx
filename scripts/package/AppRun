@@ -1,0 +1,5 @@
+#!/bin/bash
+# AppRun — entrypoint for AppImage
+# The binary and scripts live at the mount point; data dirs are redirected
+# by base_dir() when APPIMAGE env is set.
+exec "$(dirname "$0")/onyx" "$@"

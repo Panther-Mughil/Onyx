@@ -11,14 +11,16 @@ echo [1] Start Primary Node (Dashboard ^& API Server)
 echo [2] Start RPC Worker Node (Compute Only)
 echo [3] Start Development Environment (Hot-Reloading)
 echo [4] Verify ^& Install System Dependencies
+echo [5] Package Release
 echo [0] Exit
 echo =================================================
-set /p choice="Select an option (0-4): "
+set /p choice="Select an option (0-5): "
 
 if "%choice%"=="1" goto START_PRIMARY
 if "%choice%"=="2" goto START_RPC
 if "%choice%"=="3" goto START_DEV
 if "%choice%"=="4" goto INSTALL_DEPS
+if "%choice%"=="5" goto PACKAGE_RELEASE
 if "%choice%"=="0" exit /b
 goto MENU
 
@@ -46,9 +48,22 @@ goto MENU
 
 :START_DEV
 echo Starting Development Environment...
-if not exist "llama-cpp\llama-server.exe" (
-    echo [INFO] First time setup detected. Automatically installing dependencies and compiling...
+if not exist "engines" (
+    echo [INFO] No engines directory found. Running first-time setup...
     call :INSTALL_DEPS_ROUTINE
+) else (
+    set "FOUND_ENGINE=0"
+    for /d %%d in (engines\*) do (
+        if exist "%%d\llama-server.exe" (
+            set "FOUND_ENGINE=1"
+            goto :FOUND
+        )
+    )
+    :FOUND
+    if "!FOUND_ENGINE!"=="0" (
+        echo [INFO] No engines installed. Running first-time setup...
+        call :INSTALL_DEPS_ROUTINE
+    )
 )
 where wt >nul 2>&1
 if %errorlevel% equ 0 (
@@ -164,6 +179,16 @@ if %errorlevel% neq 0 (
     cd ..
     pause
     exit /b
-)
+)  
 cd ..
 exit /b
+
+:PACKAGE_RELEASE
+echo Packaging release...
+if exist "compile.bat" (
+    call "%PROJECT_ROOT%compile.bat"
+) else (
+    echo [ERROR] compile.bat not found in project root
+)
+pause
+goto MENU

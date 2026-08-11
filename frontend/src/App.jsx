@@ -687,7 +687,7 @@ function App() {
 
 	const saveSettings = (newSettings) => {
 		setServerSettings(newSettings);
-		fetch("${API_BASE}/api/settings/save", {
+		fetch(`${API_BASE}/api/settings/save`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(newSettings),
@@ -764,14 +764,14 @@ function App() {
 
 	const toggleProxy = () => {
 		if (isProxyRunning) {
-			fetch("${API_BASE}/api/server/proxy/stop", { method: "POST" })
+			fetch(`${API_BASE}/api/server/proxy/stop`, { method: "POST" })
 				.then(() => {
 					setIsProxyRunning(false);
 					saveSettings({ ...serverSettings, autoStartGateway: false });
 				})
 				.catch(() => {});
 		} else {
-			fetch("${API_BASE}/api/server/network", {
+			fetch(`${API_BASE}/api/server/network`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -838,7 +838,7 @@ function App() {
 	const [rememberSettings, setRememberSettings] = useState(false);
 
 	const fetchStatusAndLogs = () => {
-		fetch("${API_BASE}/api/server/status")
+		fetch(`${API_BASE}/api/server/status`)
 			.then((res) => res.json())
 			.then((data) => {
 				setActiveServers(data.servers || []);
@@ -862,7 +862,7 @@ function App() {
 
 	useEffect(() => {
 		if (activeLeftTab === "engines" || activeTab === "load") {
-			fetch("${API_BASE}/api/engines")
+			fetch(`${API_BASE}/api/engines`)
 				.then((res) => res.json())
 				.then((data) => {
 					setInstalledEngines(data);
@@ -922,7 +922,7 @@ function App() {
 		fetch(`${API_BASE}/api/models?id=${encodeURIComponent(modelId)}`, {
 			method: "DELETE",
 		})
-			.then(() => fetch("${API_BASE}/api/models"))
+			.then(() => fetch(`${API_BASE}/api/models`))
 			.then((res) => res.json())
 			.then((data) => setModels(data))
 			.catch(() => {});
@@ -1005,13 +1005,13 @@ function App() {
 		}
 	}, [telemetry]);
 	useEffect(() => {
-		fetch("${API_BASE}/api/settings")
+		fetch(`${API_BASE}/api/settings`)
 			.then((res) => res.json())
 			.then((data) => {
 				if (Object.keys(data).length > 0) {
 					setServerSettings((prev) => ({ ...prev, ...data }));
 					if (data.autoStartGateway) {
-						fetch("${API_BASE}/api/server/network", {
+						fetch(`${API_BASE}/api/server/network`, {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({
@@ -1034,7 +1034,7 @@ function App() {
 
 	useEffect(() => {
 		if (!selectedModel) {
-			fetch("${API_BASE}/api/system/logs", { cache: "no-store" })
+			fetch(`${API_BASE}/api/system/logs`, { cache: "no-store" })
 				.then((res) => res.json())
 				.then((data) => setSystemLogs(data))
 				.catch(() => {});
@@ -1043,12 +1043,12 @@ function App() {
 	// Refresh logs periodically with status poll implicitly
 
 	useEffect(() => {
-		fetch("${API_BASE}/health")
+		fetch(`${API_BASE}/health`)
 			.then((res) => res.json())
 			.then((data) => setBackendStatus(data))
 			.catch(() => setBackendStatus({ status: "error", message: "Offline" }));
 
-		fetch("${API_BASE}/api/models")
+		fetch(`${API_BASE}/api/models`)
 			.then((res) => res.json())
 			.then((data) => setModels(data))
 			.catch(() => setBootErrors((prev) => [...prev, "Failed to load models"]));
@@ -1094,7 +1094,7 @@ function App() {
 	useEffect(() => {
 		const fetchTelemetry = async () => {
 			try {
-				const res = await fetch("${API_BASE}/api/server/telemetry", {
+				const res = await fetch(`${API_BASE}/api/server/telemetry`, {
 					cache: "no-store",
 				});
 				const hostData = await res.json();
@@ -1150,7 +1150,7 @@ function App() {
 
 	// A5b: fetch version info for footer
 	useEffect(() => {
-		fetch("${API_BASE}/api/version")
+		fetch(`${API_BASE}/api/version`)
 			.then((res) => res.json())
 			.then((data) => setVersionInfo(data))
 			.catch(() => {});
@@ -1160,7 +1160,7 @@ function App() {
 		let interval;
 		if (activeTab === "benchmark" && benchmarkStatus.isRunning) {
 			const fetchBench = () => {
-				fetch("${API_BASE}/api/server/benchmark/status", { cache: "no-store" })
+				fetch(`${API_BASE}/api/server/benchmark/status`, { cache: "no-store" })
 					.then((res) => res.json())
 					.then((data) =>
 						setBenchmarkStatus((prev) => ({
@@ -1261,7 +1261,7 @@ function App() {
 				[selectedModel.id]: sanitizedConfig,
 			};
 
-			const response = await fetch("${API_BASE}/api/server/start", {
+			const response = await fetch(`${API_BASE}/api/server/start`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -1287,7 +1287,7 @@ function App() {
 
 	const handleStopServer = async (modelId) => {
 		try {
-			await fetch("${API_BASE}/api/server/stop", {
+			await fetch(`${API_BASE}/api/server/stop`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ modelId }),
@@ -1310,7 +1310,7 @@ function App() {
 	const handleClearLogs = async () => {
 		if (!selectedModel) {
 			try {
-				const res = await fetch("${API_BASE}/api/system/logs/clear", {
+				const res = await fetch(`${API_BASE}/api/system/logs/clear`, {
 					method: "POST",
 				});
 				if (res.ok) {
@@ -1327,7 +1327,7 @@ function App() {
 		}
 		setLogs([]);
 		try {
-			await fetch("${API_BASE}/api/server/logs/clear", {
+			await fetch(`${API_BASE}/api/server/logs/clear`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ modelId: selectedModel.id }),
@@ -4015,7 +4015,7 @@ function App() {
 											className="primary-btn"
 											disabled={benchmarkStatus.isRunning}
 											onClick={() => {
-												fetch("${API_BASE}/api/server/benchmark/start", {
+												fetch(`${API_BASE}/api/server/benchmark/start`, {
 													method: "POST",
 													headers: { "Content-Type": "application/json" },
 													body: JSON.stringify({
@@ -4072,7 +4072,7 @@ function App() {
 													padding: 0,
 												}}
 												onClick={() => {
-													fetch("${API_BASE}/api/server/benchmark/clear", {
+													fetch(`${API_BASE}/api/server/benchmark/clear`, {
 														method: "POST",
 													});
 													setBenchmarkStatus((prev) => ({

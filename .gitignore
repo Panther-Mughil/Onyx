@@ -32,3 +32,8 @@ Thumbs.db
 # Pi Sub-agents
 .pi-subagents/
 
+
+# Release build artifacts
+release/
+appimagetool
+scripts/package/appimagetool

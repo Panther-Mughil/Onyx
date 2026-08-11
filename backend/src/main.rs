@@ -92,6 +92,8 @@ pub fn app_dir() -> String {
     }
 }
 
+/// Returns (base_directory, is_packaged).
+/// is_packaged == true when running from exe-dir or APPIMAGE mode.
 pub fn base_dir() -> (String, bool) {
     if let Ok(appliance) = std::env::var("APPIMAGE") {
         if !appliance.is_empty() {
@@ -104,13 +106,13 @@ pub fn base_dir() -> (String, bool) {
                 return (app_dir(), true);
             };
             let onyx_dir = data_dir.join("onyx");
-            std::fs::create_dir_all(&onyx_dir).unwrap();
+            let _ = std::fs::create_dir_all(&onyx_dir);
             return (onyx_dir.to_str().unwrap().to_string(), true);
         }
     }
-    let app_dir = app_dir();
-    if std::path::Path::new(&app_dir).join("scripts").exists() {
-        (app_dir, true)
+    let exe_dir = app_dir();
+    if std::path::Path::new(&exe_dir).join("scripts").exists() {
+        (exe_dir, true)
     } else {
         let cwd = std::env::current_dir().unwrap();
         let cwd_str = cwd.to_str().unwrap();
@@ -119,6 +121,26 @@ pub fn base_dir() -> (String, bool) {
         } else {
             (cwd_str.to_string(), false)
         }
+    }
+}
+
+/// Returns true when running in packaged mode (exe-dir or APPIMAGE).
+pub fn is_packaged() -> bool {
+    base_dir().1
+}
+
+/// Returns a tokio Command configured to use bundled node.exe/node if available, else system node from PATH.
+fn node_command(base_path: &str) -> tokio::process::Command {
+    let node_bin = if cfg!(windows) {
+        format!("{}/node.exe", base_path)
+    } else {
+        format!("{}/node", base_path)
+    };
+    if std::path::Path::new(&node_bin).exists() {
+        tokio::process::Command::new(node_bin)
+    } else {
+        eprintln!("Warning: bundled node not found at '{}'; falling back to PATH", node_bin);
+        tokio::process::Command::new("node")
     }
 }
 
@@ -335,7 +357,7 @@ struct StopRequest {
 
 
 async fn get_settings() -> Json<serde_json::Value> {
-    let settings_path = format!("{}/data/settings.json", base_dir());
+    let settings_path = format!("{}/data/settings.json", base_dir().0);
     if let Ok(data) = fs::read_to_string(&settings_path) {
         if let Ok(json) = serde_json::from_str(&data) {
             return Json(json);
@@ -349,7 +371,7 @@ async fn save_settings(Json(payload): Json<serde_json::Value>) -> Json<StartResp
 let data_dir = format!("{}/data", base_dir);
     let _ = fs::create_dir_all(&data_dir);
     if let Ok(json_str) = serde_json::to_string_pretty(&payload) {
-        let settings_path = format!("{}/data/settings.json", base_dir());
+        let settings_path = format!("{}/data/settings.json", base_dir);
         let _ = fs::write(&settings_path, json_str);
     }
     Json(StartResponse { success: true, message: "Settings saved".to_string() })
@@ -391,7 +413,6 @@ struct DeleteModelQuery {
 }
 
 async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<DeleteModelQuery>) -> Json<StartResponse> {
-    let base = base_dir();
     let (base, _) = base_dir();
 let models_dir = std::path::Path::new(&base).join("models");
     
@@ -401,7 +422,7 @@ let models_dir = std::path::Path::new(&base).join("models");
     
     // If it's in a subdirectory, we should delete the whole subdirectory
     if clean_id.contains('/') || clean_id.contains('\\') {
-        let parts: Vec<&str> = clean_id.split(|c| c == '/' || c == '\\').collect();
+        let parts: Vec<&str> = clean_id.split(['/', '\\']).collect();
         if !parts.is_empty() && !parts[0].is_empty() {
             target_path = models_dir.join(parts[0]);
         }
@@ -425,8 +446,8 @@ let models_dir = std::path::Path::new(&base).join("models");
 
 async fn get_local_models() -> Json<Vec<Model>> {
     let mut models = Vec::new();
-    let (base_dir, _) = base_dir();
-let models_dir_str = format!("{}/models", base_dir);
+    let (base_dir_root, _) = base_dir();
+let models_dir_str = format!("{}/models", base_dir_root);
     let models_dir = Path::new(&models_dir_str);
 
     let mut files_to_process = Vec::new();
@@ -435,7 +456,7 @@ let models_dir_str = format!("{}/models", base_dir);
     if let Ok(entries) = fs::read_dir(models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "gguf") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "gguf") {
                 let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
                 if filename.starts_with("mmproj-") {
                     mmprojs_by_dir.insert("".to_string(), filename);
@@ -447,7 +468,7 @@ let models_dir_str = format!("{}/models", base_dir);
                 if let Ok(sub_entries) = fs::read_dir(&path) {
                     for sub_entry in sub_entries.flatten() {
                         let sub_path = sub_entry.path();
-                        if sub_path.is_file() && sub_path.extension().map_or(false, |ext| ext == "gguf") {
+                        if sub_path.is_file() && sub_path.extension().is_some_and(|ext| ext == "gguf") {
                             let filename = sub_path.file_name().unwrap_or_default().to_string_lossy().to_string();
                             let rel_path = format!("{}/{}", dir_name, filename);
                             if filename.starts_with("mmproj-") {
@@ -470,8 +491,8 @@ let models_dir_str = format!("{}/models", base_dir);
         };
 
                 // Try to load from cache first
-                let (base_dir, _) = base_dir();
-let cache_path_str = format!("{}/models/metadata_cache.json", base_dir);
+                let (base_dir_cache, _) = base_dir();
+let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                 let cache_path = std::path::Path::new(&cache_path_str);
                 let mut cache: std::collections::HashMap<String, CachedModelMetadata> = if cache_path.exists() {
                     if let Ok(cache_str) = fs::read_to_string(cache_path) {
@@ -676,7 +697,7 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir);
                 };
 
                 let parent_dir = path.parent().and_then(|p| p.file_name()).unwrap_or_default().to_string_lossy().to_string();
-                let is_root = path.parent().map_or(true, |p| p == models_dir);
+                let is_root = path.parent().is_none_or(|p| p == models_dir);
                 let dir_key = if is_root { "".to_string() } else { parent_dir };
                 let mmproj = mmprojs_by_dir.get(&dir_key).cloned();
 
@@ -705,7 +726,7 @@ async fn proxy_models_handler(
     let servers = state.active_servers.lock().await;
     let mut data = Vec::new();
     
-    for (model_id, _) in servers.iter() {
+    for model_id in servers.keys() {
         let clean_id = model_id.strip_suffix(".gguf").unwrap_or(model_id);
         data.push(serde_json::json!({
             "id": clean_id,
@@ -1037,16 +1058,16 @@ async fn start_server(
         p
     };
     
-    let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
+    let model_path = format!("{}/models/{}", base_dir().0, payload.model_id);
+    let (base, _) = base_dir();
     let engine_dir = if let Some(e) = &payload.engine_id {
         if e.is_empty() {
-            format!("{}/llama-cpp", base_dir())
+            format!("{}/llama-cpp", base)
         } else {
-            let (base_dir, _) = base_dir();
-format!("{}/engines/{}", base_dir, e)
+            format!("{}/engines/{}", base, e)
         }
     } else {
-        format!("{}/llama-cpp", base_dir())
+        format!("{}/llama-cpp", base)
     };
     
     let binary_path = if cfg!(windows) {
@@ -1120,13 +1141,13 @@ format!("{}/engines/{}", base_dir, e)
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
 
     if let Some(mmproj_path) = &payload.mmproj {
-        let full_mmproj_path = format!("{}/models/{}", base_dir(), mmproj_path);
+        let full_mmproj_path = format!("{}/models/{}", base_dir().0, mmproj_path);
         args.push("--mmproj".to_string());
         args.push(full_mmproj_path);
     }
 
     let full_command = format!("{} {}", binary_path, args.join(" "));
-    state.system_logs.lock().await.push(format!("I [SYSTEM] Booting llama-server with parameters:"));
+    state.system_logs.lock().await.push("I [SYSTEM] Booting llama-server with parameters:".to_string());
     state.system_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
 
     let mut child = match Command::new(binary_path.clone())
@@ -1148,7 +1169,7 @@ format!("{}/engines/{}", base_dir, e)
     let stderr = child.inner().stderr.take().unwrap();
     
     let mut initial_logs = Vec::new();
-    initial_logs.push(format!("I [SYSTEM] Booting llama-server with exact parameters:"));
+    initial_logs.push("I [SYSTEM] Booting llama-server with exact parameters:".to_string());
     initial_logs.push(format!("I [SYSTEM] {}", full_command));
 
     let server_state = ActiveServer {
@@ -1239,7 +1260,7 @@ async fn run_benchmark(
 
     {
         let mut servers_map = state.active_servers.lock().await;
-        for (_, server) in servers_map.iter_mut() {
+        for server in servers_map.values_mut() {
             if let Some(mut child) = server.process.take() {
                 let _ = child.kill().await;
             }
@@ -1250,11 +1271,11 @@ async fn run_benchmark(
             .output();
     }
 
-    let model_path = format!("{}/models/{}", base_dir(), payload.model_id);
+    let model_path = format!("{}/models/{}", base_dir().0, payload.model_id);
     let binary_path = if cfg!(windows) {
-        format!("{}/llama-cpp/llama-bench.exe", base_dir())
+        format!("{}/llama-cpp/llama-bench.exe", base_dir().0)
     } else {
-        format!("{}/llama-cpp/llama-bench", base_dir())
+        format!("{}/llama-cpp/llama-bench", base_dir().0)
     };
     
     let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");
@@ -1308,7 +1329,7 @@ async fn run_benchmark(
     let shared_state = state.clone();
     
     let full_command = format!("{} {}", binary_path, args.join(" "));
-    state.benchmark_logs.lock().await.push(format!("I [SYSTEM] Booting llama-bench with exact parameters:"));
+    state.benchmark_logs.lock().await.push("I [SYSTEM] Booting llama-bench with exact parameters:".to_string());
     state.benchmark_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
     
     tokio::spawn(async move {
@@ -1465,7 +1486,7 @@ async fn hf_download(
     
     tokio::spawn(async move {
         let url = format!("https://huggingface.co/{}/resolve/main/{}", repo_id, filename);
-        let dest_dir = format!("{}/models/{}", base_dir(), repo_id.replace("/", "_"));
+        let dest_dir = format!("{}/models/{}", base_dir().0, repo_id.replace("/", "_"));
         let _ = std::fs::create_dir_all(&dest_dir);
         let dest_path = format!("{}/{}", dest_dir, filename);
         
@@ -1608,7 +1629,8 @@ async fn get_version() -> Json<serde_json::Value> {
 
 async fn get_installed_engines() -> Json<Vec<String>> {
     let mut engines = Vec::new();
-    let engines_dir = format!("{}/engines", base_dir());
+    let (base, _) = base_dir();
+    let engines_dir = format!("{}/engines", base);
     if let Ok(entries) = fs::read_dir(engines_dir) {
         for entry in entries.flatten() {
             if let Ok(file_type) = entry.file_type() {
@@ -1629,8 +1651,11 @@ async fn download_engine(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<EngineDownloadPayload>
 ) -> Json<serde_json::Value> {
-    let script_path = format!("{}/scripts/engine_manager.js", base_dir());
-    let child_res = Command::new("node")
+    let app_base = app_dir();
+    let (base, _) = base_dir();
+    let script_path = format!("{}/scripts/engine_manager.js", app_base);
+    let child_res = node_command(&base)
+        .env("ONYX_BASE", &base)
         .arg(script_path)
         .arg("download")
         .arg(&payload.engine_id)
@@ -1670,8 +1695,11 @@ async fn compile_engine(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<EngineDownloadPayload>
 ) -> Json<serde_json::Value> {
-    let script_path = format!("{}/scripts/engine_manager.js", base_dir());
-    let child_res = Command::new("node")
+    let app_base = app_dir();
+    let (base, _) = base_dir();
+    let script_path = format!("{}/scripts/engine_manager.js", app_base);
+    let child_res = node_command(&base)
+        .env("ONYX_BASE", &base)
         .arg(script_path)
         .arg("compile")
         .arg(&payload.engine_id)
@@ -1730,7 +1758,8 @@ async fn get_engine_status(
 async fn delete_engine(
     axum::extract::Path(engine_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
-    let engine_dir = format!("{}/engines/{}", base_dir(), engine_id);
+    let (base, _) = base_dir();
+    let engine_dir = format!("{}/engines/{}", base, engine_id);
     match fs::remove_dir_all(&engine_dir) {
         Ok(_) => Json(serde_json::json!({"success": true})),
         Err(e) => Json(serde_json::json!({"success": false, "message": e.to_string()}))
@@ -1739,9 +1768,21 @@ async fn delete_engine(
 
 #[tokio::main]
 async fn main() {
-    let models_dir = format!("{}/models", base_dir());
+    let (base, is_packaged) = base_dir();
+    let models_dir = format!("{}/models", base);
     let _ = fs::create_dir_all(&models_dir);
-
+    let data_dir = format!("{}/data", base);
+    let _ = fs::create_dir_all(&data_dir);
+    let engines_dir = format!("{}/engines", base);
+    let _ = fs::create_dir_all(&engines_dir);
+    
+    // Warn if scripts/engine_manager.js is missing (engine installs will fail later)
+    let app_base = app_dir();
+    let script_path = format!("{}/scripts/engine_manager.js", app_base);
+    if !std::path::Path::new(&script_path).exists() {
+        eprintln!("Warning: {} not found — engine installs will fail", script_path);
+    }
+    
     let telemetry_cache = Arc::new(Mutex::new(TelemetryResponse {
         cpu_name: "Loading...".to_string(),
         cpu_usage_pct: 0.0,
@@ -1867,22 +1908,42 @@ async fn main() {
         .layer(CorsLayer::permissive());
 
     let mut port = 3001;
-let addr = loop {
-    match SocketAddr::from(([127, 0, 0, 1], port)) {
-        Ok(addr) => break addr,
-        Err(_) => {
-            if port < 3010 {
-                port += 1;
-            } else {
-                eprintln!("Dashboard port 3001-3010 all in use — close other Onyx instances or set ONYX_PORT");
-                std::process::exit(1);
+    let listener = loop {
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => break l,
+            Err(_e) => {
+                if port < 3010 {
+                    eprintln!("Port {} in use, trying {}...", port, port + 1);
+                    port += 1;
+                } else {
+                    eprintln!("Dashboard port 3001-3010 all in use — close other Onyx instances or set ONYX_PORT");
+                    std::process::exit(1);
+                }
             }
         }
-    }
-};
-println!("Backend middleware starting on http://127.0.0.1:{}", port);
+    };
+    let addr = listener.local_addr().unwrap();
+    println!("Backend middleware starting on http://127.0.0.1:{}", port);
     println!("Backend middleware starting on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    // Auto-open browser in packaged modes only (opt-out with ONYX_NO_OPEN=1)
+    if is_packaged && std::env::var("ONYX_NO_OPEN").map_or(true, |v| v != "1") {
+        let url = format!("http://127.0.0.1:{}", port);
+        let opener = if cfg!(target_os = "macos") {
+            Some(("open", vec![url.clone()]))
+        } else if cfg!(target_os = "linux") {
+            Some(("xdg-open", vec![url.clone()]))
+        } else if cfg!(target_os = "windows") {
+            Some(("cmd", vec!["/c".to_string(), "start".to_string(), "".to_string(), url]))
+        } else {
+            eprintln!("Auto-open: unsupported OS, please open {} manually", url);
+            None
+        };
+        if let Some((cmd, args)) = opener {
+            let _ = std::process::Command::new(cmd).args(&args).spawn();
+        }
+    }
+
     axum::serve(listener, app).await.unwrap();
 }
