@@ -75,12 +75,50 @@ use rust_embed::RustEmbed;
 use axum::http::{header, StatusCode, Uri};
 use mime_guess::from_path;
 
-fn base_dir() -> String {
-    let current_dir = std::env::current_dir().unwrap_or_default();
-    if current_dir.ends_with("backend") {
-        "..".to_string()
+pub fn app_dir() -> String {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            if parent.join("scripts").exists() {
+                return parent.to_str().unwrap().to_string();
+            }
+        }
+    }
+    let cwd = std::env::current_dir().unwrap();
+    let cwd_str = cwd.to_str().unwrap();
+    if cwd_str.ends_with("backend") {
+        cwd.parent().unwrap().to_str().unwrap().to_string()
     } else {
-        ".".to_string()
+        cwd_str.to_string()
+    }
+}
+
+pub fn base_dir() -> (String, bool) {
+    if let Ok(appliance) = std::env::var("APPIMAGE") {
+        if !appliance.is_empty() {
+            let data_dir = if let Ok(xdg_data_home) = std::env::var("XDG_DATA_HOME") {
+                std::path::PathBuf::from(xdg_data_home)
+            } else if let Ok(home) = std::env::var("HOME") {
+                std::path::PathBuf::from(home).join(".local/share")
+            } else {
+                eprintln!("Warning: APPIMAGE set but XDG_DATA_HOME/HOME not set — falling back to exe mode");
+                return (app_dir(), true);
+            };
+            let onyx_dir = data_dir.join("onyx");
+            std::fs::create_dir_all(&onyx_dir).unwrap();
+            return (onyx_dir.to_str().unwrap().to_string(), true);
+        }
+    }
+    let app_dir = app_dir();
+    if std::path::Path::new(&app_dir).join("scripts").exists() {
+        (app_dir, true)
+    } else {
+        let cwd = std::env::current_dir().unwrap();
+        let cwd_str = cwd.to_str().unwrap();
+        if cwd_str.ends_with("backend") {
+            (cwd.parent().unwrap().to_str().unwrap().to_string(), false)
+        } else {
+            (cwd_str.to_string(), false)
+        }
     }
 }
 
@@ -307,7 +345,8 @@ async fn get_settings() -> Json<serde_json::Value> {
 }
 
 async fn save_settings(Json(payload): Json<serde_json::Value>) -> Json<StartResponse> {
-    let data_dir = format!("{}/data", base_dir());
+    let (base_dir, _) = base_dir();
+let data_dir = format!("{}/data", base_dir);
     let _ = fs::create_dir_all(&data_dir);
     if let Ok(json_str) = serde_json::to_string_pretty(&payload) {
         let settings_path = format!("{}/data/settings.json", base_dir());
@@ -353,7 +392,8 @@ struct DeleteModelQuery {
 
 async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<DeleteModelQuery>) -> Json<StartResponse> {
     let base = base_dir();
-    let models_dir = std::path::Path::new(&base).join("models");
+    let (base, _) = base_dir();
+let models_dir = std::path::Path::new(&base).join("models");
     
     // Safety check to prevent escaping models_dir
     let clean_id = query.id.replace("..", "");
@@ -385,7 +425,8 @@ async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<De
 
 async fn get_local_models() -> Json<Vec<Model>> {
     let mut models = Vec::new();
-    let models_dir_str = format!("{}/models", base_dir());
+    let (base_dir, _) = base_dir();
+let models_dir_str = format!("{}/models", base_dir);
     let models_dir = Path::new(&models_dir_str);
 
     let mut files_to_process = Vec::new();
@@ -429,7 +470,8 @@ async fn get_local_models() -> Json<Vec<Model>> {
         };
 
                 // Try to load from cache first
-                let cache_path_str = format!("{}/models/metadata_cache.json", base_dir());
+                let (base_dir, _) = base_dir();
+let cache_path_str = format!("{}/models/metadata_cache.json", base_dir);
                 let cache_path = std::path::Path::new(&cache_path_str);
                 let mut cache: std::collections::HashMap<String, CachedModelMetadata> = if cache_path.exists() {
                     if let Ok(cache_str) = fs::read_to_string(cache_path) {
@@ -1000,7 +1042,8 @@ async fn start_server(
         if e.is_empty() {
             format!("{}/llama-cpp", base_dir())
         } else {
-            format!("{}/engines/{}", base_dir(), e)
+            let (base_dir, _) = base_dir();
+format!("{}/engines/{}", base_dir, e)
         }
     } else {
         format!("{}/llama-cpp", base_dir())
@@ -1518,11 +1561,48 @@ async fn get_system_info() -> Json<serde_json::Value> {
         }
     }
     
+    let has_xcode_clt = if os == "macos" {
+        std::process::Command::new("xcode-select")
+            .arg("-p")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+    
+    let has_brew = if os == "macos" {
+        std::process::Command::new("brew")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+    
+    let has_cmake = std::process::Command::new("cmake")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    
     Json(serde_json::json!({
         "os": os,
         "arch": arch,
         "has_nvidia": has_nvidia,
-        "distro": distro
+        "distro": distro,
+        "has_xcode_clt": has_xcode_clt,
+        "has_brew": has_brew,
+        "has_cmake": has_cmake
+    }))
+}
+
+async fn get_version() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "version": env!("ONYX_VERSION"),
+        "git_sha": env!("ONYX_GIT_SHA"),
+        "built_at": env!("ONYX_BUILT_AT")
     }))
 }
 
@@ -1775,6 +1855,7 @@ async fn main() {
         .route("/api/huggingface/download", post(hf_download))
         .route("/api/huggingface/downloads", get(hf_downloads_status))
         .route("/api/system/info", get(get_system_info))
+        .route("/api/version", get(get_version))
         .route("/api/engines", get(get_installed_engines))
         .route("/api/engines/download", post(download_engine))
         .route("/api/engines/compile", post(compile_engine))
@@ -1785,7 +1866,21 @@ async fn main() {
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
+    let mut port = 3001;
+let addr = loop {
+    match SocketAddr::from(([127, 0, 0, 1], port)) {
+        Ok(addr) => break addr,
+        Err(_) => {
+            if port < 3010 {
+                port += 1;
+            } else {
+                eprintln!("Dashboard port 3001-3010 all in use — close other Onyx instances or set ONYX_PORT");
+                std::process::exit(1);
+            }
+        }
+    }
+};
+println!("Backend middleware starting on http://127.0.0.1:{}", port);
     println!("Backend middleware starting on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
