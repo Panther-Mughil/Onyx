@@ -65,4 +65,8 @@ Error: Command failed: cd "/mnt/G/Onyx/engines/temp_src_llama.cpp (Vulkan)" && c
 2. Next in windows when i run the compile.bat I am getting this error
 `PS C:\Users\Mughil\Desktop\Onyx> .\compile.bat 2> was unexpected at this time.`
 
-3. In macOS there are two bugs which we needed to fix. 1. 
+3. In macOS there are two bugs which we needed to fix. 1. In macOS whent the app is running and under the dependencies tab, In it the homebrew installation goes out of the tab. macOS Dependencies Required
+
+`Before compiling, please run the following command(s) in your terminal:
+
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` 2. Next Problem in Macbook it shows Nvidia GPU: NO actually that dont want to be shown in the macOS and mac systems cuz there is no nvidia GPU obviously. It should be only shown in Linux and Windows.

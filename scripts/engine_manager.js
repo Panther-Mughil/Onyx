@@ -83,7 +83,8 @@ async function handleDownload() {
 
 async function handleCompile() {
 	ensureDir();
-	const tempDir = path.join(BASE_DIR, "engines", `temp_src_${engineId}`);
+	const safeEngineId = engineId.replace(/[^a-zA-Z0-9]/g, "_");
+	const tempDir = path.join(BASE_DIR, "engines", `temp_src_${safeEngineId}`);
 	if (fs.existsSync(tempDir))
 		fs.rmSync(tempDir, { recursive: true, force: true });
 

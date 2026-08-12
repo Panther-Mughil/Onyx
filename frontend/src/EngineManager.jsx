@@ -355,10 +355,12 @@ export default function EngineManager({ apiBase }) {
 							<span style={{ color: "var(--text-muted)" }}>Architecture:</span>{" "}
 							{sysInfo?.arch || "Unknown"}
 						</div>
-						<div>
-							<span style={{ color: "var(--text-muted)" }}>NVIDIA GPU:</span>{" "}
-							{sysInfo?.has_nvidia ? "Yes" : "No"}
-						</div>
+						{!isMac && (
+							<div>
+								<span style={{ color: "var(--text-muted)" }}>NVIDIA GPU:</span>{" "}
+								{sysInfo?.has_nvidia ? "Yes" : "No"}
+							</div>
+						)}
 					</div>
 				</div>
 
@@ -400,6 +402,8 @@ export default function EngineManager({ apiBase }) {
 								fontSize: "13px",
 								fontFamily: "monospace",
 								color: "#a78bfa",
+								whiteSpace: "pre-wrap",
+								wordBreak: "break-word",
 							}}
 						>
 							{sysInfo?.distro === "arch"
@@ -451,6 +455,8 @@ export default function EngineManager({ apiBase }) {
 									fontSize: "13px",
 									fontFamily: "monospace",
 									color: "#a78bfa",
+									whiteSpace: "pre-wrap",
+									wordBreak: "break-word",
 									marginBottom: macBannerCommands.length > 1 ? "8px" : "0",
 								}}
 							>
