@@ -76,16 +76,28 @@ export default function EngineManager({ apiBase }) {
 	const pollInstallStatus = (id) => {
 		const interval = setInterval(async () => {
 			try {
-				const res = await fetch(`${apiBase}/api/engines`);
-				if (res.ok) {
-					const data = await res.json();
-					setInstalled(data);
-					if (data.includes(id)) {
+				const [enginesRes, statusRes] = await Promise.all([
+					fetch(`${apiBase}/api/engines`),
+					fetch(`${apiBase}/api/engines/status`)
+				]);
+				
+				if (enginesRes.ok && statusRes.ok) {
+					const enginesData = await enginesRes.json();
+					const statusData = await statusRes.json();
+					
+					setInstalled(enginesData);
+					
+					if (enginesData.includes(id)) {
+						clearInterval(interval);
+						setActiveAction(null);
+					} else if (statusData.active_engine !== id) {
 						clearInterval(interval);
 						setActiveAction(null);
 					}
 				}
-			} catch (e) {}
+			} catch (e) {
+				console.error("Error polling install status:", e);
+			}
 		}, 5000);
 	};
 
@@ -407,10 +419,10 @@ export default function EngineManager({ apiBase }) {
 							}}
 						>
 							{sysInfo?.distro === "arch"
-								? `sudo pacman -S --needed cmake base-devel vulkan-headers ${hasNvidia ? "cuda" : ""}`
+								? `sudo pacman -S --needed cmake base-devel vulkan-headers spirv-headers ${hasNvidia ? "cuda" : ""}`
 								: sysInfo?.distro === "fedora"
-									? `sudo dnf install -y cmake gcc gcc-c++ vulkan-headers ${hasNvidia ? "cuda-toolkit" : ""}`
-									: `sudo apt-get update && sudo apt-get install -y cmake build-essential libvulkan-dev ${hasNvidia ? "nvidia-cuda-toolkit" : ""}`}
+									? `sudo dnf install -y cmake gcc gcc-c++ vulkan-headers spirv-headers ${hasNvidia ? "cuda-toolkit" : ""}`
+									: `sudo apt-get update && sudo apt-get install -y cmake build-essential libvulkan-dev spirv-headers ${hasNvidia ? "nvidia-cuda-toolkit" : ""}`}
 						</code>
 					</div>
 				)}
