@@ -8,7 +8,7 @@ set "PROJECT_ROOT=%SCRIPT_DIR%"
 set "RELEASE_DIR=%PROJECT_ROOT%release"
 
 REM ── Version ──────────────────────────────────────────────────────────────
-for /f %%i in ('git describe --tags --always 2>nul ^| findstr /v "^$"') do set "VERSION=%%i"
+for /f %%i in ('git describe --tags --always 2^>nul ^| findstr /v "^$"') do set "VERSION=%%i"
 if "!VERSION!"=="" set "VERSION=%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%"
 set "VERSION=!VERSION: =0!"
 echo Onyx build version: !VERSION!

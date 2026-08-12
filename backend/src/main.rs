@@ -1909,7 +1909,7 @@ async fn main() {
 
     let mut port = 3001;
     let listener = loop {
-        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        let addr = SocketAddr::from(([0, 0, 0, 0], port));
         match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => break l,
             Err(_e) => {
@@ -1924,8 +1924,9 @@ async fn main() {
         }
     };
     let addr = listener.local_addr().unwrap();
-    println!("Backend middleware starting on http://127.0.0.1:{}", port);
-    println!("Backend middleware starting on http://{}", addr);
+    println!("Backend middleware starting on:");
+    println!("  Local:   http://127.0.0.1:{}", port);
+    println!("  Network: http://{}", addr);
 
     // Auto-open browser in packaged modes only (opt-out with ONYX_NO_OPEN=1)
     if is_packaged && std::env::var("ONYX_NO_OPEN").map_or(true, |v| v != "1") {
@@ -1941,7 +1942,11 @@ async fn main() {
             None
         };
         if let Some((cmd, args)) = opener {
-            let _ = std::process::Command::new(cmd).args(&args).spawn();
+            let _ = std::process::Command::new(cmd)
+                .args(&args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
         }
     }
 
