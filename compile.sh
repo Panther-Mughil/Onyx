@@ -178,7 +178,7 @@ elif [ "$OS" = "macos" ]; then
 	info_plist="$PROJECT_ROOT/scripts/package/Info.plist"
 	if [ -f "$info_plist" ]; then
 		sed "s/VERSION_PLACEHOLDER/$VERSION/g" "$info_plist" \
-			>"$app_dir/Contents/Resources/Info.plist"
+			>"$app_dir/Contents/Info.plist"
 	fi
 	
 	
