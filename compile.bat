@@ -13,6 +13,24 @@ if "!VERSION!"=="" set "VERSION=%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2
 set "VERSION=!VERSION: =0!"
 echo Onyx build version: !VERSION!
 
+REM ── Download Portable Node ───────────────────────────────────────────────
+set "NODE_VERSION=v20.11.1"
+set "NODE_ZIP=node-!NODE_VERSION!-win-x64.zip"
+set "NODE_URL=https://nodejs.org/dist/!NODE_VERSION!/!NODE_ZIP!"
+set "PORTABLE_NODE_DIR=%PROJECT_ROOT%scripts\portable-node"
+set "PORTABLE_NODE_EXE=!PORTABLE_NODE_DIR!\node.exe"
+
+if not exist "!PORTABLE_NODE_EXE!" (
+    echo.
+    echo Downloading Node.js !NODE_VERSION! ^(win-x64^)...
+    if not exist "!PORTABLE_NODE_DIR!" mkdir "!PORTABLE_NODE_DIR!"
+    powershell -Command "Invoke-WebRequest -Uri '!NODE_URL!' -OutFile '%TEMP%\!NODE_ZIP!'"
+    powershell -Command "Expand-Archive -Path '%TEMP%\!NODE_ZIP!' -DestinationPath '%TEMP%\node_extracted' -Force"
+    copy /y "%TEMP%\node_extracted\node-!NODE_VERSION!-win-x64\node.exe" "!PORTABLE_NODE_EXE!" >nul
+    rmdir /s /q "%TEMP%\node_extracted"
+    del /q "%TEMP%\!NODE_ZIP!"
+)
+
 REM ── Build Frontend ───────────────────────────────────────────────────────
 echo.
 echo =================================================
