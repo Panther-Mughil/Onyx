@@ -182,18 +182,24 @@ elif [ "$OS" = "macos" ]; then
 	fi
 	
 	
-	# Generate icon natively on macOS using sips directly
+	# Generate icon natively on macOS
 	png_icon="$PROJECT_ROOT/scripts/package/onyx.png"
-	if command -v sips &>/dev/null && [ -f "$png_icon" ]; then
-		echo "  Generating macOS icon with sips..."
-		sips -s format icns "$png_icon" --out "$app_dir/Contents/Resources/icon.icns" >/dev/null 2>&1
-		
-		# Verify it was created, if not fallback
-		if [ ! -f "$app_dir/Contents/Resources/icon.icns" ]; then
-			if [ -f "$PROJECT_ROOT/scripts/package/icon.icns" ]; then
-				cp "$PROJECT_ROOT/scripts/package/icon.icns" "$app_dir/Contents/Resources/icon.icns"
-			fi
-		fi
+	if command -v iconutil &>/dev/null && [ -f "$png_icon" ]; then
+		echo "  Generating macOS icon..."
+		iconset_dir="/tmp/onyx_$$.iconset"
+		mkdir -p "$iconset_dir"
+		sips -z 16 16     "$png_icon" --out "$iconset_dir/icon_16x16.png" >/dev/null 2>&1
+		sips -z 32 32     "$png_icon" --out "$iconset_dir/icon_16x16@2x.png" >/dev/null 2>&1
+		sips -z 32 32     "$png_icon" --out "$iconset_dir/icon_32x32.png" >/dev/null 2>&1
+		sips -z 64 64     "$png_icon" --out "$iconset_dir/icon_32x32@2x.png" >/dev/null 2>&1
+		sips -z 128 128   "$png_icon" --out "$iconset_dir/icon_128x128.png" >/dev/null 2>&1
+		sips -z 256 256   "$png_icon" --out "$iconset_dir/icon_128x128@2x.png" >/dev/null 2>&1
+		sips -z 256 256   "$png_icon" --out "$iconset_dir/icon_256x256.png" >/dev/null 2>&1
+		sips -z 512 512   "$png_icon" --out "$iconset_dir/icon_256x256@2x.png" >/dev/null 2>&1
+		sips -z 512 512   "$png_icon" --out "$iconset_dir/icon_512x512.png" >/dev/null 2>&1
+		sips -z 1024 1024 "$png_icon" --out "$iconset_dir/icon_512x512@2x.png" >/dev/null 2>&1
+		iconutil -c icns "$iconset_dir" -o "$app_dir/Contents/Resources/icon.icns"
+		rm -rf "$iconset_dir"
 	else
 		icon_icns="$PROJECT_ROOT/scripts/package/icon.icns"
 		if [ -f "$icon_icns" ]; then
