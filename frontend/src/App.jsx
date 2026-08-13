@@ -1565,8 +1565,7 @@ function App() {
 					}}
 				>
 					<span>
-						<strong>Connection Note:</strong> {bootErrors[bootErrors.length - 1]}. 
-						If you just started Onyx and see this, the default port (3001) might have been in use, causing the backend to auto-increment its port (e.g., to 3002). Check your terminal output for the correct URL.
+						<strong>Connection Note:</strong> The default port (3001) is in use so the backend is using a new port. Please check your terminal for the correct URL.
 					</span>
 					<button
 						style={{
