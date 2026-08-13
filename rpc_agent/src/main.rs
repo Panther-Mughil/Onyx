@@ -266,12 +266,11 @@ fn interactive_install(rpc_binary_name: &str) -> std::path::PathBuf {
         std::process::exit(1);
     }
 
-    let mut backend = String::new();
     let is_mac = cfg!(target_os = "macos");
     
-    if is_mac {
+    let backend = if is_mac {
         println!("Detected macOS. Using Metal backend by default.");
-        backend = "metal".to_string();
+        "metal".to_string()
     } else {
         println!("Select the hardware backend to compile for:");
         println!("[1] CPU (Default)");
@@ -284,11 +283,11 @@ fn interactive_install(rpc_binary_name: &str) -> std::path::PathBuf {
         std::io::stdin().read_line(&mut input).unwrap();
         
         match input.trim() {
-            "2" => backend = "cuda".to_string(),
-            "3" => backend = "vulkan".to_string(),
-            _ => backend = "cpu".to_string(),
+            "2" => "cuda".to_string(),
+            "3" => "vulkan".to_string(),
+            _ => "cpu".to_string(),
         }
-    }
+    };
     
     let temp_dir = std::env::current_dir().unwrap().join("temp_llama_cpp_rpc");
     if temp_dir.exists() {

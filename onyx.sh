@@ -137,15 +137,16 @@ while true; do
 			install_deps_routine
 		fi
 		cd frontend || exit
-		npm run dev &
+		CI=true npm run dev &
 		FRONTEND_PID=$!
 		cd ../backend || exit
-		cargo run &
-		BACKEND_PID=$!
-		cd ..
 		echo "Development servers are running. Press Ctrl+C to stop."
-		trap "kill $FRONTEND_PID $BACKEND_PID; exit" INT
-		wait
+		trap "kill $FRONTEND_PID 2>/dev/null; exit" INT
+		cargo run
+		kill $FRONTEND_PID 2>/dev/null
+		trap - INT
+		cd ..
+		read -p "Press Enter to return to menu..."
 		;;
 	4)
 		install_deps_routine
