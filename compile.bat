@@ -96,7 +96,6 @@ for %%f in ("%RELEASE_DIR%\*") do (
     )
 )
 echo.
-echo   Note: Upload is manual (per plan REQ-002 §8).
 echo =================================================
 
 endlocal
