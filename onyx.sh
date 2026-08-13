@@ -40,23 +40,29 @@ install_deps_routine() {
 		echo "[OK] Node.js is installed."
 	fi
 
-	echo -e "${GREEN}[3/5] Checking for CMake...${NC}"
-	if ! command -v cmake &>/dev/null; then
-		echo -e "${RED}[!] CMake not found. Attempting to install...${NC}"
+	echo -e "${GREEN}[3/5] Checking for Build Tools & Dependencies...${NC}"
+	MISSING_DEPS=0
+	if ! command -v cmake &>/dev/null; then MISSING_DEPS=1; fi
+	if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+		if [ ! -d "/usr/include/vulkan" ] && [ ! -d "/usr/local/include/vulkan" ]; then MISSING_DEPS=1; fi
+	fi
+
+	if [ $MISSING_DEPS -eq 1 ]; then
+		echo -e "${RED}[!] Missing build tools (CMake, Vulkan headers, etc). Attempting to install...${NC}"
 		if command -v brew &>/dev/null; then
 			brew install cmake
 		elif command -v apt-get &>/dev/null; then
-			sudo apt-get update && sudo apt-get install -y cmake
+			sudo apt-get update && sudo apt-get install -y cmake build-essential libvulkan-dev spirv-headers
 		elif command -v dnf &>/dev/null; then
-			sudo dnf install -y cmake
+			sudo dnf install -y cmake gcc gcc-c++ vulkan-headers spirv-headers
 		elif command -v pacman &>/dev/null; then
-			sudo pacman -S --noconfirm cmake
+			sudo pacman -S --noconfirm --needed cmake base-devel vulkan-headers spirv-headers
 		else
-			echo -e "${RED}Could not detect package manager. Please install CMake manually.${NC}"
+			echo -e "${RED}Could not detect package manager. Please install CMake and Vulkan headers manually.${NC}"
 			exit 1
 		fi
 	else
-		echo "[OK] CMake is installed."
+		echo "[OK] Build tools and dependencies are installed."
 	fi
 
 	echo -e "${GREEN}[4/5] Skipping Engine Setup (Handled in UI)...${NC}"

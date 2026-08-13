@@ -128,10 +128,7 @@ async fn main() {
             .flatten()
             .find(|p| p.exists())
             .unwrap_or_else(|| {
-                eprintln!("Error: Could not find '{}' in any expected location.", rpc_binary_name);
-                eprintln!("Searched relative to executable and current directory.");
-                eprintln!("Please run option [4] in the Onyx Terminal to install dependencies.");
-                std::process::exit(1);
+                interactive_install(rpc_binary_name)
             })
     };
 
@@ -239,4 +236,188 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(telemetry_port).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+fn interactive_install(rpc_binary_name: &str) -> std::path::PathBuf {
+    use std::io::Write;
+    let mut input = String::new();
+    
+    println!("===========================================================");
+    println!("ggml-rpc-server was not found in the expected directories.");
+    println!("Would you like to automatically download and compile it from source? (y/N)");
+    print!("> ");
+    std::io::stdout().flush().unwrap();
+    
+    std::io::stdin().read_line(&mut input).unwrap();
+    if !input.trim().eq_ignore_ascii_case("y") {
+        eprintln!("Exiting. Please run option [4] in the Onyx Terminal to install dependencies, or compile it manually.");
+        std::process::exit(1);
+    }
+    
+    // Check for git and cmake
+    if std::process::Command::new("git").arg("--version").output().is_err() {
+        eprintln!("Error: 'git' is not installed or not in PATH.");
+        eprintln!("Please install git to continue.");
+        std::process::exit(1);
+    }
+    if std::process::Command::new("cmake").arg("--version").output().is_err() {
+        eprintln!("Error: 'cmake' is not installed or not in PATH.");
+        eprintln!("Please install cmake to continue.");
+        std::process::exit(1);
+    }
+
+    let mut backend = String::new();
+    let is_mac = cfg!(target_os = "macos");
+    
+    if is_mac {
+        println!("Detected macOS. Using Metal backend by default.");
+        backend = "metal".to_string();
+    } else {
+        println!("Select the hardware backend to compile for:");
+        println!("[1] CPU (Default)");
+        println!("[2] CUDA (NVIDIA)");
+        println!("[3] Vulkan (AMD/Intel/Cross-platform)");
+        print!("Select an option (1-3): ");
+        std::io::stdout().flush().unwrap();
+        
+        input.clear();
+        std::io::stdin().read_line(&mut input).unwrap();
+        
+        match input.trim() {
+            "2" => backend = "cuda".to_string(),
+            "3" => backend = "vulkan".to_string(),
+            _ => backend = "cpu".to_string(),
+        }
+    }
+    
+    let temp_dir = std::env::current_dir().unwrap().join("temp_llama_cpp_rpc");
+    if temp_dir.exists() {
+        std::fs::remove_dir_all(&temp_dir).unwrap();
+    }
+    
+    println!("Cloning llama.cpp repository...");
+    let status = std::process::Command::new("git")
+        .args(["clone", "https://github.com/ggerganov/llama.cpp.git", temp_dir.to_str().unwrap()])
+        .status()
+        .expect("Failed to run git clone");
+        
+    if !status.success() {
+        eprintln!("Failed to clone repository.");
+        std::process::exit(1);
+    }
+    
+    let build_dir = temp_dir.join("build");
+    
+    let mut cmake_flags = vec![
+        "-B".to_string(), build_dir.to_str().unwrap().to_string(),
+        "-DGGML_RPC=ON".to_string(),
+        "-DBUILD_SHARED_LIBS=OFF".to_string(),
+    ];
+    
+    if backend == "metal" {
+        cmake_flags.push("-DGGML_METAL=ON".to_string());
+    } else if backend == "cuda" {
+        cmake_flags.push("-DGGML_CUDA=ON".to_string());
+    } else if backend == "vulkan" {
+        cmake_flags.push("-DGGML_VULKAN=ON".to_string());
+    }
+    
+    println!("Configuring CMake...");
+    let status = std::process::Command::new("cmake")
+        .current_dir(&temp_dir)
+        .args(&cmake_flags)
+        .status()
+        .expect("Failed to run cmake config");
+        
+    if !status.success() {
+        eprintln!("CMake configuration failed. You may be missing required dependencies (like Vulkan headers or CUDA toolkit).");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::process::exit(1);
+    }
+    
+    println!("Compiling ggml-rpc-server (this may take a while)...");
+    let status = std::process::Command::new("cmake")
+        .current_dir(&temp_dir)
+        .args(["--build", build_dir.to_str().unwrap(), "--config", "Release", "-j4"])
+        .status()
+        .expect("Failed to run cmake build");
+        
+    if !status.success() {
+        eprintln!("Compilation failed.");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::process::exit(1);
+    }
+    
+    // Find the binary in build or build/bin
+    let bin_names = if cfg!(windows) {
+        vec!["ggml-rpc-server.exe", "bin/ggml-rpc-server.exe", "bin/Release/ggml-rpc-server.exe"]
+    } else {
+        vec!["ggml-rpc-server", "bin/ggml-rpc-server"]
+    };
+    
+    let mut compiled_bin_path = None;
+    for name in bin_names {
+        let p = build_dir.join(name);
+        if p.exists() {
+            compiled_bin_path = Some(p);
+            break;
+        }
+    }
+    
+    let compiled_bin = match compiled_bin_path {
+        Some(p) => p,
+        None => {
+            eprintln!("Could not find the compiled binary in the build directory.");
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            std::process::exit(1);
+        }
+    };
+    
+    // Create llama-cpp directory relative to executable
+    let exe_dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
+    // Usually rpc_agent/target/release/. We want project root/llama-cpp
+    let target_dir = exe_dir.join("../../../llama-cpp");
+    let target_dir = if target_dir.exists() || std::fs::create_dir_all(&target_dir).is_ok() {
+        target_dir
+    } else {
+        // Fallback to CWD
+        let d = std::env::current_dir().unwrap().join("llama-cpp");
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    };
+    
+    let target_bin = target_dir.join(rpc_binary_name);
+    
+    println!("Copying binary to {:?}", target_bin);
+    std::fs::copy(&compiled_bin, &target_bin).expect("Failed to copy binary");
+    
+    // Copy dynamic libraries if any (macOS/Linux)
+    let lib_dirs = vec![build_dir.clone(), build_dir.join("bin"), build_dir.join("src")];
+    for lib_dir in lib_dirs {
+        if let Ok(entries) = std::fs::read_dir(lib_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    let ext_str = ext.to_string_lossy();
+                    if ext_str == "so" || ext_str == "dylib" || ext_str == "dll" || path.to_string_lossy().contains(".so.") {
+                        let dest = target_dir.join(path.file_name().unwrap());
+                        let _ = std::fs::copy(&path, &dest);
+                    }
+                }
+            }
+        }
+    }
+
+    // Fix macOS rpath
+    if is_mac {
+        let _ = std::process::Command::new("install_name_tool")
+            .args(["-add_rpath", "@executable_path", target_bin.to_str().unwrap()])
+            .output();
+    }
+    
+    println!("Cleaning up...");
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    
+    println!("Installation complete!");
+    target_bin
 }
