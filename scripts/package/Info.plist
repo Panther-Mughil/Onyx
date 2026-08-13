@@ -12,6 +12,8 @@
     <string>VERSION_PLACEHOLDER</string>
     <key>CFBundleShortVersionString</key>
     <string>VERSION_PLACEHOLDER</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>

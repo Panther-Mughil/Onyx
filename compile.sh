@@ -75,14 +75,6 @@ cd "$PROJECT_ROOT/backend"
 cargo build --release
 echo "Backend built."
 
-# ── Build RPC Agent ──────────────────────────────────────────────────────
-echo ""
-echo "═══════════════════════════════════════════════════"
-echo "  Building RPC Agent"
-echo "═══════════════════════════════════════════════════"
-cd "$PROJECT_ROOT/rpc_agent"
-cargo build --release
-echo "RPC Agent built."
 
 # ── Stage Artifacts ──────────────────────────────────────────────────────
 echo ""
@@ -95,7 +87,6 @@ if [ "$OS" = "linux" ]; then
 	mkdir -p "$stage_dir"
 
 	cp "$PROJECT_ROOT/backend/target/release/onyx" "$stage_dir/"
-	cp "$PROJECT_ROOT/rpc_agent/target/release/rpc_agent" "$stage_dir/"
 	cp -r "$PROJECT_ROOT/scripts" "$stage_dir/scripts"
 	mkdir -p "$stage_dir/data" "$stage_dir/models" "$stage_dir/engines"
 
@@ -108,7 +99,7 @@ if [ "$OS" = "linux" ]; then
 		echo "  ⚠ No bundled node found — backend will use PATH node"
 	fi
 
-	chmod +x "$stage_dir/onyx" "$stage_dir/rpc_agent"
+	chmod +x "$stage_dir/onyx"
 
 	# tar.gz
 	tar_name="onyx-${VERSION}-linux-${ARCH}.tar.gz"
@@ -123,7 +114,6 @@ if [ "$OS" = "linux" ]; then
 
 	cp "$stage_dir/onyx" "$appimage_dir/AppRun"
 	chmod +x "$appimage_dir/AppRun"
-	cp "$stage_dir/rpc_agent" "$appimage_dir/"
 	cp -r "$stage_dir/scripts" "$appimage_dir/scripts"
 	mkdir -p "$appimage_dir/data" "$appimage_dir/models" "$appimage_dir/engines"
 
@@ -190,9 +180,13 @@ elif [ "$OS" = "macos" ]; then
 		sed "s/VERSION_PLACEHOLDER/$VERSION/g" "$info_plist" \
 			>"$app_dir/Contents/Resources/Info.plist"
 	fi
+	
+	icon_icns="$PROJECT_ROOT/scripts/package/icon.icns"
+	if [ -f "$icon_icns" ]; then
+		cp "$icon_icns" "$app_dir/Contents/Resources/icon.icns"
+	fi
 
 	cp "$PROJECT_ROOT/backend/target/release/onyx" "$app_dir/Contents/MacOS/onyx"
-	cp "$PROJECT_ROOT/rpc_agent/target/release/rpc_agent" "$app_dir/Contents/MacOS/"
 	cp -r "$PROJECT_ROOT/scripts" "$app_dir/Contents/MacOS/scripts"
 	mkdir -p "$app_dir/Contents/MacOS/data" "$app_dir/Contents/MacOS/models" "$app_dir/Contents/MacOS/engines"
 
@@ -205,7 +199,7 @@ elif [ "$OS" = "macos" ]; then
 		echo "  ⚠ No bundled node found — backend will use PATH node"
 	fi
 
-	chmod +x "$app_dir/Contents/MacOS/onyx" "$app_dir/Contents/MacOS/rpc_agent"
+	chmod +x "$app_dir/Contents/MacOS/onyx"
 
 	# Ad-hoc codesign (best-effort)
 	if command -v codesign &>/dev/null; then

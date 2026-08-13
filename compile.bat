@@ -50,14 +50,6 @@ cd /d "%PROJECT_ROOT%backend"
 cargo build --release
 echo Backend built.
 
-REM ── Build RPC Agent ──────────────────────────────────────────────────────
-echo.
-echo =================================================
-echo   Building RPC Agent
-echo =================================================
-cd /d "%PROJECT_ROOT%rpc_agent"
-cargo build --release
-echo RPC Agent built.
 
 REM ── Stage Artifacts ──────────────────────────────────────────────────────
 echo.
@@ -69,7 +61,6 @@ set "stage_dir=%RELEASE_DIR%\onyx-%VERSION%-win-x64"
 if not exist "%stage_dir%" mkdir "%stage_dir%"
 
 copy /y "%PROJECT_ROOT%backend\target\release\onyx.exe" "%stage_dir%\" >nul
-copy /y "%PROJECT_ROOT%rpc_agent\target\release\rpc_agent.exe" "%stage_dir%\" >nul
 xcopy /e /i "%PROJECT_ROOT%scripts" "%stage_dir%\scripts" >nul
 mkdir "%stage_dir%\data" >nul 2>&1
 mkdir "%stage_dir%\models" >nul 2>&1

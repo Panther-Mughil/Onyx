@@ -1549,30 +1549,30 @@ function App() {
 				</div>
 			</div>
 
-			{/* A7: Boot error banner */}
+			{/* A7: Boot error / Connection banner */}
 			{bootErrors.length > 0 && (
 				<div
 					style={{
-						background: "rgba(239, 68, 68, 0.1)",
-						border: "1px solid rgba(239, 68, 68, 0.3)",
+						background: "rgba(245, 158, 11, 0.1)",
+						border: "1px solid rgba(245, 158, 11, 0.3)",
 						padding: "12px 24px",
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "space-between",
 						gap: "12px",
 						fontSize: "13px",
-						color: "#fecaca",
+						color: "#fcd34d",
 					}}
 				>
 					<span>
-						<strong>Boot error:</strong> {bootErrors[bootErrors.length - 1]}. Is
-						the backend running? Is port 3001 in use?
+						<strong>Connection Note:</strong> {bootErrors[bootErrors.length - 1]}. 
+						If you just started Onyx and see this, the default port (3001) might have been in use, causing the backend to auto-increment its port (e.g., to 3002). Check your terminal output for the correct URL.
 					</span>
 					<button
 						style={{
 							background: "transparent",
-							color: "#fecaca",
-							border: "1px solid rgba(239, 68, 68, 0.5)",
+							color: "#fcd34d",
+							border: "1px solid rgba(245, 158, 11, 0.5)",
 							padding: "2px 8px",
 							borderRadius: "4px",
 							cursor: "pointer",
