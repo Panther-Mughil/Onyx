@@ -110,7 +110,7 @@ async function handleCompile() {
 	}
 
 	runCmd(`cd "${tempDir}" && cmake -B build ${cmakeFlags}`, { env });
-	runCmd(`cd "${tempDir}" && cmake --build build --config Release -j4`, {
+	runCmd(`cd "${tempDir}" && cmake --build build --config Release -j4 --target llama-server --target llama-bench --target ggml-rpc-server`, {
 		env,
 	});
 

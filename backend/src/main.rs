@@ -1272,11 +1272,30 @@ async fn run_benchmark(
     }
 
     let model_path = format!("{}/models/{}", base_dir().0, payload.model_id);
-    let binary_path = if cfg!(windows) {
-        format!("{}/llama-cpp/llama-bench.exe", base_dir().0)
+    let (base, _) = base_dir();
+    let engine_dir = if let Some(e) = &payload.engine_id {
+        if e.is_empty() {
+            format!("{}/llama-cpp", base)
+        } else {
+            format!("{}/engines/{}", base, e)
+        }
     } else {
-        format!("{}/llama-cpp/llama-bench", base_dir().0)
+        format!("{}/llama-cpp", base)
     };
+    
+    let binary_path = if cfg!(windows) {
+        format!("{}/llama-bench.exe", engine_dir)
+    } else {
+        format!("{}/llama-bench", engine_dir)
+    };
+
+    if !std::path::Path::new(&binary_path).exists() {
+        *state.benchmark_running.lock().await = false;
+        return Json(StartResponse {
+            success: false,
+            message: format!("llama-bench binary not found at {}", binary_path),
+        });
+    }
     
     let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");
 
@@ -1341,7 +1360,9 @@ async fn run_benchmark(
         {
             Ok(child) => child,
             Err(e) => {
-                eprintln!("Failed to start llama-bench: {}", e);
+                let err_msg = format!("E [SYSTEM] Failed to start llama-bench: {}", e);
+                eprintln!("{}", err_msg);
+                shared_state.benchmark_logs.lock().await.push(err_msg);
                 *shared_state.benchmark_running.lock().await = false;
                 return;
             }
@@ -1498,28 +1519,39 @@ async fn hf_download(
                     if let Ok(mut file) = std::fs::File::create(&dest_path) {
                         use std::io::Write;
                         let mut downloaded: f64 = 0.0;
-                        while let Ok(Some(chunk)) = res.chunk().await {
-                            if let Err(e) = file.write_all(&chunk) {
-                                let mut d = state_clone.hf_downloads.lock().await;
-                                if let Some(dl) = d.get_mut(&download_id) {
-                                    dl.status = "error".to_string();
-                                    dl.error = Some(e.to_string());
+                        let mut download_error = None;
+                        loop {
+                            match res.chunk().await {
+                                Ok(Some(chunk)) => {
+                                    if let Err(e) = file.write_all(&chunk) {
+                                        download_error = Some(e.to_string());
+                                        break;
+                                    }
+                                    downloaded += chunk.len() as f64;
+                                    if total_size > 0.0 {
+                                        let mut d = state_clone.hf_downloads.lock().await;
+                                        if let Some(dl) = d.get_mut(&download_id) {
+                                            dl.progress = (downloaded / total_size * 100.0) as f32;
+                                        }
+                                    }
                                 }
-                                tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
-                                return;
-                            }
-                            downloaded += chunk.len() as f64;
-                            if total_size > 0.0 {
-                                let mut d = state_clone.hf_downloads.lock().await;
-                                if let Some(dl) = d.get_mut(&download_id) {
-                                    dl.progress = (downloaded / total_size * 100.0) as f32;
+                                Ok(None) => break,
+                                Err(e) => {
+                                    download_error = Some(e.to_string());
+                                    break;
                                 }
                             }
                         }
+                        
                         let mut d = state_clone.hf_downloads.lock().await;
                         if let Some(dl) = d.get_mut(&download_id) {
-                            dl.progress = 100.0;
-                            dl.status = "completed".to_string();
+                            if let Some(err_msg) = download_error {
+                                dl.status = "error".to_string();
+                                dl.error = Some(err_msg);
+                            } else {
+                                dl.progress = 100.0;
+                                dl.status = "completed".to_string();
+                            }
                         }
                         tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                     } else {
