@@ -996,6 +996,33 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         if let Some(order) = &payload.device_order {
             if !order.is_empty() {
                 for dev_id in order {
+                    let mut is_active = true;
+                    if dev_id.starts_with("rpc_") {
+                        if let Ok(idx) = dev_id[4..].parse::<usize>() {
+                            if let Some(rpcs) = &payload.rpc_servers {
+                                if let Some(rpc) = rpcs.get(idx) {
+                                    is_active = rpc.active;
+                                } else {
+                                    is_active = false;
+                                }
+                            }
+                        }
+                    } else if dev_id.starts_with("gpu_") {
+                        if let Ok(idx) = dev_id[4..].parse::<usize>() {
+                            if let Some(gpus) = &payload.local_gpus {
+                                if let Some(gpu) = gpus.iter().find(|g| g.index == idx) {
+                                    is_active = gpu.active;
+                                } else {
+                                    is_active = false;
+                                }
+                            }
+                        }
+                    }
+
+                    if !is_active {
+                        continue;
+                    }
+
                     let layers = allocs.get(dev_id).copied().unwrap_or(0);
                     splits.push(layers.to_string());
                     total_offloaded += layers;
