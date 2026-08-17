@@ -117,11 +117,11 @@ async fn main() {
         let candidates = vec![
             exe_dir.as_ref().map(|d| d.join(rpc_binary_name)),
             // From exe dir: ../../.. gets us from target/release/ to project root
-            exe_dir.as_ref().map(|d| d.join("../../../llama-cpp").join(rpc_binary_name)),
+            exe_dir.as_ref().map(|d| d.join("../../../engines/llama-cpp").join(rpc_binary_name)),
             // CWD-relative (when run from project root)
-            Some(std::path::PathBuf::from(format!("./llama-cpp/{}", rpc_binary_name))),
+            Some(std::path::PathBuf::from(format!("./engines/llama-cpp/{}", rpc_binary_name))),
             // CWD-relative (when run from rpc_agent/ via cargo run)
-            Some(std::path::PathBuf::from(format!("../llama-cpp/{}", rpc_binary_name))),
+            Some(std::path::PathBuf::from(format!("../engines/llama-cpp/{}", rpc_binary_name))),
         ];
 
         candidates
@@ -255,11 +255,11 @@ fn interactive_install(rpc_binary_name: &str) -> std::path::PathBuf {
     
     // Create llama-cpp directory relative to executable
     let exe_dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
-    let target_dir = exe_dir.join(if cfg!(windows) { "." } else { "../../../llama-cpp" });
+    let target_dir = exe_dir.join(if cfg!(windows) { "." } else { "../../../engines/llama-cpp" });
     let target_dir = if target_dir.exists() || std::fs::create_dir_all(&target_dir).is_ok() {
         target_dir
     } else {
-        let d = std::env::current_dir().unwrap().join("llama-cpp");
+        let d = std::env::current_dir().unwrap().join("engines").join("llama-cpp");
         std::fs::create_dir_all(&d).unwrap();
         d
     };
@@ -413,6 +413,7 @@ Write-Host "Download complete!"
         let mut cmake_flags = vec![
             "-B".to_string(), build_dir.to_str().unwrap().to_string(),
             "-DGGML_RPC=ON".to_string(),
+            "-DGGML_BLAS=OFF".to_string(),
             "-DBUILD_SHARED_LIBS=OFF".to_string(),
         ];
         

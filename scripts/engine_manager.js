@@ -95,7 +95,7 @@ async function handleCompile() {
 	const env = Object.assign({}, process.env);
 
 	if (urlOrFlags === "mac-silicon" || urlOrFlags === "mac-intel") {
-		cmakeFlags += " -DGGML_METAL=ON";
+		cmakeFlags += " -DGGML_METAL=ON -DGGML_BLAS=OFF";
 	} else if (urlOrFlags === "linux-cuda") {
 		cmakeFlags += " -DGGML_CUDA=ON";
 		try {
@@ -120,6 +120,7 @@ async function handleCompile() {
 		"ggml-rpc-server",
 		"llama-server.exe",
 		"llama-bench.exe",
+		"ggml-rpc-server.exe",
 	];
 	for (const bin of binaries) {
 		let src = path.join(buildDir, "bin", bin);
