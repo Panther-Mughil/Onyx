@@ -1157,15 +1157,6 @@ async fn start_server(
         "--port".to_string(), port.to_string(),
     ];
 
-    if let Some(ts) = ts_arg {
-        args.push("-ts".to_string());
-        args.push(ts);
-    }
-    if let Some(dev) = dev_arg {
-        args.push("-dev".to_string());
-        args.push(dev);
-    }
-
     if let Some(servers) = &payload.rpc_servers {
         let active_servers: Vec<String> = servers.iter()
             .filter(|s| s.active)
@@ -1182,6 +1173,15 @@ async fn start_server(
             args.push("--rpc".to_string());
             args.push(active_servers.join(","));
         }
+    }
+
+    if let Some(ts) = ts_arg {
+        args.push("-ts".to_string());
+        args.push(ts);
+    }
+    if let Some(dev) = dev_arg {
+        args.push("-dev".to_string());
+        args.push(dev);
     }
 
     if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
@@ -1374,20 +1374,6 @@ async fn run_benchmark(
         "--progress".to_string(),
     ];
 
-    if let Some(ts) = ts_arg {
-        args.push("-ts".to_string());
-        args.push(ts);
-    }
-    if let Some(dev) = dev_arg {
-        args.push("-dev".to_string());
-        args.push(dev);
-    }
-
-    if payload.moe_cpu_layers > 0 {
-        args.push("--n-cpu-moe".to_string());
-        args.push(payload.moe_cpu_layers.to_string());
-    }
-
     if let Some(servers) = &payload.rpc_servers {
         let active_servers: Vec<String> = servers.iter()
             .filter(|s| s.active)
@@ -1404,6 +1390,20 @@ async fn run_benchmark(
             args.push("--rpc".to_string());
             args.push(active_servers.join(","));
         }
+    }
+
+    if let Some(ts) = ts_arg {
+        args.push("-ts".to_string());
+        args.push(ts);
+    }
+    if let Some(dev) = dev_arg {
+        args.push("-dev".to_string());
+        args.push(dev);
+    }
+
+    if payload.moe_cpu_layers > 0 {
+        args.push("--n-cpu-moe".to_string());
+        args.push(payload.moe_cpu_layers.to_string());
     }
 
     if !payload.offload_kv { args.push("-nkvo".to_string()); args.push("1".to_string()); }
