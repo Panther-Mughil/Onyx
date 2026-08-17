@@ -114,15 +114,28 @@ async fn main() {
             .ok()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()));
         
-        let candidates = vec![
+        let mut candidates = vec![
             exe_dir.as_ref().map(|d| d.join(rpc_binary_name)),
-            // From exe dir: ../../.. gets us from target/release/ to project root
-            exe_dir.as_ref().map(|d| d.join("../../../engines/llama-cpp").join(rpc_binary_name)),
-            // CWD-relative (when run from project root)
-            Some(std::path::PathBuf::from(format!("./engines/llama-cpp/{}", rpc_binary_name))),
-            // CWD-relative (when run from rpc_agent/ via cargo run)
-            Some(std::path::PathBuf::from(format!("../engines/llama-cpp/{}", rpc_binary_name))),
         ];
+        
+        let engines_dir_1 = exe_dir.as_ref().map(|d| d.join("../../../engines"));
+        let engines_dir_2 = Some(std::path::PathBuf::from("./engines"));
+        let engines_dir_3 = Some(std::path::PathBuf::from("../engines"));
+        
+        for base in [engines_dir_1, engines_dir_2, engines_dir_3].into_iter().flatten() {
+            if let Ok(entries) = std::fs::read_dir(&base) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        candidates.push(Some(entry.path().join(rpc_binary_name)));
+                    }
+                }
+            }
+        }
+        
+        // Fallbacks
+        candidates.push(exe_dir.as_ref().map(|d| d.join("../../../engines/llama-cpp").join(rpc_binary_name)));
+        candidates.push(Some(std::path::PathBuf::from(format!("./engines/llama-cpp/{}", rpc_binary_name))));
+        candidates.push(Some(std::path::PathBuf::from(format!("../engines/llama-cpp/{}", rpc_binary_name))));
 
         candidates
             .into_iter()
