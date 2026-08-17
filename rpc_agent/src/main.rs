@@ -148,12 +148,20 @@ async fn main() {
 
     println!("Using RPC binary: {:?}", rpc_binary);
 
-    let mut child = Command::new(&rpc_binary)
-        .arg("--host")
+    let mut command = Command::new(&rpc_binary);
+    command.arg("--host")
         .arg(host_port.split(':').next().unwrap_or("0.0.0.0"))
         .arg("--port")
         .arg(host_port.split(':').last().unwrap_or("50052"))
-        .kill_on_drop(true)
+        .arg("-c"); // Enable weight caching locally
+
+    if cfg!(target_os = "macos") {
+        command.args(["-d", "MTL0"]);
+    } else if nvml_wrapper::Nvml::init().is_ok() {
+        command.args(["-d", "CUDA0"]);
+    }
+
+    let mut child = command.kill_on_drop(true)
         .spawn()
         .expect("Failed to start llama-rpc-server. Make sure it is in your PATH.");
 

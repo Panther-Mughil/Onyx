@@ -680,6 +680,7 @@ function App() {
 		autoStartGateway: false,
 		localGpus: [],
 		rpcServers: [],
+		deviceOrder: [],
 	});
 
 	const [isProxyRunning, setIsProxyRunning] = useState(false);
@@ -1268,6 +1269,7 @@ function App() {
 					modelId: selectedModel.id,
 					...sanitizedConfig,
 					rpcServers: serverSettings.rpcServers || [],
+					deviceOrder: serverSettings.deviceOrder || [],
 				}),
 			});
 			const result = await response.json();
@@ -1352,15 +1354,14 @@ function App() {
 		? selectedModel.block_count
 		: 100;
 	const activeDevices = [];
-	let displayIndex = 0;
+	
 	if (config.localGpus) {
 		config.localGpus.forEach((g) => {
 			if (g.active) {
 				activeDevices.push({
 					id: `gpu_${g.index}`,
-					name: `${displayIndex}: ${g.name || "GPU " + g.index}`,
+					name: g.name || "GPU " + g.index,
 				});
-				displayIndex++;
 			}
 		});
 	}
@@ -1380,12 +1381,27 @@ function App() {
 				}
 				activeDevices.push({
 					id: `rpc_${idx}`,
-					name: `${displayIndex}: ${displayName}`,
+					name: displayName,
 				});
-				displayIndex++;
 			}
 		});
 	}
+
+	// Sort activeDevices based on serverSettings.deviceOrder
+	if (serverSettings.deviceOrder && serverSettings.deviceOrder.length > 0) {
+		activeDevices.sort((a, b) => {
+			let idxA = serverSettings.deviceOrder.indexOf(a.id);
+			let idxB = serverSettings.deviceOrder.indexOf(b.id);
+			if (idxA === -1) idxA = 999;
+			if (idxB === -1) idxB = 999;
+			return idxA - idxB;
+		});
+	}
+
+	// Assign display names with index
+	activeDevices.forEach((d, i) => {
+		d.name = `${i}: ${d.name}`;
+	});
 
 	let allocs = config.layerAllocations || {};
 	let totalOffloaded = 0;
@@ -3969,6 +3985,99 @@ function App() {
 																}}
 															>
 																<Trash2 size={16} />
+															</button>
+														</div>
+													</div>
+												))}
+											</div>
+										)}
+									</div>
+
+									<div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid var(--border-color)" }}>
+										<h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--text-main)" }}>
+											Device Priority Order
+										</h4>
+										<p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "16px" }}>
+											Reorder active devices to optimize data transfer and memory bottlenecks. The topmost device takes the beginning of the model, and the bottommost device takes the tail and outputs the final result.
+										</p>
+										
+										{activeDevices.length < 2 ? (
+											<div style={{ textAlign: "center", padding: "16px", border: "1px dashed var(--border)", borderRadius: "6px", color: "var(--text-muted)", fontSize: "13px" }}>
+												Enable at least two devices to reorder them.
+											</div>
+										) : (
+											<div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+												{activeDevices.map((dev, idx) => (
+													<div
+														key={dev.id}
+														className="form-row"
+														style={{
+															background: "var(--bg-input)",
+															padding: "8px 12px",
+															borderRadius: "6px",
+															marginBottom: 0,
+															display: "flex",
+															justifyContent: "space-between",
+															alignItems: "center",
+														}}
+													>
+														<span style={{ fontSize: "13px", color: "var(--text-main)", fontWeight: "500" }}>
+															{dev.name.replace(/^\d+:\s*/, "")}
+														</span>
+														<div style={{ display: "flex", gap: "4px" }}>
+															<button
+																style={{
+																	background: "transparent",
+																	color: idx === 0 ? "var(--border-color)" : "var(--text-muted)",
+																	border: "none",
+																	cursor: idx === 0 ? "default" : "pointer",
+																	padding: "4px",
+																	display: "flex"
+																}}
+																disabled={idx === 0}
+																onClick={() => {
+																	let currentOrder = serverSettings.deviceOrder && serverSettings.deviceOrder.length > 0 ? [...serverSettings.deviceOrder] : activeDevices.map(d => d.id);
+																	activeDevices.forEach(d => {
+																		if (!currentOrder.includes(d.id)) currentOrder.push(d.id);
+																	});
+																	
+																	const currentIndex = currentOrder.indexOf(dev.id);
+																	if (currentIndex > 0) {
+																		const temp = currentOrder[currentIndex - 1];
+																		currentOrder[currentIndex - 1] = currentOrder[currentIndex];
+																		currentOrder[currentIndex] = temp;
+																		saveSettings({ ...serverSettings, deviceOrder: currentOrder });
+																	}
+																}}
+															>
+																<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+															</button>
+															<button
+																style={{
+																	background: "transparent",
+																	color: idx === activeDevices.length - 1 ? "var(--border-color)" : "var(--text-muted)",
+																	border: "none",
+																	cursor: idx === activeDevices.length - 1 ? "default" : "pointer",
+																	padding: "4px",
+																	display: "flex"
+																}}
+																disabled={idx === activeDevices.length - 1}
+																onClick={() => {
+																	let currentOrder = serverSettings.deviceOrder && serverSettings.deviceOrder.length > 0 ? [...serverSettings.deviceOrder] : activeDevices.map(d => d.id);
+																	activeDevices.forEach(d => {
+																		if (!currentOrder.includes(d.id)) currentOrder.push(d.id);
+																	});
+																	
+																	const currentIndex = currentOrder.indexOf(dev.id);
+																	if (currentIndex !== -1 && currentIndex < currentOrder.length - 1) {
+																		const temp = currentOrder[currentIndex + 1];
+																		currentOrder[currentIndex + 1] = currentOrder[currentIndex];
+																		currentOrder[currentIndex] = temp;
+																		saveSettings({ ...serverSettings, deviceOrder: currentOrder });
+																	}
+																}}
+															>
+																<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
 															</button>
 														</div>
 													</div>

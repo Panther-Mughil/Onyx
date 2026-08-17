@@ -245,6 +245,8 @@ struct ServerConfig {
     #[serde(default)]
     local_gpus: Option<Vec<LocalGpu>>,
     #[serde(default)]
+    device_order: Option<Vec<String>>,
+    #[serde(default)]
     mmproj: Option<String>,
 }
 
@@ -973,33 +975,88 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
-fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>) {
+fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>, Option<String>) {
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
+    let mut dev_arg = None;
 
     if let Some(allocs) = &payload.layer_allocations {
         let mut total_offloaded = 0;
         let mut splits = Vec::new();
-        
-        if let Some(gpus) = &payload.local_gpus {
-            if !gpus.is_empty() {
-                let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
-                for i in 0..=max_gpu_index {
-                    let key = format!("gpu_{}", i);
-                    let layers = allocs.get(&key).copied().unwrap_or(0);
+        let mut devices = Vec::new();
+
+        let prefix = if let Some(e) = &payload.engine_id {
+            if e.to_lowercase().contains("metal") { "MTL" }
+            else if e.to_lowercase().contains("vulkan") { "Vulkan" }
+            else { "CUDA" }
+        } else {
+            "CUDA"
+        };
+
+        if let Some(order) = &payload.device_order {
+            if !order.is_empty() {
+                for dev_id in order {
+                    let layers = allocs.get(dev_id).copied().unwrap_or(0);
                     splits.push(layers.to_string());
                     total_offloaded += layers;
+                    
+                    if dev_id.starts_with("rpc_") {
+                        if let Ok(idx) = dev_id[4..].parse::<usize>() {
+                            devices.push(format!("RPC{}", idx));
+                        }
+                    } else if dev_id.starts_with("gpu_") {
+                        if let Ok(idx) = dev_id[4..].parse::<usize>() {
+                            devices.push(format!("{}{}", prefix, idx));
+                        }
+                    }
+                }
+            } else {
+                if let Some(gpus) = &payload.local_gpus {
+                    if !gpus.is_empty() {
+                        let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
+                        for i in 0..=max_gpu_index {
+                            let key = format!("gpu_{}", i);
+                            let layers = allocs.get(&key).copied().unwrap_or(0);
+                            splits.push(layers.to_string());
+                            devices.push(format!("{}{}", prefix, i));
+                            total_offloaded += layers;
+                        }
+                    }
+                }
+                if let Some(rpcs) = &payload.rpc_servers {
+                    for (idx, rpc) in rpcs.iter().enumerate() {
+                        if rpc.active {
+                            let key = format!("rpc_{}", idx);
+                            let layers = allocs.get(&key).copied().unwrap_or(0);
+                            splits.push(layers.to_string());
+                            devices.push(format!("RPC{}", idx));
+                            total_offloaded += layers;
+                        }
+                    }
                 }
             }
-        }
-        
-        if let Some(rpcs) = &payload.rpc_servers {
-            for (idx, rpc) in rpcs.iter().enumerate() {
-                if rpc.active {
-                    let key = format!("rpc_{}", idx);
-                    let layers = allocs.get(&key).copied().unwrap_or(0);
-                    splits.push(layers.to_string());
-                    total_offloaded += layers;
+        } else {
+            if let Some(gpus) = &payload.local_gpus {
+                if !gpus.is_empty() {
+                    let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
+                    for i in 0..=max_gpu_index {
+                        let key = format!("gpu_{}", i);
+                        let layers = allocs.get(&key).copied().unwrap_or(0);
+                        splits.push(layers.to_string());
+                        devices.push(format!("{}{}", prefix, i));
+                        total_offloaded += layers;
+                    }
+                }
+            }
+            if let Some(rpcs) = &payload.rpc_servers {
+                for (idx, rpc) in rpcs.iter().enumerate() {
+                    if rpc.active {
+                        let key = format!("rpc_{}", idx);
+                        let layers = allocs.get(&key).copied().unwrap_or(0);
+                        splits.push(layers.to_string());
+                        devices.push(format!("RPC{}", idx));
+                        total_offloaded += layers;
+                    }
                 }
             }
         }
@@ -1007,6 +1064,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         actual_gpu_layers = total_offloaded;
         if splits.len() > 1 {
             ts_arg = Some(splits.join(delimiter));
+            dev_arg = Some(devices.join(delimiter));
         }
     } else {
         if let Some(gpus) = &payload.local_gpus {
@@ -1032,7 +1090,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         }
     }
     
-    (actual_gpu_layers, ts_arg)
+    (actual_gpu_layers, ts_arg, dev_arg)
 }
 
 async fn start_server(
@@ -1083,7 +1141,7 @@ async fn start_server(
         });
     }
 
-    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, ",");
+    let (actual_gpu_layers, ts_arg, dev_arg) = compute_gpu_offloads(&payload, ",");
 
     let mut args = vec![
         "-m".to_string(), model_path.clone(),
@@ -1102,6 +1160,10 @@ async fn start_server(
     if let Some(ts) = ts_arg {
         args.push("-ts".to_string());
         args.push(ts);
+    }
+    if let Some(dev) = dev_arg {
+        args.push("-dev".to_string());
+        args.push(dev);
     }
 
     if let Some(servers) = &payload.rpc_servers {
@@ -1297,7 +1359,7 @@ async fn run_benchmark(
         });
     }
     
-    let (actual_gpu_layers, ts_arg) = compute_gpu_offloads(&payload, "/");
+    let (actual_gpu_layers, ts_arg, dev_arg) = compute_gpu_offloads(&payload, "/");
 
     let mut args = vec![
         "-m".to_string(), model_path,
@@ -1315,6 +1377,10 @@ async fn run_benchmark(
     if let Some(ts) = ts_arg {
         args.push("-ts".to_string());
         args.push(ts);
+    }
+    if let Some(dev) = dev_arg {
+        args.push("-dev".to_string());
+        args.push(dev);
     }
 
     if payload.moe_cpu_layers > 0 {
