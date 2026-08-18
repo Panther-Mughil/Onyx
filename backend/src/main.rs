@@ -201,6 +201,7 @@ struct Model {
     embedding_length: Option<u32>,
     feed_forward_length: Option<u32>,
     mmproj: Option<String>,
+    mmproj_size_gb: Option<f32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -459,15 +460,16 @@ let models_dir_str = format!("{}/models", base_dir_root);
     let models_dir = Path::new(&models_dir_str);
 
     let mut files_to_process = Vec::new();
-    let mut mmprojs_by_dir = std::collections::HashMap::new();
+    let mut mmprojs_by_dir: std::collections::HashMap<String, (String, f32)> = std::collections::HashMap::new();
 
     if let Ok(entries) = fs::read_dir(models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().is_some_and(|ext| ext == "gguf") {
                 let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                if filename.starts_with("mmproj-") {
-                    mmprojs_by_dir.insert("".to_string(), filename);
+                if filename.contains("mmproj") {
+                    let size = std::fs::metadata(&path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                    mmprojs_by_dir.insert("".to_string(), (filename, size));
                 } else {
                     files_to_process.push((path, filename.clone(), filename));
                 }
@@ -479,8 +481,9 @@ let models_dir_str = format!("{}/models", base_dir_root);
                         if sub_path.is_file() && sub_path.extension().is_some_and(|ext| ext == "gguf") {
                             let filename = sub_path.file_name().unwrap_or_default().to_string_lossy().to_string();
                             let rel_path = format!("{}/{}", dir_name, filename);
-                            if filename.starts_with("mmproj-") {
-                                mmprojs_by_dir.insert(dir_name.clone(), rel_path);
+                            if filename.contains("mmproj") {
+                                let size = std::fs::metadata(&sub_path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                                mmprojs_by_dir.insert(dir_name.clone(), (rel_path, size));
                             } else {
                                 files_to_process.push((sub_path, filename, rel_path));
                             }
@@ -707,7 +710,9 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                 let parent_dir = path.parent().and_then(|p| p.file_name()).unwrap_or_default().to_string_lossy().to_string();
                 let is_root = path.parent().is_none_or(|p| p == models_dir);
                 let dir_key = if is_root { "".to_string() } else { parent_dir };
-                let mmproj = mmprojs_by_dir.get(&dir_key).cloned();
+                let mmproj_data = mmprojs_by_dir.get(&dir_key);
+                let mmproj = mmproj_data.map(|d| d.0.clone());
+                let mmproj_size_gb = mmproj_data.map(|d| d.1);
 
                 models.push(Model {
                     id: rel_path.clone(),
@@ -721,6 +726,7 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                     embedding_length,
                     feed_forward_length,
                     mmproj,
+                    mmproj_size_gb,
                 });
     }
 

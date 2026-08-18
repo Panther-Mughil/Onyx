@@ -104,7 +104,8 @@ const MemoryEstimator = ({
 			(1024 * 1024 * 1024);
 	}
 	const baseGraphGb = (config.ctxSize / 100000) * 0.5; // ~500MB graph logic per 100k tokens
-	const computeBufferGb = attentionBufferGb + baseGraphGb;
+	const visionBufferGb = config.enableVision && selectedModel.mmproj_size_gb ? selectedModel.mmproj_size_gb : 0.0;
+	const computeBufferGb = attentionBufferGb + baseGraphGb + visionBufferGb;
 
 	const hostOverheadGb = 0.4; // Host OS / Llama.cpp base binary overhead
 	const cudaOverheadGb = 0.25; // Base CUDA Context initialization overhead per GPU
