@@ -739,6 +739,7 @@ async fn proxy_models_handler(
 ) -> Json<serde_json::Value> {
     let servers = state.active_servers.lock().await;
     let mut data = Vec::new();
+    let mut models_array = Vec::new();
     
     for model_id in servers.keys() {
         let clean_id = model_id.strip_suffix(".gguf").unwrap_or(model_id);
@@ -748,11 +749,17 @@ async fn proxy_models_handler(
             "created": chrono::Utc::now().timestamp(),
             "owned_by": "onyx"
         }));
+        models_array.push(serde_json::json!({
+            "name": clean_id,
+            "model": clean_id,
+            "type": "model"
+        }));
     }
     
     Json(serde_json::json!({
         "object": "list",
-        "data": data
+        "data": data,
+        "models": models_array
     }))
 }
 
@@ -860,7 +867,8 @@ async fn update_network_config(
         .route("/v1/models", axum::routing::get(proxy_models_handler))
         .route("/models", axum::routing::get(proxy_models_handler))
         .fallback(proxy_handler)
-        .with_state(state.clone());
+        .with_state(state.clone())
+        .layer(CorsLayer::permissive());
     
     let listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
     
