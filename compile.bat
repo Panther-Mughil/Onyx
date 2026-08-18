@@ -78,7 +78,7 @@ REM Create zip with PowerShell
 set "zip_name=onyx-%VERSION%-win-x64.zip"
 set "zip_path=%RELEASE_DIR%\%zip_name%"
 
-powershell -Command "Compress-Archive -Path '%stage_dir%\*' -DestinationPath '%zip_path%' -Force" 2>nul
+powershell -Command "Compress-Archive -Path '%stage_dir%\*' -DestinationPath '%zip_path%' -Force" 2^>nul
 if !errorlevel! equ 0 (
     echo   Created !zip_name!
 ) else (

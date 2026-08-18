@@ -64,14 +64,14 @@ async function handleDownload() {
 		await downloadFile(url, zipPath);
 
 		console.log("Extracting archive...");
+		const { spawnSync } = require("child_process");
 		if (platform === "win32") {
-			runCmd(
-				`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${ENGINE_DIR}' -Force"`,
-			);
+			spawnSync("powershell", ["-Command", "Expand-Archive", "-Path", zipPath, "-DestinationPath", ENGINE_DIR, "-Force"], { stdio: "inherit" });
 		} else {
-			runCmd(
-				`unzip -o "${zipPath}" -d "${ENGINE_DIR}" || tar -xf "${zipPath}" -C "${ENGINE_DIR}"`,
-			);
+			const res = spawnSync("unzip", ["-o", zipPath, "-d", ENGINE_DIR], { stdio: "inherit" });
+			if (res.error || res.status !== 0) {
+				spawnSync("tar", ["-xf", zipPath, "-C", ENGINE_DIR], { stdio: "inherit" });
+			}
 		}
 
 		console.log("Cleaning up temp zip...");
@@ -88,31 +88,30 @@ async function handleCompile() {
 	if (fs.existsSync(tempDir))
 		fs.rmSync(tempDir, { recursive: true, force: true });
 
-	runCmd(`git clone https://github.com/ggerganov/llama.cpp.git "${tempDir}"`);
+	const { spawnSync } = require("child_process");
+	spawnSync("git", ["clone", "https://github.com/ggerganov/llama.cpp.git", tempDir], { stdio: "inherit" });
 	const buildDir = path.join(tempDir, "build");
 
-	let cmakeFlags = "-DGGML_RPC=ON -DBUILD_SHARED_LIBS=OFF";
+	let cmakeFlagsArr = ["-B", "build", "-DGGML_RPC=ON", "-DBUILD_SHARED_LIBS=OFF"];
 	const env = Object.assign({}, process.env);
 
 	if (urlOrFlags === "mac-silicon" || urlOrFlags === "mac-intel") {
-		cmakeFlags += " -DGGML_METAL=ON -DGGML_BLAS=OFF";
+		cmakeFlagsArr.push("-DGGML_METAL=ON", "-DGGML_BLAS=OFF");
 	} else if (urlOrFlags === "linux-cuda") {
-		cmakeFlags += " -DGGML_CUDA=ON";
+		cmakeFlagsArr.push("-DGGML_CUDA=ON");
 		try {
 			execSync("nvcc --version", { stdio: "ignore" });
 		} catch (e) {
 			env.PATH = "/opt/cuda/bin:" + (env.PATH || "");
 			env.CUDACXX = "/opt/cuda/bin/nvcc";
-			cmakeFlags += " -DCUDAToolkit_ROOT=/opt/cuda";
+			cmakeFlagsArr.push("-DCUDAToolkit_ROOT=/opt/cuda");
 		}
 	} else if (urlOrFlags === "linux-vulkan") {
-		cmakeFlags += " -DGGML_VULKAN=ON";
+		cmakeFlagsArr.push("-DGGML_VULKAN=ON");
 	}
 
-	runCmd(`cd "${tempDir}" && cmake -B build ${cmakeFlags}`, { env });
-	runCmd(`cd "${tempDir}" && cmake --build build --config Release -j4 --target llama-server --target llama-bench --target ggml-rpc-server`, {
-		env,
-	});
+	spawnSync("cmake", cmakeFlagsArr, { env, cwd: tempDir, stdio: "inherit" });
+	spawnSync("cmake", ["--build", "build", "--config", "Release", "-j4", "--target", "llama-server", "--target", "llama-bench", "--target", "ggml-rpc-server"], { env, cwd: tempDir, stdio: "inherit" });
 
 	const binaries = [
 		"llama-server",

@@ -320,10 +320,10 @@ struct ActiveServer {
     model_id: String,
     port: u16,
     is_ready: bool,
-    logs: Vec<String>,
+    logs: std::collections::VecDeque<String>,
     progress: f32,
+    instance_id: uuid::Uuid,
 }
-
 
 #[derive(Clone, Serialize)]
 struct DownloadState {
@@ -341,6 +341,7 @@ struct DownloadRequest {
 }
 
 struct AppState {
+    http_client: reqwest::Client,
     active_servers: Mutex<HashMap<String, ActiveServer>>,
     telemetry_cache: Arc<Mutex<TelemetryResponse>>,
     proxy_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -349,7 +350,7 @@ struct AppState {
     benchmark_logs: Mutex<Vec<String>>,
     benchmark_pp: Mutex<Option<f32>>,
     benchmark_tg: Mutex<Option<f32>>,
-    system_logs: Mutex<Vec<String>>,
+    system_logs: Mutex<std::collections::VecDeque<String>>,
     hf_downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
     engine_setup_killer: Mutex<Option<(String, tokio::sync::oneshot::Sender<()>)>>,
 }
@@ -408,7 +409,7 @@ async fn stop_proxy(
         task.abort();
         *proxy_addr_lock = None;
         let mut logs = state.system_logs.lock().await;
-        logs.push("[System] Gateway stopped.".to_string());
+        logs.push_back("[System] Gateway stopped.".to_string());
         return Json(StartResponse { success: true, message: "Gateway stopped".to_string() });
     }
     Json(StartResponse { success: false, message: "Gateway not running".to_string() })
@@ -418,7 +419,7 @@ async fn get_system_logs(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<Vec<String>> {
     let logs = state.system_logs.lock().await;
-    Json(logs.clone())
+    Json(logs.iter().cloned().collect())
 }
 
 async fn health_check() -> Json<HealthResponse> {
@@ -435,27 +436,24 @@ struct DeleteModelQuery {
 
 async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<DeleteModelQuery>) -> Json<StartResponse> {
     let (base, _) = base_dir();
-let models_dir = std::path::Path::new(&base).join("models");
+    let models_dir = std::path::Path::new(&base).join("models");
     
     // Safety check to prevent escaping models_dir
     let clean_id = query.id.replace("..", "");
-    let mut target_path = models_dir.join(&clean_id);
-    
-    // If it's in a subdirectory, we should delete the whole subdirectory
-    if clean_id.contains('/') || clean_id.contains('\\') {
-        let parts: Vec<&str> = clean_id.split(['/', '\\']).collect();
-        if !parts.is_empty() && !parts[0].is_empty() {
-            target_path = models_dir.join(parts[0]);
-        }
-    }
+    let target_path = models_dir.join(&clean_id);
     
     if target_path.exists() && target_path.starts_with(&models_dir) {
-        if target_path.is_dir() {
-            if let Err(e) = std::fs::remove_dir_all(&target_path) {
+        if target_path.is_file() {
+            if let Err(e) = std::fs::remove_file(&target_path) {
                 return Json(StartResponse { success: false, message: e.to_string() });
             }
-        } else {
-            if let Err(e) = std::fs::remove_file(&target_path) {
+            if let Some(parent) = target_path.parent() {
+                if parent != models_dir && parent.starts_with(&models_dir) {
+                    let _ = std::fs::remove_dir(parent); // will only succeed if empty
+                }
+            }
+        } else if target_path.is_dir() {
+            if let Err(e) = std::fs::remove_dir_all(&target_path) {
                 return Json(StartResponse { success: false, message: e.to_string() });
             }
         }
@@ -506,6 +504,8 @@ let models_dir_str = format!("{}/models", base_dir_root);
         }
     }
 
+    let mut header_buffer = vec![0u8; 1024 * 1024 * 64];
+
     for (path, filename, rel_path) in files_to_process {
         let size_gb = if let Ok(metadata) = fs::metadata(&path) {
             (metadata.len() as f32) / (1024.0 * 1024.0 * 1024.0)
@@ -515,7 +515,7 @@ let models_dir_str = format!("{}/models", base_dir_root);
 
                 // Try to load from cache first
                 let (base_dir_cache, _) = base_dir();
-let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
+                let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                 let cache_path = std::path::Path::new(&cache_path_str);
                 let mut cache: std::collections::HashMap<String, CachedModelMetadata> = if cache_path.exists() {
                     if let Ok(cache_str) = fs::read_to_string(cache_path) {
@@ -560,10 +560,8 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                     // Full reliable parser using gguf crate
                     if let Ok(mut file) = fs::File::open(&path) {
                         use std::io::Read;
-                        let mut buffer = vec![0u8; 1024 * 1024 * 64]; // Read first 64MB to ensure full header
-                        if let Ok(bytes_read) = file.read(&mut buffer) {
-                            buffer.truncate(bytes_read);
-                            match gguf::GGUFFile::read(&buffer) {
+                        if let Ok(bytes_read) = file.read(&mut header_buffer) {
+                            match gguf::GGUFFile::read(&header_buffer[..bytes_read]) {
                                 Ok(Some(gguf_file)) => {
                                     for md in gguf_file.header.metadata {
                                         if md.key.ends_with(".context_length") || md.key.ends_with(".n_ctx_train") {
@@ -612,81 +610,80 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                     if context_length == 0 || block_count == 0 {
                         if let Ok(mut file) = fs::File::open(&path) {
                             use std::io::Read;
-                            let mut buffer = vec![0u8; 1024 * 1024]; 
-                            if let Ok(bytes_read) = file.read(&mut buffer) {
-                                buffer.truncate(bytes_read);
+                            if let Ok(bytes_read) = file.read(&mut header_buffer) {
+                                let buffer_slice = &header_buffer[..bytes_read];
                                 let ctx_needle = b".context_length";
-                                if let Some(pos) = buffer.windows(ctx_needle.len()).position(|w| w == ctx_needle) {
+                                if let Some(pos) = buffer_slice.windows(ctx_needle.len()).position(|w| w == ctx_needle) {
                                     let type_pos = pos + ctx_needle.len();
-                                    if type_pos + 8 <= buffer.len() {
-                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                    if type_pos + 8 <= buffer_slice.len() {
+                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 4 {
-                                            context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                            context_length = u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap());
                                         }
                                     }
                                 }
                                 let ctx_train_needle = b".n_ctx_train";
                                 if context_length == 0 {
-                                    if let Some(pos) = buffer.windows(ctx_train_needle.len()).position(|w| w == ctx_train_needle) {
+                                    if let Some(pos) = buffer_slice.windows(ctx_train_needle.len()).position(|w| w == ctx_train_needle) {
                                         let type_pos = pos + ctx_train_needle.len();
-                                        if type_pos + 8 <= buffer.len() {
-                                            let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                        if type_pos + 8 <= buffer_slice.len() {
+                                            let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                             if val_type == 4 {
-                                                context_length = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                                context_length = u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap());
                                             }
                                         }
                                     }
                                 }
                                 let blk_needle = b".block_count";
-                                if let Some(pos) = buffer.windows(blk_needle.len()).position(|w| w == blk_needle) {
+                                if let Some(pos) = buffer_slice.windows(blk_needle.len()).position(|w| w == blk_needle) {
                                     let type_pos = pos + blk_needle.len();
-                                    if type_pos + 8 <= buffer.len() {
-                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                    if type_pos + 8 <= buffer_slice.len() {
+                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 4 {
-                                            block_count = u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap());
+                                            block_count = u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap());
                                         }
                                     }
                                 }
                                 
                                 let exp_needle = b".expert_count";
-                                if let Some(pos) = buffer.windows(exp_needle.len()).position(|w| w == exp_needle) {
+                                if let Some(pos) = buffer_slice.windows(exp_needle.len()).position(|w| w == exp_needle) {
                                     let type_pos = pos + exp_needle.len();
-                                    if type_pos + 8 <= buffer.len() {
-                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                    if type_pos + 8 <= buffer_slice.len() {
+                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 4 {
-                                            expert_count = Some(u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap()));
+                                            expert_count = Some(u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap()));
                                         }
                                     }
                                 }
                                 let emb_needle = b".embedding_length";
-                                if let Some(pos) = buffer.windows(emb_needle.len()).position(|w| w == emb_needle) {
+                                if let Some(pos) = buffer_slice.windows(emb_needle.len()).position(|w| w == emb_needle) {
                                     let type_pos = pos + emb_needle.len();
-                                    if type_pos + 8 <= buffer.len() {
-                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                    if type_pos + 8 <= buffer_slice.len() {
+                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 4 {
-                                            embedding_length = Some(u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap()));
+                                            embedding_length = Some(u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap()));
                                         }
                                     }
                                 }
                                 let ffn_needle = b".feed_forward_length";
-                                if let Some(pos) = buffer.windows(ffn_needle.len()).position(|w| w == ffn_needle) {
+                                if let Some(pos) = buffer_slice.windows(ffn_needle.len()).position(|w| w == ffn_needle) {
                                     let type_pos = pos + ffn_needle.len();
-                                    if type_pos + 8 <= buffer.len() {
-                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                    if type_pos + 8 <= buffer_slice.len() {
+                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 4 {
-                                            feed_forward_length = Some(u32::from_le_bytes(buffer[type_pos+4..type_pos+8].try_into().unwrap()));
+                                            feed_forward_length = Some(u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap()));
                                         }
                                     }
                                 }
                                 let arch_needle = b"general.architecture";
-                                if let Some(pos) = buffer.windows(arch_needle.len()).position(|w| w == arch_needle) {
+                                if let Some(pos) = buffer_slice.windows(arch_needle.len()).position(|w| w == arch_needle) {
                                     let type_pos = pos + arch_needle.len();
-                                    if type_pos + 12 <= buffer.len() {
-                                        let val_type = u32::from_le_bytes(buffer[type_pos..type_pos+4].try_into().unwrap());
+                                    if type_pos + 12 <= buffer_slice.len() {
+                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
                                         if val_type == 8 {
-                                            let str_len = u64::from_le_bytes(buffer[type_pos+4..type_pos+12].try_into().unwrap()) as usize;
-                                            if type_pos + 12 + str_len <= buffer.len() {
-                                                if let Ok(s) = std::str::from_utf8(&buffer[type_pos+12..type_pos+12+str_len]) {
+                                            let str_len = u64::from_le_bytes(buffer_slice[type_pos+4..type_pos+12].try_into().unwrap()) as usize;
+                                            if type_pos + 12 + str_len <= buffer_slice.len() {
+                                                if let Ok(s) = std::str::from_utf8(&buffer_slice[type_pos+12..type_pos+12+str_len]) {
                                                     architecture = s.to_string();
                                                 }
                                             }
@@ -709,7 +706,9 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
                     };
                     cache.insert(filename.clone(), new_metadata);
                     if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
-                        let _ = fs::write(cache_path, cache_str);
+                        let temp_cache_path = cache_path.with_extension("tmp");
+                        let _ = fs::write(&temp_cache_path, cache_str);
+                        let _ = fs::rename(&temp_cache_path, cache_path);
                     }
                 }
 
@@ -834,7 +833,7 @@ async fn proxy_handler(
         }
     }
 
-    let client = reqwest::Client::new();
+    let client = &state.http_client;
     let uri = format!("http://127.0.0.1:{}{}", target_port, parts.uri.path_and_query().map(|pq| pq.as_str()).unwrap_or(""));
     
     let mut req_builder = client.request(parts.method, uri);
@@ -884,7 +883,7 @@ async fn update_network_config(
     let mut proxy_lock = state.proxy_task.lock().await;
     
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    state.system_logs.lock().await.push(format!("[{}] Network gateway configured: {} (Port: {}, Network Host: {})", timestamp, bind_addr, payload.port, payload.network_host));
+    state.system_logs.lock().await.push_back(format!("[{}] Network gateway configured: {} (Port: {}, Network Host: {})", timestamp, bind_addr, payload.port, payload.network_host));
     
     if let Some(task) = proxy_lock.take() {
         task.abort();
@@ -898,7 +897,14 @@ async fn update_network_config(
         .with_state(state.clone())
         .layer(CorsLayer::permissive());
     
-    let listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
+    let mut listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
+    for _ in 0..10 {
+        if listener_result.is_ok() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
+    }
     
     match listener_result {
         Ok(listener) => {
@@ -907,7 +913,7 @@ async fn update_network_config(
             });
             *proxy_lock = Some(task);
             *proxy_addr_lock = Some(bind_addr.clone());
-            state.system_logs.lock().await.push(format!("[System] Gateway started on {}", bind_addr));
+            state.system_logs.lock().await.push_back(format!("[System] Gateway started on {}", bind_addr));
             
             Json(StartResponse {
                 success: true,
@@ -959,7 +965,7 @@ async fn get_server_logs(
 ) -> Json<Vec<String>> {
     let servers = state.active_servers.lock().await;
     if let Some(server) = servers.get(&query.model_id) {
-        Json(server.logs.clone())
+        Json(server.logs.iter().cloned().collect())
     } else {
         Json(Vec::new())
     }
@@ -983,19 +989,23 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     reader: R,
     state: Arc<AppState>,
     model_id: String,
+    instance_id: uuid::Uuid,
 ) {
     tokio::spawn(async move {
         let mut lines = BufReader::new(reader).lines();
         while let Ok(Some(line)) = lines.next_line().await {
             if model_id == "engine_setup" || model_id == "system" {
                 let mut sys_logs = state.system_logs.lock().await;
-                sys_logs.push(line.clone());
-                if sys_logs.len() > 1000 { sys_logs.remove(0); }
+                sys_logs.push_back(line.clone());
+                if sys_logs.len() > 1000 { sys_logs.pop_front(); }
             } else {
                 let mut servers = state.active_servers.lock().await;
                 if let Some(server) = servers.get_mut(&model_id) {
-                    server.logs.push(line.clone());
-                    if server.logs.len() > 1000 { server.logs.remove(0); }
+                    if server.instance_id != instance_id {
+                        break;
+                    }
+                    server.logs.push_back(line.clone());
+                    if server.logs.len() > 1000 { server.logs.pop_front(); }
 
                     if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
                         server.is_ready = true;
@@ -1013,7 +1023,7 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
 
                     if line.to_lowercase().contains("error") {
                         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                        state.system_logs.lock().await.push(format!("[{}] {} Error: {}", timestamp, model_id, line));
+                        state.system_logs.lock().await.push_back(format!("[{}] {} Error: {}", timestamp, model_id, line));
                     }
                 } else {
                     break;
@@ -1201,23 +1211,20 @@ async fn start_server(
         let _ = fs::write(&settings_path, json_str);
     }
 
-    let mut servers_map = state.active_servers.lock().await;
-    
-    if servers_map.contains_key(&payload.model_id) {
-        if let Some(mut existing) = servers_map.remove(&payload.model_id) {
-            if let Some(mut child) = existing.process.take() {
-                let _ = child.kill().await;
-            }
-        }
-    }
-    
-    let port = {
+    let (port, old_process) = {
+        let mut servers_map = state.active_servers.lock().await;
+        let old_proc = servers_map.remove(&payload.model_id).and_then(|mut s| s.process.take());
         let mut p = 8080;
         while servers_map.values().any(|s| s.port == p) {
             p += 1;
         }
-        p
+        (p, old_proc)
     };
+
+    if let Some(mut child) = old_process {
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+    }
     
     let model_path = format!("{}/models/{}", base_dir().0, payload.model_id);
     let (base, _) = base_dir();
@@ -1338,8 +1345,8 @@ async fn start_server(
     }
 
     let full_command = format!("{} {}", binary_path, args.join(" "));
-    state.system_logs.lock().await.push("I [SYSTEM] Booting llama-server with parameters:".to_string());
-    state.system_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
+    state.system_logs.lock().await.push_back("I [SYSTEM] Booting llama-server with parameters:".to_string());
+    state.system_logs.lock().await.push_back(format!("I [SYSTEM] {}", full_command));
 
     let mut child = match Command::new(binary_path.clone())
         .args(&args)
@@ -1359,9 +1366,11 @@ async fn start_server(
     let stdout = child.inner().stdout.take().unwrap();
     let stderr = child.inner().stderr.take().unwrap();
     
-    let mut initial_logs = Vec::new();
-    initial_logs.push("I [SYSTEM] Booting llama-server with exact parameters:".to_string());
-    initial_logs.push(format!("I [SYSTEM] {}", full_command));
+    let mut initial_logs = std::collections::VecDeque::new();
+    initial_logs.push_back("I [SYSTEM] Booting llama-server with exact parameters:".to_string());
+    initial_logs.push_back(format!("I [SYSTEM] {}", full_command));
+
+    let instance_id = uuid::Uuid::new_v4();
 
     let server_state = ActiveServer {
         process: Some(child),
@@ -1370,13 +1379,16 @@ async fn start_server(
         is_ready: false,
         logs: initial_logs,
         progress: 0.0,
+        instance_id: instance_id.clone(),
     };
     
-    servers_map.insert(payload.model_id.clone(), server_state);
-    drop(servers_map); 
+    {
+        let mut servers_map = state.active_servers.lock().await;
+        servers_map.insert(payload.model_id.clone(), server_state);
+    }
 
-    spawn_log_reader(stdout, state.clone(), payload.model_id.clone());
-    spawn_log_reader(stderr, state.clone(), payload.model_id.clone());
+    spawn_log_reader(stdout, state.clone(), payload.model_id.clone(), instance_id.clone());
+    spawn_log_reader(stderr, state.clone(), payload.model_id.clone(), instance_id);
 
     Json(StartResponse {
         success: true,
@@ -1393,6 +1405,7 @@ async fn stop_server(
     if let Some(mut server) = servers_map.remove(&payload.model_id) {
         if let Some(mut child) = server.process.take() {
             let _ = child.kill().await;
+            let _ = child.wait().await;
         }
         Json(StartResponse {
             success: true,
@@ -1454,6 +1467,7 @@ async fn run_benchmark(
         for server in servers_map.values_mut() {
             if let Some(mut child) = server.process.take() {
                 let _ = child.kill().await;
+                let _ = child.wait().await;
             }
         }
         servers_map.clear();
@@ -1567,7 +1581,7 @@ async fn run_benchmark(
         let stderr = child.inner().stderr.take().expect("Failed to open stderr");
 
         let state_clone_out = shared_state.clone();
-        tokio::spawn(async move {
+        let out_handle = tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = reader.next_line().await {
                 let mut logs = state_clone_out.benchmark_logs.lock().await;
@@ -1591,7 +1605,7 @@ async fn run_benchmark(
         });
 
         let state_clone_err = shared_state.clone();
-        tokio::spawn(async move {
+        let err_handle = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = reader.next_line().await {
                 let mut logs = state_clone_err.benchmark_logs.lock().await;
@@ -1600,6 +1614,7 @@ async fn run_benchmark(
         });
 
         let _ = child.wait().await;
+        let _ = tokio::join!(out_handle, err_handle);
         *shared_state.benchmark_running.lock().await = false;
     });
 
@@ -1703,7 +1718,8 @@ async fn hf_download(
     tokio::spawn(async move {
         let url = format!("https://huggingface.co/{}/resolve/main/{}", repo_id, filename);
         let dest_dir = format!("{}/models/{}", base_dir().0, repo_id.replace("/", "_"));
-        let _ = std::fs::create_dir_all(&dest_dir);
+        let _ = tokio::fs::create_dir_all(&dest_dir).await;
+        let dest_path_part = format!("{}/{}.part", dest_dir, filename);
         let dest_path = format!("{}/{}", dest_dir, filename);
         
         let client = reqwest::Client::new();
@@ -1711,23 +1727,25 @@ async fn hf_download(
             Ok(mut res) => {
                 if res.status().is_success() {
                     let total_size = res.content_length().unwrap_or(0) as f64;
-                    if let Ok(mut file) = std::fs::File::create(&dest_path) {
-                        use std::io::Write;
+                    if let Ok(mut file) = tokio::fs::File::create(&dest_path_part).await {
+                        use tokio::io::AsyncWriteExt;
                         let mut downloaded: f64 = 0.0;
                         let mut download_error = None;
+                        let mut last_update = tokio::time::Instant::now();
                         loop {
                             match res.chunk().await {
                                 Ok(Some(chunk)) => {
-                                    if let Err(e) = file.write_all(&chunk) {
+                                    if let Err(e) = file.write_all(&chunk).await {
                                         download_error = Some(e.to_string());
                                         break;
                                     }
                                     downloaded += chunk.len() as f64;
-                                    if total_size > 0.0 {
+                                    if total_size > 0.0 && last_update.elapsed().as_millis() > 250 {
                                         let mut d = state_clone.hf_downloads.lock().await;
                                         if let Some(dl) = d.get_mut(&download_id) {
                                             dl.progress = (downloaded / total_size * 100.0) as f32;
                                         }
+                                        last_update = tokio::time::Instant::now();
                                     }
                                 }
                                 Ok(None) => break,
@@ -1738,14 +1756,22 @@ async fn hf_download(
                             }
                         }
                         
+                        let _ = file.sync_all().await;
+                        drop(file);
+                        
                         let mut d = state_clone.hf_downloads.lock().await;
                         if let Some(dl) = d.get_mut(&download_id) {
                             if let Some(err_msg) = download_error {
                                 dl.status = "error".to_string();
                                 dl.error = Some(err_msg);
                             } else {
-                                dl.progress = 100.0;
-                                dl.status = "completed".to_string();
+                                if let Err(e) = std::fs::rename(&dest_path_part, &dest_path) {
+                                    dl.status = "error".to_string();
+                                    dl.error = Some(e.to_string());
+                                } else {
+                                    dl.progress = 100.0;
+                                    dl.status = "completed".to_string();
+                                }
                             }
                         }
                         tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
@@ -1894,8 +1920,8 @@ async fn download_engine(
     if let Ok(mut child) = child_res {
         let stdout = child.inner().stdout.take().unwrap();
         let stderr = child.inner().stderr.take().unwrap();
-        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string());
-        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
+        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
+        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
         
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         *state.engine_setup_killer.lock().await = Some((payload.engine_id.clone(), tx));
@@ -1938,8 +1964,8 @@ async fn compile_engine(
     if let Ok(mut child) = child_res {
         let stdout = child.inner().stdout.take().unwrap();
         let stderr = child.inner().stderr.take().unwrap();
-        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string());
-        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string());
+        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
+        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
         
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         *state.engine_setup_killer.lock().await = Some((payload.engine_id.clone(), tx));
@@ -1968,7 +1994,7 @@ async fn stop_engine_setup(
     if let Some((_, tx)) = state.engine_setup_killer.lock().await.take() {
         let _ = tx.send(());
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        state.system_logs.lock().await.push(format!("[{}] engine_setup: Process stopped by user.", timestamp));
+        state.system_logs.lock().await.push_back(format!("[{}] engine_setup: Process stopped by user.", timestamp));
     }
     Json(serde_json::json!({"success": true}))
 }
@@ -1985,6 +2011,9 @@ async fn get_engine_status(
 async fn delete_engine(
     axum::extract::Path(engine_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
+    if engine_id.contains('/') || engine_id.contains('\\') || engine_id.contains("..") {
+        return Json(serde_json::json!({"success": false, "message": "Invalid engine ID"}));
+    }
     let (base, _) = base_dir();
     let engine_dir = format!("{}/engines/{}", base, engine_id);
     match fs::remove_dir_all(&engine_dir) {
@@ -2087,6 +2116,7 @@ async fn main() {
     });
 
     let shared_state = Arc::new(AppState {
+        http_client: reqwest::Client::new(),
         active_servers: Mutex::new(HashMap::new()),
         telemetry_cache,
         proxy_task: Mutex::new(None),
@@ -2095,10 +2125,10 @@ async fn main() {
         benchmark_logs: Mutex::new(Vec::new()),
         benchmark_pp: Mutex::new(None),
         benchmark_tg: Mutex::new(None),
-        system_logs: Mutex::new(Vec::new()),
+        system_logs: Mutex::new(std::collections::VecDeque::new()),
         hf_downloads: Mutex::new(std::collections::HashMap::new()),
         engine_setup_killer: Mutex::new(None),
-});
+    });
 
     let app = Router::new()
         .route("/health", get(health_check))

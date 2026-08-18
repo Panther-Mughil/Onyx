@@ -184,13 +184,11 @@ async fn main() {
     let cache_clone = telemetry_cache.clone();
     tokio::spawn(async move {
         let mut sys = System::new_all();
-        let mut components = sysinfo::Components::new();
         let mut nvml_opt = nvml_wrapper::Nvml::init().ok();
         
         loop {
             sys.refresh_cpu_usage();
             sys.refresh_memory();
-            components.refresh_list();
             
             let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
             let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
@@ -256,8 +254,18 @@ async fn main() {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(telemetry_port).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(telemetry_port).await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Failed to bind telemetry server to {}: {}", telemetry_port, e);
+            eprintln!("Please specify a different port or check if it is already in use.");
+            std::process::exit(1);
+        }
+    };
+    if let Err(e) = axum::serve(listener, app).await {
+        eprintln!("Server error: {}", e);
+        std::process::exit(1);
+    }
 }
 
 fn wait_and_exit(code: i32) -> ! {

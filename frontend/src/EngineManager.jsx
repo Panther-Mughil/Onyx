@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
 	Download,
 	Terminal,
@@ -16,6 +16,13 @@ export default function EngineManager({ apiBase }) {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const [activeAction, setActiveAction] = useState(null);
+	const pollIntervalRef = useRef(null);
+
+	useEffect(() => {
+		return () => {
+			if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+		};
+	}, []);
 
 	useEffect(() => {
 		fetchSysInfo();
@@ -74,7 +81,8 @@ export default function EngineManager({ apiBase }) {
 	};
 
 	const pollInstallStatus = (id) => {
-		const interval = setInterval(async () => {
+		if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+		pollIntervalRef.current = setInterval(async () => {
 			try {
 				const [enginesRes, statusRes] = await Promise.all([
 					fetch(`${apiBase}/api/engines`),
@@ -88,10 +96,10 @@ export default function EngineManager({ apiBase }) {
 					setInstalled(enginesData);
 					
 					if (enginesData.includes(id)) {
-						clearInterval(interval);
+						clearInterval(pollIntervalRef.current);
 						setActiveAction(null);
 					} else if (statusData.active_engine !== id) {
-						clearInterval(interval);
+						clearInterval(pollIntervalRef.current);
 						setActiveAction(null);
 					}
 				}
@@ -469,6 +477,8 @@ export default function EngineManager({ apiBase }) {
 									color: "#a78bfa",
 									whiteSpace: "pre-wrap",
 									wordBreak: "break-word",
+									overflowWrap: "break-word",
+									maxWidth: "100%",
 									marginBottom: macBannerCommands.length > 1 ? "8px" : "0",
 								}}
 							>

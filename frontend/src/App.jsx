@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useId } from "react";
 import {
 	Square,
 	Settings,
@@ -57,222 +57,226 @@ const MemoryEstimator = ({
 	const [showTooltip, setShowTooltip] = useState(false);
 	if (!selectedModel) return null;
 
-	// Model weight estimations
-	const totalLayers = selectedModel.block_count || 32;
-	const layerSizeGb = selectedModel.size_gb / totalLayers;
+	const { stats, hasDanger, hasWarning, statusColor, getDeviceColor } = useMemo(() => {
+		// Model weight estimations
+		const totalLayers = selectedModel.block_count || 32;
+		const layerSizeGb = selectedModel.size_gb / totalLayers;
 
-	// KV Cache Estimations
-	const nEmbd =
-		totalLayers <= 16
-			? 2048
-			: totalLayers <= 32
-				? 4096
-				: totalLayers <= 40
-					? 5120
-					: totalLayers <= 60
-						? 6144
-						: 8192;
-	const gqaFactor = 0.25;
+		// KV Cache Estimations
+		const nEmbd =
+			totalLayers <= 16
+				? 2048
+				: totalLayers <= 32
+					? 4096
+					: totalLayers <= 40
+						? 5120
+						: totalLayers <= 60
+							? 6144
+							: 8192;
+		const gqaFactor = 0.25;
 
-	const getQuantBytes = (q) => {
-		if (q === "f16" || q === "f32") return 2.0;
-		if (q === "q8_0") return 1.0;
-		if (q.startsWith("q4")) return 0.5;
-		if (q.startsWith("q5")) return 0.625;
-		return 2.0;
-	};
+		const getQuantBytes = (q) => {
+			if (q === "f16" || q === "f32") return 2.0;
+			if (q === "q8_0") return 1.0;
+			if (q.startsWith("q4")) return 0.5;
+			if (q.startsWith("q5")) return 0.625;
+			return 2.0;
+		};
 
-	const bpe =
-		(getQuantBytes(config.kCacheQuant) + getQuantBytes(config.vCacheQuant)) / 2;
-	const kvSizeBytes =
-		2 *
-		totalLayers *
-		(nEmbd * gqaFactor) *
-		bpe *
-		config.ctxSize *
-		config.concurrency;
-	const kvSizeGb = kvSizeBytes / (1024 * 1024 * 1024);
+		const bpe =
+			(getQuantBytes(config.kCacheQuant) + getQuantBytes(config.vCacheQuant)) / 2;
+		const kvSizeBytes =
+			2 *
+			totalLayers *
+			(nEmbd * gqaFactor) *
+			bpe *
+			config.ctxSize *
+			config.concurrency;
+		const kvSizeGb = kvSizeBytes / (1024 * 1024 * 1024);
 
-	// Context Compute Buffer (Graph overhead) - scales heavily with ctxSize
-	// If Flash Attention is OFF, the QK^T Attention Matrix takes a MASSIVE amount of memory.
-	const nHead = nEmbd / 64; // Conservative approximation of attention heads
-	let attentionBufferGb = 0;
-	if (!config.flashAttention) {
-		// Elements = heads * batch_size * context_size. Each is 4 bytes (f32)
-		attentionBufferGb =
-			(nHead * config.physicalBatchSize * config.ctxSize * 4) /
-			(1024 * 1024 * 1024);
-	}
-	const baseGraphGb = (config.ctxSize / 100000) * 0.5; // ~500MB graph logic per 100k tokens
-	const visionBufferGb = config.enableVision && selectedModel.mmproj_size_gb ? selectedModel.mmproj_size_gb : 0.0;
-	const computeBufferGb = attentionBufferGb + baseGraphGb + visionBufferGb;
-
-	const hostOverheadGb = 0.4; // Host OS / Llama.cpp base binary overhead
-	const cudaOverheadGb = 0.25; // Base CUDA Context initialization overhead per GPU
-
-	const allocations = { ...config.layerAllocations };
-	const stats = [];
-
-	let offloadedLayers = 0;
-	activeDevices.forEach((d) => {
-		if (d.id.startsWith("gpu") || d.id.startsWith("rpc")) {
-			offloadedLayers += allocations[d.id] || 0;
+		// Context Compute Buffer (Graph overhead) - scales heavily with ctxSize
+		// If Flash Attention is OFF, the QK^T Attention Matrix takes a MASSIVE amount of memory.
+		const nHead = nEmbd / 64; // Conservative approximation of attention heads
+		let attentionBufferGb = 0;
+		if (!config.flashAttention) {
+			// Elements = heads * batch_size * context_size. Each is 4 bytes (f32)
+			attentionBufferGb =
+				(nHead * config.physicalBatchSize * config.ctxSize * 4) /
+				(1024 * 1024 * 1024);
 		}
-	});
+		const baseGraphGb = (config.ctxSize / 100000) * 0.5; // ~500MB graph logic per 100k tokens
+		const visionBufferGb = config.enableVision && selectedModel.mmproj_size_gb ? selectedModel.mmproj_size_gb : 0.0;
+		const computeBufferGb = attentionBufferGb + baseGraphGb + visionBufferGb;
 
-	let hasDanger = false;
-	let hasWarning = false;
+		const hostOverheadGb = 0.4; // Host OS / Llama.cpp base binary overhead
+		const cudaOverheadGb = 0.25; // Base CUDA Context initialization overhead per GPU
 
-	let totalSavedVram = 0;
-	let expertRatio = 0;
+		const allocations = { ...config.layerAllocations };
+		const stats = [];
 
-	if (selectedModel?.architecture?.includes("moe") && config.moeCpuLayers > 0) {
-		const d_model = selectedModel.embedding_length || 4096;
-		const d_ff_exp = selectedModel.feed_forward_length || 14336;
-		const E = selectedModel.expert_count || 8;
+		let offloadedLayers = 0;
+		activeDevices.forEach((d) => {
+			if (d.id.startsWith("gpu") || d.id.startsWith("rpc")) {
+				offloadedLayers += allocations[d.id] || 0;
+			}
+		});
 
-		const attnParams = 4 * Math.pow(d_model, 2);
-		const expertParams = E * 3 * d_model * d_ff_exp;
-		const totalLayerParams = attnParams + expertParams;
-		expertRatio = expertParams / totalLayerParams;
+		let hasDanger = false;
+		let hasWarning = false;
 
-		totalSavedVram =
-			Math.min(offloadedLayers, config.moeCpuLayers) *
-			(layerSizeGb * expertRatio);
-	}
+		let totalSavedVram = 0;
+		let expertRatio = 0;
 
-	const computeDevice = (id, name, isRam) => {
-		const actualLayers = allocations[id] || 0;
-		let baseVram = actualLayers * layerSizeGb;
+		if (selectedModel?.architecture?.includes("moe") && config.moeCpuLayers > 0) {
+			const d_model = selectedModel.embedding_length || 4096;
+			const d_ff_exp = selectedModel.feed_forward_length || 14336;
+			const E = selectedModel.expert_count || 8;
 
-		if (expertRatio > 0 && offloadedLayers > 0 && !isRam) {
-			const effectiveOffload = Math.min(
-				1,
-				config.moeCpuLayers / offloadedLayers,
-			);
-			baseVram -= actualLayers * (layerSizeGb * expertRatio * effectiveOffload);
-		}
-		let kvPart = config.offloadKv ? (actualLayers / totalLayers) * kvSizeGb : 0;
+			const attnParams = 4 * Math.pow(d_model, 2);
+			const expertParams = E * 3 * d_model * d_ff_exp;
+			const totalLayerParams = attnParams + expertParams;
+			expertRatio = expertParams / totalLayerParams;
 
-		let initialVram = config.flashAttention ? baseVram : baseVram + kvPart;
-		let maxVram = baseVram + kvPart;
-
-		if (id.startsWith("gpu") && actualLayers > 0) {
-			initialVram += cudaOverheadGb + computeBufferGb;
-			maxVram += cudaOverheadGb + computeBufferGb;
+			totalSavedVram =
+				Math.min(offloadedLayers, config.moeCpuLayers) *
+				(layerSizeGb * expertRatio);
 		}
 
-		let status = "ok";
-		let freeGb = Infinity;
+		const computeDevice = (id, name, isRam) => {
+			const actualLayers = allocations[id] || 0;
+			let baseVram = actualLayers * layerSizeGb;
 
-		// --- Crash Check Logic ---
-		if (id.startsWith("gpu") && telemetry?.host?.gpus) {
-			const idx = parseInt(id.split("_")[1]);
-			const gpuTel = telemetry.host.gpus[idx];
-			if (gpuTel) freeGb = (gpuTel.vram_total_mb - gpuTel.vram_used_mb) / 1024;
-		} else if (id.startsWith("rpc") && telemetry?.rpcs) {
-			const idx = parseInt(id.split("_")[1]);
-			const rpcTel = telemetry.rpcs[idx];
-			if (rpcTel) {
-				if (rpcTel.gpus && rpcTel.gpus.length > 0) {
-					freeGb = rpcTel.gpus.reduce(
-						(acc, g) => acc + (g.vram_total_mb - g.vram_used_mb) / 1024,
-						0,
-					);
-				} else {
-					freeGb = rpcTel.ram_total_gb - rpcTel.ram_used_gb;
+			if (expertRatio > 0 && offloadedLayers > 0 && !isRam) {
+				const effectiveOffload = Math.min(
+					1,
+					config.moeCpuLayers / offloadedLayers,
+				);
+				baseVram -= actualLayers * (layerSizeGb * expertRatio * effectiveOffload);
+			}
+			let kvPart = config.offloadKv ? (actualLayers / totalLayers) * kvSizeGb : 0;
+
+			let initialVram = config.flashAttention ? baseVram : baseVram + kvPart;
+			let maxVram = baseVram + kvPart;
+
+			if (id.startsWith("gpu") && actualLayers > 0) {
+				initialVram += cudaOverheadGb + computeBufferGb;
+				maxVram += cudaOverheadGb + computeBufferGb;
+			}
+
+			let status = "ok";
+			let freeGb = Infinity;
+
+			// --- Crash Check Logic ---
+			if (id.startsWith("gpu") && telemetry?.host?.gpus) {
+				const idx = parseInt(id.split("_")[1]);
+				const gpuTel = telemetry.host.gpus[idx];
+				if (gpuTel) freeGb = (gpuTel.vram_total_mb - gpuTel.vram_used_mb) / 1024;
+			} else if (id.startsWith("rpc") && telemetry?.rpcs) {
+				const idx = parseInt(id.split("_")[1]);
+				const rpcTel = telemetry.rpcs[idx];
+				if (rpcTel) {
+					if (rpcTel.gpus && rpcTel.gpus.length > 0) {
+						freeGb = rpcTel.gpus.reduce(
+							(acc, g) => acc + (g.vram_total_mb - g.vram_used_mb) / 1024,
+							0,
+						);
+					} else {
+						freeGb = rpcTel.ram_total_gb - rpcTel.ram_used_gb;
+					}
 				}
 			}
+
+			if (freeGb !== Infinity) {
+				if (initialVram > freeGb) {
+					status = "danger";
+					hasDanger = true;
+				} else if (maxVram > freeGb) {
+					status = "warning";
+					hasWarning = true;
+				}
+			}
+
+			const shortName = id.startsWith("gpu")
+				? `GPU ${id.split("_")[1]}`
+				: id.startsWith("rpc")
+					? `RPC ${id.split("_")[1]}`
+					: name;
+			if (maxVram > 0)
+				stats.push({
+					name: shortName,
+					type: isRam ? "RAM" : "VRAM",
+					gb: maxVram,
+					status,
+				});
+		};
+
+		activeDevices
+			.filter((d) => d.id.startsWith("gpu"))
+			.forEach((d) => computeDevice(d.id, d.name, false));
+		activeDevices
+			.filter((d) => d.id.startsWith("rpc"))
+			.forEach((d) => computeDevice(d.id, d.name, false));
+
+		const cpuActualLayers = Math.max(0, totalLayers - offloadedLayers);
+		let hostBaseRam =
+			cpuActualLayers * layerSizeGb + hostOverheadGb + totalSavedVram;
+		let hostKvPart = !config.offloadKv
+			? kvSizeGb
+			: (cpuActualLayers / totalLayers) * kvSizeGb;
+
+		let hostInitialRam = config.flashAttention
+			? hostBaseRam
+			: hostBaseRam + hostKvPart;
+		let hostMaxRam = hostBaseRam + hostKvPart;
+
+		// If no GPU offload, Host bears the Compute Buffer
+		if (offloadedLayers === 0) {
+			hostInitialRam += computeBufferGb;
+			hostMaxRam += computeBufferGb;
 		}
 
-		if (freeGb !== Infinity) {
-			if (initialVram > freeGb) {
-				status = "danger";
+		let hostStatus = "ok";
+		// Check Host RAM limit
+		if (telemetry?.host) {
+			const freeRam = telemetry.host.ram_total_gb - telemetry.host.ram_used_gb;
+			if (hostInitialRam > freeRam) {
+				hostStatus = "danger";
 				hasDanger = true;
-			} else if (maxVram > freeGb) {
-				status = "warning";
+			} else if (hostMaxRam > freeRam) {
+				hostStatus = "warning";
 				hasWarning = true;
 			}
 		}
 
-		const shortName = id.startsWith("gpu")
-			? `GPU ${id.split("_")[1]}`
-			: id.startsWith("rpc")
-				? `RPC ${id.split("_")[1]}`
-				: name;
-		if (maxVram > 0)
-			stats.push({
-				name: shortName,
-				type: isRam ? "RAM" : "VRAM",
-				gb: maxVram,
-				status,
-			});
-	};
+		stats.unshift({
+			name: "Host",
+			type: "RAM",
+			gb: hostMaxRam,
+			status: hostStatus,
+		});
 
-	activeDevices
-		.filter((d) => d.id.startsWith("gpu"))
-		.forEach((d) => computeDevice(d.id, d.name, false));
-	activeDevices
-		.filter((d) => d.id.startsWith("rpc"))
-		.forEach((d) => computeDevice(d.id, d.name, false));
+		const isPartialOffload = cpuActualLayers > 0;
 
-	const cpuActualLayers = Math.max(0, totalLayers - offloadedLayers);
-	let hostBaseRam =
-		cpuActualLayers * layerSizeGb + hostOverheadGb + totalSavedVram;
-	let hostKvPart = !config.offloadKv
-		? kvSizeGb
-		: (cpuActualLayers / totalLayers) * kvSizeGb;
-
-	let hostInitialRam = config.flashAttention
-		? hostBaseRam
-		: hostBaseRam + hostKvPart;
-	let hostMaxRam = hostBaseRam + hostKvPart;
-
-	// If no GPU offload, Host bears the Compute Buffer
-	if (offloadedLayers === 0) {
-		hostInitialRam += computeBufferGb;
-		hostMaxRam += computeBufferGb;
-	}
-
-	let hostStatus = "ok";
-	// Check Host RAM limit
-	if (telemetry?.host) {
-		const freeRam = telemetry.host.ram_total_gb - telemetry.host.ram_used_gb;
-		if (hostInitialRam > freeRam) {
-			hostStatus = "danger";
-			hasDanger = true;
-		} else if (hostMaxRam > freeRam) {
-			hostStatus = "warning";
-			hasWarning = true;
+		// Global Footprint Status Color Logic
+		let statusColor = "var(--ready-green)"; // Green
+		if (hasDanger) {
+			statusColor = "var(--danger)"; // Red
+		} else if (hasWarning && !isPartialOffload) {
+			statusColor = "#f97316"; // Orange
+		} else if (hasWarning && isPartialOffload) {
+			statusColor = "#78350f"; // Dark Brown (Blue + Orange)
+		} else if (!hasWarning && isPartialOffload) {
+			statusColor = "#38bdf8"; // Blue
 		}
-	}
 
-	stats.unshift({
-		name: "Host",
-		type: "RAM",
-		gb: hostMaxRam,
-		status: hostStatus,
-	});
+		const getDeviceColor = (status) => {
+			if (status === "danger") return "var(--danger)";
+			if (status === "warning") return "#f97316";
+			return "#10b981"; // ok -> green
+		};
 
-	const isPartialOffload = cpuActualLayers > 0;
-
-	// Global Footprint Status Color Logic
-	let statusColor = "var(--ready-green)"; // Green
-	if (hasDanger) {
-		statusColor = "var(--danger)"; // Red
-	} else if (hasWarning && !isPartialOffload) {
-		statusColor = "#f97316"; // Orange
-	} else if (hasWarning && isPartialOffload) {
-		statusColor = "#78350f"; // Dark Brown (Blue + Orange)
-	} else if (!hasWarning && isPartialOffload) {
-		statusColor = "#38bdf8"; // Blue
-	}
-
-	const getDeviceColor = (status) => {
-		if (status === "danger") return "var(--danger)";
-		if (status === "warning") return "#f97316";
-		return "#10b981"; // ok -> green
-	};
+		return { stats, hasDanger, hasWarning, statusColor, getDeviceColor };
+	}, [selectedModel, config, activeDevices, telemetry]);
 
 	return (
 		<div
@@ -565,10 +569,14 @@ const getVramColor = (used, total) => {
 
 const CpuLineGraph = ({ usage, color }) => {
 	const [history, setHistory] = useState(Array(60).fill(0));
-	const gradientId = `grad-${color.replace(/[^a-zA-Z0-9]/g, "")}`;
+	const uniqueId = useId();
+	const gradientId = `grad-${color.replace(/[^a-zA-Z0-9]/g, "")}-${uniqueId.replace(/[^a-zA-Z0-9]/g, "")}`;
 
 	useEffect(() => {
-		setHistory((prev) => [...prev.slice(1), usage]);
+		const interval = setInterval(() => {
+			setHistory((prev) => [...prev.slice(1), usage]);
+		}, 1000);
+		return () => clearInterval(interval);
 	}, [usage]);
 
 	const maxH = 40;
@@ -860,7 +868,13 @@ function App() {
 		fetch(`${API_BASE}/api/server/status`)
 			.then((res) => res.json())
 			.then((data) => {
-				setActiveServers(data.servers || []);
+				setActiveServers((prev) => {
+					const newServers = data.servers || [];
+					if (JSON.stringify(prev) !== JSON.stringify(newServers)) {
+						return newServers;
+					}
+					return prev;
+				});
 			})
 			.catch(() => {});
 	};
@@ -1079,13 +1093,16 @@ function App() {
 
 	// Global drag events for sidebar
 	useEffect(() => {
+		let animationFrameId;
 		const handleMouseMove = (e) => {
 			if (!isSidebarDragging) return;
-			// Current value is 380. Min is 380, max is 600.
-			let newWidth = e.clientX - 60; // 60 is activity bar width
-			if (newWidth < 380) newWidth = 380;
-			if (newWidth > 600) newWidth = 600;
-			setSidebarWidth(newWidth);
+			if (animationFrameId) cancelAnimationFrame(animationFrameId);
+			animationFrameId = requestAnimationFrame(() => {
+				let newWidth = e.clientX - 60; // 60 is activity bar width
+				if (newWidth < 380) newWidth = 380;
+				if (newWidth > 600) newWidth = 600;
+				setSidebarWidth(newWidth);
+			});
 		};
 
 		const handleMouseUp = () => {
@@ -1107,6 +1124,7 @@ function App() {
 		return () => {
 			document.removeEventListener("mousemove", handleMouseMove);
 			document.removeEventListener("mouseup", handleMouseUp);
+			if (animationFrameId) cancelAnimationFrame(animationFrameId);
 		};
 	}, [isSidebarDragging]);
 
@@ -1165,7 +1183,7 @@ function App() {
 		fetchTelemetry();
 		const interval = setInterval(fetchTelemetry, 1000);
 		return () => clearInterval(interval);
-	}, [serverSettings.rpcServers]);
+	}, [JSON.stringify(serverSettings.rpcServers)]);
 
 	// A5b: fetch version info for footer
 	useEffect(() => {
@@ -1873,15 +1891,17 @@ function App() {
 													}}
 												></div>
 												{telemetry.host.gpus.length === 0 ? (
-													<div
-														style={{
-															textAlign: "center",
-															color: "var(--text-muted)",
-															fontSize: "12px",
-														}}
-													>
-														No NVIDIA GPUs detected.
-													</div>
+													telemetry.host.os !== "macos" && (
+														<div
+															style={{
+																textAlign: "center",
+																color: "var(--text-muted)",
+																fontSize: "12px",
+															}}
+														>
+															No NVIDIA GPUs detected.
+														</div>
+													)
 												) : (
 													<>
 														{telemetry.host.gpus.map((gpu, idx) => (

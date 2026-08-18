@@ -3,6 +3,7 @@ setlocal EnableDelayedExpansion
 title Onyx Terminal
 
 :MENU
+cd "%~dp0"
 cls
 echo =================================================
 echo                 ONYX TERMINAL
