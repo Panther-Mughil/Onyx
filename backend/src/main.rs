@@ -453,7 +453,7 @@ let models_dir = std::path::Path::new(&base).join("models");
     }
 }
 
-async fn get_local_models() -> Json<Vec<Model>> {
+async fn get_local_models() -> Response {
     let mut models = Vec::new();
     let (base_dir_root, _) = base_dir();
 let models_dir_str = format!("{}/models", base_dir_root);
@@ -731,12 +731,17 @@ let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
     }
 
     models.sort_by(|a, b| a.name.cmp(&b.name));
-    Json(models)
+    
+    let pretty = serde_json::to_string_pretty(&models).unwrap_or_else(|_| "[]".to_string());
+    axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(axum::body::Body::from(pretty))
+        .unwrap()
 }
 
 async fn proxy_models_handler(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+) -> Response {
     let servers = state.active_servers.lock().await;
     let mut data = Vec::new();
     let mut models_array = Vec::new();
@@ -756,11 +761,17 @@ async fn proxy_models_handler(
         }));
     }
     
-    Json(serde_json::json!({
+    let payload = serde_json::json!({
         "object": "list",
         "data": data,
         "models": models_array
-    }))
+    });
+    
+    let pretty = serde_json::to_string_pretty(&payload).unwrap();
+    axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(axum::body::Body::from(pretty))
+        .unwrap()
 }
 
 async fn proxy_handler(
