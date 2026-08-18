@@ -833,6 +833,7 @@ function App() {
 		vCacheQuant: "f16",
 		specType: "none",
 		specDraftNMax: 2,
+		enableVision: false,
 		moeCpuLayers: 0,
 		localGpus: [],
 	};
@@ -3754,6 +3755,14 @@ function App() {
 												/>
 											</div>
 										)}
+
+										<div className="form-row" style={{ marginBottom: "16px" }}>
+											<span>Enable Vision (mmproj auto-detect)</span>
+											<div
+												className={`toggle-switch ${config.enableVision ? "active" : ""}`}
+												onClick={() => handleToggle("enableVision")}
+											></div>
+										</div>
 									</div>
 								</>
 							) : (

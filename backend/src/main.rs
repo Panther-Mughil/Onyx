@@ -244,6 +244,8 @@ struct ServerConfig {
     #[serde(default)]
     spec_draft_n_max: u32,
     #[serde(default)]
+    enable_vision: bool,
+    #[serde(default)]
     moe_cpu_layers: u32,
     rpc_servers: Option<Vec<RpcServer>>,
     #[serde(default)]
@@ -1195,6 +1197,22 @@ async fn start_server(
         if payload.spec_draft_n_max > 0 {
             args.push("--spec-draft-n-max".to_string());
             args.push(payload.spec_draft_n_max.to_string());
+        }
+    }
+
+    if payload.enable_vision {
+        let model_path_obj = std::path::Path::new(&model_path);
+        if let Some(parent) = model_path_obj.parent() {
+            if let Ok(entries) = std::fs::read_dir(parent) {
+                for entry in entries.flatten() {
+                    let fname = entry.file_name().to_string_lossy().to_lowercase();
+                    if fname.contains("mmproj") && fname.ends_with(".gguf") {
+                        args.push("--mmproj".to_string());
+                        args.push(entry.path().to_string_lossy().to_string());
+                        break;
+                    }
+                }
+            }
         }
     }
 
