@@ -240,7 +240,9 @@ struct ServerConfig {
     k_cache_quant: String,
     v_cache_quant: String,
     #[serde(default)]
-    mtp_draft: bool,
+    spec_type: String,
+    #[serde(default)]
+    spec_draft_n_max: u32,
     #[serde(default)]
     moe_cpu_layers: u32,
     rpc_servers: Option<Vec<RpcServer>>,
@@ -1186,9 +1188,14 @@ async fn start_server(
         "--port".to_string(), port.to_string(),
     ];
 
-    if payload.mtp_draft {
+    if !payload.spec_type.is_empty() && payload.spec_type != "none" {
         args.push("--spec-type".to_string());
-        args.push("draft-mtp".to_string());
+        args.push(payload.spec_type.clone());
+        
+        if payload.spec_draft_n_max > 0 {
+            args.push("--spec-draft-n-max".to_string());
+            args.push(payload.spec_draft_n_max.to_string());
+        }
     }
 
     if let Some(servers) = &payload.rpc_servers {

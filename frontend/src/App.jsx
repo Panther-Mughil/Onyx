@@ -831,7 +831,8 @@ function App() {
 		flashAttention: false,
 		kCacheQuant: "f16",
 		vCacheQuant: "f16",
-		mtpDraft: false,
+		specType: "none",
+		specDraftNMax: 2,
 		moeCpuLayers: 0,
 		localGpus: [],
 	};
@@ -3725,12 +3726,34 @@ function App() {
 										</div>
 
 										<div className="form-row" style={{ marginBottom: "16px" }}>
-											<span>Enable MTP Draft Speculative Decoding</span>
-											<div
-												className={`toggle-switch ${config.mtpDraft ? "active" : ""}`}
-												onClick={() => handleToggle("mtpDraft")}
-											></div>
+											<span>Speculation Type</span>
+											<select
+												className="dropdown-select"
+												name="specType"
+												value={config.specType || "none"}
+												onChange={handleConfigChange}
+												style={{ width: "140px" }}
+											>
+												<option value="none">None</option>
+												<option value="draft-mtp">MTP (Multi-Token)</option>
+											</select>
 										</div>
+
+										{config.specType && config.specType !== "none" && (
+											<div className="form-row" style={{ marginBottom: "16px" }}>
+												<span>Draft Tokens (n-max)</span>
+												<input
+													type="number"
+													className="number-input"
+													name="specDraftNMax"
+													value={config.specDraftNMax || 2}
+													onChange={handleConfigChange}
+													min="1"
+													max="10"
+													style={{ width: "60px" }}
+												/>
+											</div>
+										)}
 									</div>
 								</>
 							) : (
