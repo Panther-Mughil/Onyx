@@ -1,0 +1,30 @@
+        case GGML_OP_FLASH_ATTN_EXT:
+            // for new head sizes, add checks here
+            if (op->src[0]->ne[0] != 32 &&
+                op->src[0]->ne[0] != 40 &&
+                op->src[0]->ne[0] != 48 &&
+                op->src[0]->ne[0] != 64 &&
+                op->src[0]->ne[0] != 72 &&
+                op->src[0]->ne[0] != 80 &&
+                op->src[0]->ne[0] != 96 &&
+                op->src[0]->ne[0] != 112 &&
+                op->src[0]->ne[0] != 128 &&
+                op->src[0]->ne[0] != 192 &&
+                op->src[0]->ne[0] != 256 &&
+                op->src[0]->ne[0] != 320 &&
+                op->src[0]->ne[0] != 512 &&
+                op->src[0]->ne[0] != 576) {
+                return false;
+            }
+            if (op->src[1]->type != op->src[2]->type) {
+                return false;
+            }
+            switch (op->src[1]->type) {
+                case GGML_TYPE_F32:
+                case GGML_TYPE_F16:
+                case GGML_TYPE_Q8_0:
+                case GGML_TYPE_Q4_0:
+                case GGML_TYPE_Q4_1:
+                case GGML_TYPE_Q5_0:
+                case GGML_TYPE_Q5_1:
+                    break;

@@ -720,9 +720,22 @@ function App() {
 				targetConfig.engineId = installedEngines[0];
 				shouldRemember = true;
 			}
+			
+			if (!targetConfig.identifier) {
+				targetConfig.identifier = model.id.replace(".gguf", "");
+			}
 
 			setConfig(targetConfig);
 			setRememberSettings(shouldRemember);
+			
+			fetch(`${API_BASE}/api/model_settings`)
+				.then(res => res.json())
+				.then(data => {
+					if (data[model.id]) {
+						setConfig(prev => ({ ...prev, identifier: data[model.id] }));
+					}
+				})
+				.catch(() => {});
 
 			if (targetConfig.layerAllocations) {
 				let newGpus = serverSettings.localGpus
@@ -835,6 +848,7 @@ function App() {
 		specType: "none",
 		specDraftNMax: 2,
 		enableVision: false,
+		identifier: "",
 		moeCpuLayers: 0,
 		localGpus: [],
 	};
@@ -3746,7 +3760,7 @@ function App() {
 												<span>Draft Tokens (n-max)</span>
 												<input
 													type="number"
-													className="number-input"
+													className="num-input"
 													name="specDraftNMax"
 													value={config.specDraftNMax || 2}
 													onChange={handleConfigChange}
@@ -3758,11 +3772,22 @@ function App() {
 										)}
 
 										<div className="form-row" style={{ marginBottom: "16px" }}>
-											<span>Enable Vision (mmproj auto-detect)</span>
+											<span>Enable Vision</span>
 											<div
 												className={`toggle-switch ${config.enableVision ? "active" : ""}`}
 												onClick={() => handleToggle("enableVision")}
 											></div>
+										</div>
+
+										<div className="form-row" style={{ marginBottom: "16px" }}>
+											<span>Identifier</span>
+											<input
+												type="text"
+												className="text-input-field"
+												name="identifier"
+												value={config.identifier || ""}
+												onChange={handleConfigChange}
+											/>
 										</div>
 									</div>
 								</>

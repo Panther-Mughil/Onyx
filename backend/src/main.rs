@@ -224,6 +224,8 @@ struct LocalGpu {
 struct ServerConfig {
     model_id: String,
     #[serde(default)]
+    identifier: Option<String>,
+    #[serde(default)]
     engine_id: Option<String>,
     ctx_size: u32,
     gpu_layers: u32,
@@ -367,6 +369,16 @@ struct StopRequest {
 
 async fn get_settings() -> Json<serde_json::Value> {
     let settings_path = format!("{}/data/settings.json", base_dir().0);
+    if let Ok(data) = fs::read_to_string(&settings_path) {
+        if let Ok(json) = serde_json::from_str(&data) {
+            return Json(json);
+        }
+    }
+    Json(serde_json::json!({}))
+}
+
+async fn get_model_settings() -> Json<serde_json::Value> {
+    let settings_path = format!("{}/data/model_settings.json", base_dir().0);
     if let Ok(data) = fs::read_to_string(&settings_path) {
         if let Ok(json) = serde_json::from_str(&data) {
             return Json(json);
@@ -744,27 +756,32 @@ async fn proxy_models_handler(
 ) -> Response {
     let servers = state.active_servers.lock().await;
     let mut data = Vec::new();
-    let mut models_array = Vec::new();
+    
+    let settings_path = format!("{}/data/model_settings.json", base_dir().0);
+    let model_settings: std::collections::HashMap<String, String> = if Path::new(&settings_path).exists() {
+        if let Ok(file_data) = fs::read_to_string(&settings_path) {
+            serde_json::from_str(&file_data).unwrap_or_default()
+        } else {
+            std::collections::HashMap::new()
+        }
+    } else {
+        std::collections::HashMap::new()
+    };
     
     for model_id in servers.keys() {
-        let clean_id = model_id.strip_suffix(".gguf").unwrap_or(model_id);
+        let clean_id = model_id.strip_suffix(".gguf").unwrap_or(model_id).to_string();
+        let display_id = model_settings.get(model_id).cloned().unwrap_or(clean_id);
         data.push(serde_json::json!({
-            "id": clean_id,
+            "id": display_id,
             "object": "model",
             "created": chrono::Utc::now().timestamp(),
             "owned_by": "onyx"
-        }));
-        models_array.push(serde_json::json!({
-            "name": clean_id,
-            "model": clean_id,
-            "type": "model"
         }));
     }
     
     let payload = serde_json::json!({
         "object": "list",
-        "data": data,
-        "models": models_array
+        "data": data
     });
     
     let pretty = serde_json::to_string_pretty(&payload).unwrap();
@@ -1156,6 +1173,34 @@ async fn start_server(
     Json(payload): Json<ServerConfig>,
 ) -> Json<StartResponse> {
     
+    let settings_path = format!("{}/data/model_settings.json", base_dir().0);
+    let mut model_settings: std::collections::HashMap<String, String> = if Path::new(&settings_path).exists() {
+        if let Ok(data) = fs::read_to_string(&settings_path) {
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            std::collections::HashMap::new()
+        }
+    } else {
+        std::collections::HashMap::new()
+    };
+    
+    if let Some(ref custom_id) = payload.identifier {
+        if !custom_id.is_empty() {
+            model_settings.insert(payload.model_id.clone(), custom_id.clone());
+        } else {
+            let clean_id = payload.model_id.strip_suffix(".gguf").unwrap_or(&payload.model_id).to_string();
+            model_settings.insert(payload.model_id.clone(), clean_id);
+        }
+    } else {
+        let clean_id = payload.model_id.strip_suffix(".gguf").unwrap_or(&payload.model_id).to_string();
+        model_settings.insert(payload.model_id.clone(), clean_id);
+    }
+    
+    if let Ok(json_str) = serde_json::to_string_pretty(&model_settings) {
+        let _ = fs::create_dir_all(format!("{}/data", base_dir().0));
+        let _ = fs::write(&settings_path, json_str);
+    }
+
     let mut servers_map = state.active_servers.lock().await;
     
     if servers_map.contains_key(&payload.model_id) {
@@ -2071,6 +2116,7 @@ async fn main() {
         .route("/api/server/benchmark/clear", post(clear_benchmark_logs))
         .route("/api/settings", get(get_settings))
         .route("/api/settings/save", post(save_settings))
+        .route("/api/model_settings", get(get_model_settings))
         .route("/api/system/logs", get(get_system_logs))
         .route("/api/system/logs/clear", post(clear_system_logs))
         .route("/api/huggingface/search", get(hf_search))

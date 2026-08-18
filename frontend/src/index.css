@@ -339,7 +339,7 @@ button {
 	align-items: center;
 	gap: 8px;
 	font-weight: 600;
-	font-size: 13px;
+	font-size: 14px;
 	margin-bottom: 16px;
 }
 
@@ -348,15 +348,32 @@ button {
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 8px;
-	font-size: 13px;
+	font-size: 14px;
 }
 
 .form-row > span:first-child {
 	color: #d4d4d8;
 	font-weight: 400;
+	font-size: 14px;
 	letter-spacing: 0.2px;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+}
+
+.text-input-field {
+	background: var(--bg-input);
+	border: 1px solid var(--border-color);
+	color: white;
+	padding: 4px 8px;
+	border-radius: 6px;
+	width: 240px;
+	text-align: left;
+	font-family: inherit;
+	font-size: 13px;
+}
+.text-input-field:focus {
+	outline: none;
+	border-color: var(--accent);
 }
 
 .num-input {
