@@ -240,6 +240,8 @@ struct ServerConfig {
     k_cache_quant: String,
     v_cache_quant: String,
     #[serde(default)]
+    mtp_draft: bool,
+    #[serde(default)]
     moe_cpu_layers: u32,
     rpc_servers: Option<Vec<RpcServer>>,
     #[serde(default)]
@@ -1183,6 +1185,11 @@ async fn start_server(
         "--host".to_string(), "127.0.0.1".to_string(),
         "--port".to_string(), port.to_string(),
     ];
+
+    if payload.mtp_draft {
+        args.push("--spec-type".to_string());
+        args.push("draft-mtp".to_string());
+    }
 
     if let Some(servers) = &payload.rpc_servers {
         let active_servers: Vec<String> = servers.iter()

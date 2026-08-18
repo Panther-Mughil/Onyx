@@ -831,6 +831,7 @@ function App() {
 		flashAttention: false,
 		kCacheQuant: "f16",
 		vCacheQuant: "f16",
+		mtpDraft: false,
 		moeCpuLayers: 0,
 		localGpus: [],
 	};
@@ -3721,6 +3722,14 @@ function App() {
 												<option value="q5_1">q5_1</option>
 												<option value="iq4_nl">iq4_nl</option>
 											</select>
+										</div>
+
+										<div className="form-row" style={{ marginBottom: "16px" }}>
+											<span>Enable MTP Draft Speculative Decoding</span>
+											<div
+												className={`toggle-switch ${config.mtpDraft ? "active" : ""}`}
+												onClick={() => handleToggle("mtpDraft")}
+											></div>
 										</div>
 									</div>
 								</>
