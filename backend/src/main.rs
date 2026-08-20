@@ -1033,10 +1033,11 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
-fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>, Option<String>) {
+fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>, Option<String>, Option<String>) {
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
     let mut dev_arg = None;
+    let mut main_gpu = None;
 
     if let Some(allocs) = &payload.layer_allocations {
         let mut total_offloaded = 0;
@@ -1051,57 +1052,81 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
             "CUDA"
         };
 
+        let mut max_gpu_index = 0;
+        if let Some(gpus) = &payload.local_gpus {
+            max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
+        }
+
+        let mut max_rpc_index = 0;
+        if let Some(rpcs) = &payload.rpc_servers {
+            max_rpc_index = rpcs.len().saturating_sub(1);
+        }
+
         if let Some(order) = &payload.device_order {
             if !order.is_empty() {
+                // To support tensor splitting correctly without dropping inactive GPUs,
+                // we iterate over all installed GPUs, not just the active ones in the order array.
+                // Wait, llama.cpp tensor-split maps to devices sequentially.
+                // If the user specifies an order, we map layers to that order.
+                // Actually, if we just want to set splits by index:
+                let mut gpu_splits = vec![0; max_gpu_index + 1];
+                let mut rpc_splits = vec![0; max_rpc_index + 1];
+                
+                let mut first_active_gpu = None;
+                
                 for dev_id in order {
-                    let mut is_active = true;
+                    let is_active;
                     if dev_id.starts_with("rpc_") {
                         if let Ok(idx) = dev_id[4..].parse::<usize>() {
                             if let Some(rpcs) = &payload.rpc_servers {
-                                if let Some(rpc) = rpcs.get(idx) {
-                                    is_active = rpc.active;
-                                } else {
-                                    is_active = false;
-                                }
+                                is_active = rpcs.get(idx).map_or(false, |r| r.active);
+                            } else { is_active = false; }
+                            if is_active {
+                                rpc_splits[idx] = allocs.get(dev_id).copied().unwrap_or(0);
                             }
                         }
                     } else if dev_id.starts_with("gpu_") {
                         if let Ok(idx) = dev_id[4..].parse::<usize>() {
                             if let Some(gpus) = &payload.local_gpus {
-                                if let Some(gpu) = gpus.iter().find(|g| g.index == idx) {
-                                    is_active = gpu.active;
-                                } else {
-                                    is_active = false;
+                                is_active = gpus.iter().find(|g| g.index == idx).map_or(false, |g| g.active);
+                            } else { is_active = false; }
+                            
+                            if is_active {
+                                gpu_splits[idx] = allocs.get(dev_id).copied().unwrap_or(0);
+                                if first_active_gpu.is_none() {
+                                    first_active_gpu = Some(idx);
                                 }
                             }
                         }
                     }
+                }
+                
+                if let Some(first_idx) = first_active_gpu {
+                    main_gpu = Some(first_idx.to_string());
+                }
 
-                    if !is_active {
-                        continue;
+                if payload.local_gpus.is_some() {
+                    for i in 0..=max_gpu_index {
+                        splits.push(gpu_splits[i].to_string());
+                        devices.push(format!("{}{}", prefix, i));
+                        total_offloaded += gpu_splits[i];
                     }
+                }
 
-                    let layers = allocs.get(dev_id).copied().unwrap_or(0);
-                    splits.push(layers.to_string());
-                    total_offloaded += layers;
-                    
-                    if dev_id.starts_with("rpc_") {
-                        if let Ok(idx) = dev_id[4..].parse::<usize>() {
-                            devices.push(format!("RPC{}", idx));
-                        }
-                    } else if dev_id.starts_with("gpu_") {
-                        if let Ok(idx) = dev_id[4..].parse::<usize>() {
-                            devices.push(format!("{}{}", prefix, idx));
-                        }
+                if let Some(rpcs) = &payload.rpc_servers {
+                    for (idx, _) in rpcs.iter().enumerate() {
+                        splits.push(rpc_splits[idx].to_string());
+                        devices.push(format!("RPC{}", idx));
+                        total_offloaded += rpc_splits[idx];
                     }
                 }
             } else {
                 if let Some(gpus) = &payload.local_gpus {
                     if !gpus.is_empty() {
-                        let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
                         for i in 0..=max_gpu_index {
                             let key = format!("gpu_{}", i);
-                            let layers = allocs.get(&key).copied().unwrap_or(0);
+                            let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
+                            let layers = if is_active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
                             splits.push(layers.to_string());
                             devices.push(format!("{}{}", prefix, i));
                             total_offloaded += layers;
@@ -1110,13 +1135,11 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                 }
                 if let Some(rpcs) = &payload.rpc_servers {
                     for (idx, rpc) in rpcs.iter().enumerate() {
-                        if rpc.active {
-                            let key = format!("rpc_{}", idx);
-                            let layers = allocs.get(&key).copied().unwrap_or(0);
-                            splits.push(layers.to_string());
-                            devices.push(format!("RPC{}", idx));
-                            total_offloaded += layers;
-                        }
+                        let key = format!("rpc_{}", idx);
+                        let layers = if rpc.active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
+                        splits.push(layers.to_string());
+                        devices.push(format!("RPC{}", idx));
+                        total_offloaded += layers;
                     }
                 }
             }
@@ -1126,7 +1149,8 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
                     for i in 0..=max_gpu_index {
                         let key = format!("gpu_{}", i);
-                        let layers = allocs.get(&key).copied().unwrap_or(0);
+                        let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
+                        let layers = if is_active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
                         splits.push(layers.to_string());
                         devices.push(format!("{}{}", prefix, i));
                         total_offloaded += layers;
@@ -1135,19 +1159,19 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
             }
             if let Some(rpcs) = &payload.rpc_servers {
                 for (idx, rpc) in rpcs.iter().enumerate() {
-                    if rpc.active {
-                        let key = format!("rpc_{}", idx);
-                        let layers = allocs.get(&key).copied().unwrap_or(0);
-                        splits.push(layers.to_string());
-                        devices.push(format!("RPC{}", idx));
-                        total_offloaded += layers;
-                    }
+                    let key = format!("rpc_{}", idx);
+                    let layers = if rpc.active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
+                    splits.push(layers.to_string());
+                    devices.push(format!("RPC{}", idx));
+                    total_offloaded += layers;
                 }
             }
         }
         
         actual_gpu_layers = total_offloaded;
-        if splits.len() > 1 {
+        // Even if splits length is 1, if we are passing specific allocations we might as well pass it.
+        // Actually, if splits length is > 0, just pass it to be explicit.
+        if !splits.is_empty() {
             ts_arg = Some(splits.join(delimiter));
             dev_arg = Some(devices.join(delimiter));
         }
@@ -1175,7 +1199,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         }
     }
     
-    (actual_gpu_layers, ts_arg, dev_arg)
+    (actual_gpu_layers, ts_arg, dev_arg, main_gpu)
 }
 
 async fn start_server(
@@ -1251,7 +1275,7 @@ async fn start_server(
         });
     }
 
-    let (actual_gpu_layers, ts_arg, dev_arg) = compute_gpu_offloads(&payload, ",");
+    let (actual_gpu_layers, ts_arg, dev_arg, main_gpu) = compute_gpu_offloads(&payload, ",");
 
     let mut args = vec![
         "-m".to_string(), model_path.clone(),
@@ -1318,6 +1342,10 @@ async fn start_server(
     if let Some(dev) = dev_arg {
         args.push("-dev".to_string());
         args.push(dev);
+    }
+    if let Some(mg) = main_gpu {
+        args.push("--main-gpu".to_string());
+        args.push(mg);
     }
 
     if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
@@ -1502,7 +1530,7 @@ async fn run_benchmark(
         });
     }
     
-    let (actual_gpu_layers, ts_arg, dev_arg) = compute_gpu_offloads(&payload, "/");
+    let (actual_gpu_layers, ts_arg, dev_arg, main_gpu) = compute_gpu_offloads(&payload, "/");
 
     let mut args = vec![
         "-m".to_string(), model_path,
@@ -1542,6 +1570,10 @@ async fn run_benchmark(
     if let Some(dev) = dev_arg {
         args.push("-dev".to_string());
         args.push(dev);
+    }
+    if let Some(mg) = main_gpu {
+        args.push("--main-gpu".to_string());
+        args.push(mg);
     }
 
     if payload.moe_cpu_layers > 0 {
@@ -1719,91 +1751,265 @@ async fn hf_download(
         let url = format!("https://huggingface.co/{}/resolve/main/{}", repo_id, filename);
         let dest_dir = format!("{}/models/{}", base_dir().0, repo_id.replace("/", "_"));
         let _ = tokio::fs::create_dir_all(&dest_dir).await;
-        let dest_path_part = format!("{}/{}.part", dest_dir, filename);
         let dest_path = format!("{}/{}", dest_dir, filename);
         
         let client = reqwest::Client::new();
-        match client.get(&url).send().await {
-            Ok(mut res) => {
-                if res.status().is_success() {
-                    let total_size = res.content_length().unwrap_or(0) as f64;
-                    if let Ok(mut file) = tokio::fs::File::create(&dest_path_part).await {
-                        use tokio::io::AsyncWriteExt;
-                        let mut downloaded: f64 = 0.0;
-                        let mut download_error = None;
-                        let mut last_update = tokio::time::Instant::now();
-                        loop {
-                            match res.chunk().await {
-                                Ok(Some(chunk)) => {
-                                    if let Err(e) = file.write_all(&chunk).await {
-                                        download_error = Some(e.to_string());
-                                        break;
-                                    }
-                                    downloaded += chunk.len() as f64;
-                                    if total_size > 0.0 && last_update.elapsed().as_millis() > 250 {
-                                        let mut d = state_clone.hf_downloads.lock().await;
-                                        if let Some(dl) = d.get_mut(&download_id) {
-                                            dl.progress = (downloaded / total_size * 100.0) as f32;
-                                        }
-                                        last_update = tokio::time::Instant::now();
-                                    }
-                                }
-                                Ok(None) => break,
-                                Err(e) => {
-                                    download_error = Some(e.to_string());
-                                    break;
-                                }
+        
+        let mut total_size = 0;
+        if let Ok(res) = client.head(&url).send().await {
+            if res.status().is_success() {
+                total_size = res.content_length().unwrap_or(0);
+            }
+        }
+        
+        if total_size == 0 {
+            if let Ok(res) = client.get(&url).header("Range", "bytes=0-0").send().await {
+                if res.status().is_success() || res.status().as_u16() == 206 {
+                    if let Some(cr) = res.headers().get(reqwest::header::CONTENT_RANGE) {
+                        if let Ok(cr_str) = cr.to_str() {
+                            if let Some(idx) = cr_str.find('/') {
+                                total_size = cr_str[idx+1..].parse::<u64>().unwrap_or(0);
                             }
                         }
-                        
-                        let _ = file.sync_all().await;
-                        drop(file);
-                        
-                        let mut d = state_clone.hf_downloads.lock().await;
-                        if let Some(dl) = d.get_mut(&download_id) {
-                            if let Some(err_msg) = download_error {
-                                dl.status = "error".to_string();
-                                dl.error = Some(err_msg);
-                            } else {
-                                if let Err(e) = std::fs::rename(&dest_path_part, &dest_path) {
-                                    dl.status = "error".to_string();
-                                    dl.error = Some(e.to_string());
-                                } else {
-                                    dl.progress = 100.0;
-                                    dl.status = "completed".to_string();
-                                }
-                            }
-                        }
-                        tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                     } else {
-                        let mut d = state_clone.hf_downloads.lock().await;
-                        if let Some(dl) = d.get_mut(&download_id) {
-                            dl.status = "error".to_string();
-                            dl.error = Some("Failed to create file".to_string());
-                        }
-                        tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+                        total_size = res.content_length().unwrap_or(0);
                     }
-                } else {
-                    let mut d = state_clone.hf_downloads.lock().await;
-                    if let Some(dl) = d.get_mut(&download_id) {
-                        dl.status = "error".to_string();
-                        dl.error = Some(format!("HTTP {}", res.status()));
-                    }
-                    tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
                 }
             }
-            Err(e) => {
+        }
+
+        let num_chunks: u64 = if total_size > 1024 * 1024 * 10 { 4 } else { 1 };
+        let chunk_size = if total_size > 0 { total_size / num_chunks } else { 0 };
+        
+        let downloaded = Arc::new(tokio::sync::Mutex::new(0u64));
+        let mut handles = vec![];
+        let mut part_files = vec![];
+
+        let cancel_flag = Arc::new(tokio::sync::Mutex::new(false));
+
+        for i in 0..num_chunks {
+            let part_path = if num_chunks > 1 { format!("{}.part{}", dest_path, i) } else { format!("{}.part", dest_path) };
+            part_files.push(part_path.clone());
+            
+            let client = client.clone();
+            let url = url.clone();
+            let state_clone = state_clone.clone();
+            let download_id = download_id.clone();
+            let downloaded = downloaded.clone();
+            let cancel_flag = cancel_flag.clone();
+
+            handles.push(tokio::spawn(async move {
+                let mut req = client.get(&url);
+                if total_size > 0 {
+                    let start = i * chunk_size;
+                    let end = if i == num_chunks - 1 { total_size - 1 } else { start + chunk_size - 1 };
+                    req = req.header("Range", format!("bytes={}-{}", start, end));
+                }
+
+                let mut res = match req.send().await {
+                    Ok(r) => r,
+                    Err(e) => return Err(e.to_string()),
+                };
+
+                if !res.status().is_success() && res.status().as_u16() != 206 {
+                    return Err(format!("HTTP {}", res.status()));
+                }
+
+                let mut file = match tokio::fs::File::create(&part_path).await {
+                    Ok(f) => f,
+                    Err(e) => return Err(e.to_string()),
+                };
+
+                use tokio::io::AsyncWriteExt;
+                let mut last_update = tokio::time::Instant::now();
+
+                loop {
+                    {
+                        let d = state_clone.hf_downloads.lock().await;
+                        let mut is_cancelled = false;
+                        if let Some(dl) = d.get(&download_id) {
+                            if dl.status == "cancelled" {
+                                is_cancelled = true;
+                            }
+                        } else {
+                            is_cancelled = true;
+                        }
+                        if is_cancelled {
+                            *cancel_flag.lock().await = true;
+                            return Err("Cancelled".to_string());
+                        }
+                    }
+
+                    match res.chunk().await {
+                        Ok(Some(chunk)) => {
+                            if let Err(e) = file.write_all(&chunk).await {
+                                return Err(e.to_string());
+                            }
+                            let mut d_locked = downloaded.lock().await;
+                            *d_locked += chunk.len() as u64;
+                            let current_downloaded = *d_locked;
+                            drop(d_locked);
+
+                            if total_size > 0 && last_update.elapsed().as_millis() > 250 {
+                                let mut d = state_clone.hf_downloads.lock().await;
+                                if let Some(dl) = d.get_mut(&download_id) {
+                                    dl.progress = (current_downloaded as f64 / total_size as f64 * 100.0) as f32;
+                                }
+                                last_update = tokio::time::Instant::now();
+                            }
+                        }
+                        Ok(None) => break,
+                        Err(e) => return Err(e.to_string()),
+                    }
+                }
+                
+                let _ = file.sync_all().await;
+                Ok(())
+            }));
+        }
+
+        let mut error_msg = None;
+        let mut was_cancelled = false;
+
+        for handle in handles {
+            match handle.await {
+                Ok(Ok(_)) => {},
+                Ok(Err(e)) => {
+                    if e == "Cancelled" {
+                        was_cancelled = true;
+                    } else {
+                        error_msg = Some(e);
+                    }
+                },
+                Err(e) => {
+                    error_msg = Some(e.to_string());
+                }
+            }
+        }
+
+        if was_cancelled || *cancel_flag.lock().await {
+            for p in &part_files {
+                let _ = tokio::fs::remove_file(p).await;
+            }
+            tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+            return;
+        }
+
+        if let Some(err) = error_msg {
+            let mut d = state_clone.hf_downloads.lock().await;
+            if let Some(dl) = d.get_mut(&download_id) {
+                dl.status = "error".to_string();
+                dl.error = Some(err);
+            }
+            for p in &part_files {
+                let _ = tokio::fs::remove_file(p).await;
+            }
+            tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+            return;
+        }
+
+        if num_chunks == 1 {
+            if let Err(e) = tokio::fs::rename(&part_files[0], &dest_path).await {
                 let mut d = state_clone.hf_downloads.lock().await;
                 if let Some(dl) = d.get_mut(&download_id) {
                     dl.status = "error".to_string();
                     dl.error = Some(e.to_string());
                 }
-                tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+                let _ = tokio::fs::remove_file(&part_files[0]).await;
+            } else {
+                let mut d = state_clone.hf_downloads.lock().await;
+                if let Some(dl) = d.get_mut(&download_id) {
+                    dl.progress = 100.0;
+                    dl.status = "completed".to_string();
+                }
+            }
+        } else {
+            let mut final_file = match tokio::fs::File::create(&dest_path).await {
+                Ok(f) => f,
+                Err(e) => {
+                    let mut d = state_clone.hf_downloads.lock().await;
+                    if let Some(dl) = d.get_mut(&download_id) {
+                        dl.status = "error".to_string();
+                        dl.error = Some(e.to_string());
+                    }
+                    for p in &part_files {
+                        let _ = tokio::fs::remove_file(p).await;
+                    }
+                    tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+                    return;
+                }
+            };
+
+            use tokio::io::{AsyncWriteExt, AsyncReadExt};
+            let mut stitch_error = None;
+            for p in &part_files {
+                match tokio::fs::File::open(p).await {
+                    Ok(mut part_file) => {
+                        let mut buffer = [0; 65536];
+                        loop {
+                            match part_file.read(&mut buffer).await {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    if let Err(e) = final_file.write_all(&buffer[..n]).await {
+                                        stitch_error = Some(e.to_string());
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    stitch_error = Some(e.to_string());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        stitch_error = Some(e.to_string());
+                        break;
+                    }
+                }
+                if stitch_error.is_some() {
+                    break;
+                }
+            }
+
+            if let Some(err) = stitch_error {
+                let mut d = state_clone.hf_downloads.lock().await;
+                if let Some(dl) = d.get_mut(&download_id) {
+                    dl.status = "error".to_string();
+                    dl.error = Some(err);
+                }
+                let _ = tokio::fs::remove_file(&dest_path).await;
+            } else {
+                let mut d = state_clone.hf_downloads.lock().await;
+                if let Some(dl) = d.get_mut(&download_id) {
+                    dl.progress = 100.0;
+                    dl.status = "completed".to_string();
+                }
+            }
+
+            for p in &part_files {
+                let _ = tokio::fs::remove_file(p).await;
             }
         }
+
+        tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
     });
 
     Json(StartResponse { success: true, message: "Download started".to_string() })
+}
+
+async fn cancel_hf_download(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(payload): Json<DownloadRequest>,
+) -> Json<StartResponse> {
+    let download_id = format!("{}/{}", payload.repo_id, payload.filename);
+    let mut downloads = state.hf_downloads.lock().await;
+    if let Some(dl) = downloads.get_mut(&download_id) {
+        dl.status = "cancelled".to_string();
+    } else {
+        return Json(StartResponse { success: false, message: "Download not found".to_string() });
+    }
+    Json(StartResponse { success: true, message: "Download cancelled".to_string() })
 }
 
 async fn hf_downloads_status(
@@ -2152,6 +2358,7 @@ async fn main() {
         .route("/api/huggingface/search", get(hf_search))
         .route("/api/huggingface/model", get(hf_model_files))
         .route("/api/huggingface/download", post(hf_download))
+        .route("/api/models/download/cancel", post(cancel_hf_download))
         .route("/api/huggingface/downloads", get(hf_downloads_status))
         .route("/api/system/info", get(get_system_info))
         .route("/api/version", get(get_version))

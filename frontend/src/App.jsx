@@ -127,7 +127,7 @@ const MemoryEstimator = ({
 		let totalSavedVram = 0;
 		let expertRatio = 0;
 
-		if (selectedModel?.architecture?.includes("moe") && config.moeCpuLayers > 0) {
+		if (selectedModel?.expert_count > 0 && config.moeCpuLayers > 0) {
 			const d_model = selectedModel.embedding_length || 4096;
 			const d_ff_exp = selectedModel.feed_forward_length || 14336;
 			const E = selectedModel.expert_count || 8;
@@ -877,6 +877,27 @@ function App() {
 				});
 			})
 			.catch(() => {});
+
+		fetch(`${API_BASE}/api/telemetry`)
+			.then((res) => res.json())
+			.then((data) => setTelemetry(data))
+			.catch(() => {});
+			
+		if (selectedModel) {
+			fetch(`${API_BASE}/api/server/logs?modelId=${selectedModel.id}`, { cache: "no-store" })
+				.then((res) => res.json())
+				.then((data) => setLogs(data))
+				.catch(() => {});
+		} else {
+			setLogs([]);
+		}
+
+		if (!selectedModel) {
+			fetch(`${API_BASE}/api/system/logs`, { cache: "no-store" })
+				.then((res) => res.json())
+				.then((data) => setSystemLogs(data))
+				.catch(() => {});
+		}
 	};
 
 	useEffect(() => {
@@ -1065,15 +1086,7 @@ function App() {
 			.finally(() => setHasLoadedSettings(true));
 	}, []);
 
-	useEffect(() => {
-		if (!selectedModel) {
-			fetch(`${API_BASE}/api/system/logs`, { cache: "no-store" })
-				.then((res) => res.json())
-				.then((data) => setSystemLogs(data))
-				.catch(() => {});
-		}
-	}, [selectedModel, activeServers]);
-	// Refresh logs periodically with status poll implicitly
+
 
 	useEffect(() => {
 		fetch(`${API_BASE}/health`)
@@ -1089,7 +1102,7 @@ function App() {
 		fetchStatusAndLogs();
 		const interval = setInterval(fetchStatusAndLogs, 1000);
 		return () => clearInterval(interval);
-	}, []);
+	}, [selectedModel]);
 
 	// Global drag events for sidebar
 	useEffect(() => {
@@ -2490,13 +2503,53 @@ function App() {
 												<div key={id} style={{ marginBottom: "12px" }}>
 													<div
 														style={{
-															fontSize: "12px",
-															color: "var(--text-main)",
+															display: "flex",
+															justifyContent: "space-between",
+															alignItems: "flex-start",
+															gap: "8px",
 															marginBottom: "4px",
-															wordBreak: "break-all",
 														}}
 													>
-														{dl.filename}
+														<div
+															style={{
+																fontSize: "12px",
+																color: "var(--text-main)",
+																wordBreak: "break-all",
+															}}
+														>
+															{dl.filename}
+														</div>
+														<button
+															onClick={(e) => {
+																e.preventDefault();
+																fetch(`${API_BASE}/api/models/download/cancel`, {
+																	method: "POST",
+																	headers: {
+																		"Content-Type": "application/json",
+																	},
+																	body: JSON.stringify({
+																		repo_id: dl.repo_id,
+																		filename: dl.filename,
+																	}),
+																});
+															}}
+															style={{
+																background: "none",
+																border: "none",
+																padding: "2px",
+																cursor: "pointer",
+																color: "var(--text-muted)",
+																display: "flex",
+																alignItems: "center",
+																justifyContent: "center",
+																borderRadius: "4px",
+															}}
+															onMouseOver={(e) => (e.currentTarget.style.color = "#ff4a4a")}
+															onMouseOut={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+															title="Cancel Download"
+														>
+															<X size={14} />
+														</button>
 													</div>
 													<div
 														style={{
@@ -3554,7 +3607,7 @@ function App() {
 												</span>
 											</div>
 
-											{selectedModel?.architecture?.includes("moe") && (
+											{selectedModel?.expert_count > 0 && (
 												<div style={{ marginTop: "24px" }}>
 													<div
 														style={{
