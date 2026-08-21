@@ -3785,13 +3785,14 @@ function App() {
 												onChange={handleConfigChange}
 												style={{ width: "140px" }}
 											>
+												<option value="f32">f32</option>
 												<option value="f16">f16 (Disable)</option>
 												<option value="q8_0">q8_0</option>
-												<option value="q4_0">q4_0</option>
-												<option value="q4_1">q4_1</option>
-												<option value="q5_0">q5_0</option>
 												<option value="q5_1">q5_1</option>
+												<option value="q5_0">q5_0</option>
+												<option value="q4_1">q4_1</option>
 												<option value="iq4_nl">iq4_nl</option>
+												<option value="q4_0">q4_0</option>
 											</select>
 										</div>
 
@@ -3804,13 +3805,14 @@ function App() {
 												onChange={handleConfigChange}
 												style={{ width: "140px" }}
 											>
+												<option value="f32">f32</option>
 												<option value="f16">f16 (Disable)</option>
 												<option value="q8_0">q8_0</option>
-												<option value="q4_0">q4_0</option>
-												<option value="q4_1">q4_1</option>
-												<option value="q5_0">q5_0</option>
 												<option value="q5_1">q5_1</option>
+												<option value="q5_0">q5_0</option>
+												<option value="q4_1">q4_1</option>
 												<option value="iq4_nl">iq4_nl</option>
+												<option value="q4_0">q4_0</option>
 											</select>
 										</div>
 
