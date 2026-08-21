@@ -89,7 +89,8 @@ async function handleCompile() {
 		fs.rmSync(tempDir, { recursive: true, force: true });
 
 	const { spawnSync } = require("child_process");
-	spawnSync("git", ["clone", "https://github.com/ggerganov/llama.cpp.git", tempDir], { stdio: "inherit" });
+	const gitRepo = engineId.includes("turboquant") ? "https://github.com/TheTom/llama-cpp-turboquant.git" : "https://github.com/ggerganov/llama.cpp.git";
+	spawnSync("git", ["clone", gitRepo, tempDir], { stdio: "inherit" });
 	const buildDir = path.join(tempDir, "build");
 
 	let cmakeFlagsArr = ["-B", "build", "-DGGML_RPC=ON", "-DBUILD_SHARED_LIBS=OFF"];

@@ -256,6 +256,11 @@ export default function EngineManager({ apiBase }) {
 				label: "llama.cpp (CPU)",
 				asset: cpuAsset,
 			});
+		options.push({
+			id: "llama-cpp-turboquant (CUDA 12.4)",
+			label: "llama.cpp TurboQuant (CUDA 12.4)",
+			asset: { browser_download_url: "https://github.com/TheTom/llama-cpp-turboquant/releases/download/tqp-v0.3.0/turboquant-plus-tqp-v0.3.0-windows-x64-cuda12.4.zip" }
+		});
 	} else if (isMac) {
 		// R3: arch-filtered Metal engines
 		const macArch = arch.toLowerCase();
@@ -267,10 +272,20 @@ export default function EngineManager({ apiBase }) {
 				label: "llama.cpp (Metal Silicon)",
 				compile: "mac-silicon",
 			});
+			options.push({
+				id: "llama-cpp-turboquant (Metal Silicon)",
+				label: "llama.cpp TurboQuant (Metal Silicon)",
+				compile: "mac-silicon",
+			});
 		} else if (isIntel) {
 			options.push({
 				id: "llama.cpp (Metal Intel)",
 				label: "llama.cpp (Metal Intel)",
+				compile: "mac-intel",
+			});
+			options.push({
+				id: "llama-cpp-turboquant (Metal Intel)",
+				label: "llama.cpp TurboQuant (Metal Intel)",
 				compile: "mac-intel",
 			});
 		} else {
@@ -281,8 +296,18 @@ export default function EngineManager({ apiBase }) {
 				compile: "mac-silicon",
 			});
 			options.push({
+				id: "llama-cpp-turboquant (Metal Silicon)",
+				label: "llama.cpp TurboQuant (Metal Silicon)",
+				compile: "mac-silicon",
+			});
+			options.push({
 				id: "llama.cpp (Metal Intel)",
 				label: "llama.cpp (Metal Intel)",
+				compile: "mac-intel",
+			});
+			options.push({
+				id: "llama-cpp-turboquant (Metal Intel)",
+				label: "llama.cpp TurboQuant (Metal Intel)",
 				compile: "mac-intel",
 			});
 		}
@@ -293,8 +318,18 @@ export default function EngineManager({ apiBase }) {
 			compile: "linux-cuda",
 		});
 		options.push({
+			id: "llama-cpp-turboquant (CUDA)",
+			label: "llama.cpp TurboQuant (CUDA)",
+			compile: "linux-cuda",
+		});
+		options.push({
 			id: "llama.cpp (Vulkan)",
 			label: "llama.cpp (Vulkan)",
+			compile: "linux-vulkan",
+		});
+		options.push({
+			id: "llama-cpp-turboquant (Vulkan)",
+			label: "llama.cpp TurboQuant (Vulkan)",
 			compile: "linux-vulkan",
 		});
 		options.push({

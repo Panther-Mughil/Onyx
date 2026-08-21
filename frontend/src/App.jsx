@@ -76,9 +76,13 @@ const MemoryEstimator = ({
 		const gqaFactor = 0.25;
 
 		const getQuantBytes = (q) => {
-			if (q === "f16" || q === "f32") return 2.0;
+			if (q === "f32") return 4.0;
+			if (q === "f16") return 2.0;
 			if (q === "q8_0") return 1.0;
-			if (q.startsWith("q4")) return 0.5;
+			if (q === "turbo4") return 0.53125;
+			if (q === "turbo3") return 0.40625;
+			if (q === "turbo2") return 0.28125;
+			if (q.startsWith("q4") || q === "iq4_nl") return 0.5;
 			if (q.startsWith("q5")) return 0.625;
 			return 2.0;
 		};
@@ -892,12 +896,10 @@ function App() {
 			setLogs([]);
 		}
 
-		if (!selectedModel) {
-			fetch(`${API_BASE}/api/system/logs`, { cache: "no-store" })
-				.then((res) => res.json())
-				.then((data) => setSystemLogs(data))
-				.catch(() => {});
-		}
+		fetch(`${API_BASE}/api/system/logs`, { cache: "no-store" })
+			.then((res) => res.json())
+			.then((data) => setSystemLogs(data))
+			.catch(() => {});
 	};
 
 	useEffect(() => {
@@ -3787,6 +3789,13 @@ function App() {
 											>
 												<option value="f32">f32</option>
 												<option value="f16">f16 (Disable)</option>
+												{config.engineId?.includes("turboquant") && (
+													<>
+														<option value="turbo4">turbo4</option>
+														<option value="turbo3">turbo3</option>
+														<option value="turbo2">turbo2</option>
+													</>
+												)}
 												<option value="q8_0">q8_0</option>
 												<option value="q5_1">q5_1</option>
 												<option value="q5_0">q5_0</option>
@@ -3807,6 +3816,13 @@ function App() {
 											>
 												<option value="f32">f32</option>
 												<option value="f16">f16 (Disable)</option>
+												{config.engineId?.includes("turboquant") && (
+													<>
+														<option value="turbo4">turbo4</option>
+														<option value="turbo3">turbo3</option>
+														<option value="turbo2">turbo2</option>
+													</>
+												)}
 												<option value="q8_0">q8_0</option>
 												<option value="q5_1">q5_1</option>
 												<option value="q5_0">q5_0</option>

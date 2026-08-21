@@ -1101,70 +1101,93 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     }
                 }
                 
-                if let Some(first_idx) = first_active_gpu {
-                    main_gpu = Some(first_idx.to_string());
+                if first_active_gpu.is_some() {
+                    main_gpu = Some("0".to_string());
                 }
 
-                if payload.local_gpus.is_some() {
+                if let Some(gpus) = &payload.local_gpus {
                     for i in 0..=max_gpu_index {
-                        splits.push(gpu_splits[i].to_string());
-                        devices.push(format!("{}{}", prefix, i));
-                        total_offloaded += gpu_splits[i];
+                        let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
+                        if is_active {
+                            splits.push(gpu_splits[i].to_string());
+                            devices.push(format!("{}{}", prefix, i));
+                            total_offloaded += gpu_splits[i];
+                        }
                     }
                 }
 
                 if let Some(rpcs) = &payload.rpc_servers {
-                    for (idx, _) in rpcs.iter().enumerate() {
-                        splits.push(rpc_splits[idx].to_string());
-                        devices.push(format!("RPC{}", idx));
-                        total_offloaded += rpc_splits[idx];
+                    for (idx, rpc) in rpcs.iter().enumerate() {
+                        if rpc.active {
+                            splits.push(rpc_splits[idx].to_string());
+                            devices.push(format!("RPC{}", idx));
+                            total_offloaded += rpc_splits[idx];
+                        }
                     }
                 }
             } else {
+                let mut has_active_gpu = false;
                 if let Some(gpus) = &payload.local_gpus {
                     if !gpus.is_empty() {
                         for i in 0..=max_gpu_index {
                             let key = format!("gpu_{}", i);
                             let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
-                            let layers = if is_active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
-                            splits.push(layers.to_string());
-                            devices.push(format!("{}{}", prefix, i));
-                            total_offloaded += layers;
+                            if is_active {
+                                let layers = allocs.get(&key).copied().unwrap_or(0);
+                                splits.push(layers.to_string());
+                                devices.push(format!("{}{}", prefix, i));
+                                total_offloaded += layers;
+                                has_active_gpu = true;
+                            }
                         }
                     }
                 }
                 if let Some(rpcs) = &payload.rpc_servers {
                     for (idx, rpc) in rpcs.iter().enumerate() {
                         let key = format!("rpc_{}", idx);
-                        let layers = if rpc.active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
-                        splits.push(layers.to_string());
-                        devices.push(format!("RPC{}", idx));
-                        total_offloaded += layers;
+                        if rpc.active {
+                            let layers = allocs.get(&key).copied().unwrap_or(0);
+                            splits.push(layers.to_string());
+                            devices.push(format!("RPC{}", idx));
+                            total_offloaded += layers;
+                        }
                     }
+                }
+                if has_active_gpu {
+                    main_gpu = Some("0".to_string());
                 }
             }
         } else {
+            let mut has_active_gpu = false;
             if let Some(gpus) = &payload.local_gpus {
                 if !gpus.is_empty() {
                     let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
                     for i in 0..=max_gpu_index {
                         let key = format!("gpu_{}", i);
                         let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
-                        let layers = if is_active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
-                        splits.push(layers.to_string());
-                        devices.push(format!("{}{}", prefix, i));
-                        total_offloaded += layers;
+                        if is_active {
+                            let layers = allocs.get(&key).copied().unwrap_or(0);
+                            splits.push(layers.to_string());
+                            devices.push(format!("{}{}", prefix, i));
+                            total_offloaded += layers;
+                            has_active_gpu = true;
+                        }
                     }
                 }
             }
             if let Some(rpcs) = &payload.rpc_servers {
                 for (idx, rpc) in rpcs.iter().enumerate() {
                     let key = format!("rpc_{}", idx);
-                    let layers = if rpc.active { allocs.get(&key).copied().unwrap_or(0) } else { 0 };
-                    splits.push(layers.to_string());
-                    devices.push(format!("RPC{}", idx));
-                    total_offloaded += layers;
+                    if rpc.active {
+                        let layers = allocs.get(&key).copied().unwrap_or(0);
+                        splits.push(layers.to_string());
+                        devices.push(format!("RPC{}", idx));
+                        total_offloaded += layers;
+                    }
                 }
+            }
+            if has_active_gpu {
+                main_gpu = Some("0".to_string());
             }
         }
         
@@ -1318,16 +1341,37 @@ async fn start_server(
     }
 
     if let Some(servers) = &payload.rpc_servers {
-        let active_servers: Vec<String> = servers.iter()
-            .filter(|s| s.active)
-            .map(|s| {
-                if s.address.contains(':') {
-                    s.address.clone()
-                } else {
-                    format!("{}:50052", s.address)
+        let expected_engine = payload.engine_id.clone().unwrap_or_else(|| "llama-cpp".to_string());
+        let mut active_servers = Vec::new();
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_millis(500)).build().unwrap();
+
+        for s in servers.iter().filter(|s| s.active) {
+            let ip = s.address.split(':').next().unwrap_or(&s.address);
+            let url = format!("http://{}:50053/telemetry", ip);
+            
+            // Default to matching if the server doesn't respond or if it's old version, 
+            // but if it responds with a different engine, we skip it.
+            let mut engine_matches = true;
+            if let Ok(res) = client.get(&url).send().await {
+                if let Ok(json) = res.json::<serde_json::Value>().await {
+                    if let Some(engine) = json.get("engine").and_then(|e| e.as_str()) {
+                        let is_expected_turbo = expected_engine.contains("turboquant");
+                        let is_remote_turbo = engine.contains("turboquant");
+                        if is_expected_turbo != is_remote_turbo {
+                            engine_matches = false;
+                        }
+                    }
                 }
-            })
-            .collect();
+            }
+
+            if engine_matches {
+                if s.address.contains(':') {
+                    active_servers.push(s.address.clone());
+                } else {
+                    active_servers.push(format!("{}:50052", s.address));
+                }
+            }
+        }
             
         if !active_servers.is_empty() {
             args.push("--rpc".to_string());

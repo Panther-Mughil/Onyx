@@ -76,6 +76,7 @@ struct TelemetryResponse {
     ram_used_gb: f32,
     ram_total_gb: f32,
     gpus: Vec<GpuTelemetry>,
+    engine: String,
 }
 
 struct AppState {
@@ -171,6 +172,12 @@ async fn main() {
         std::process::exit(0);
     });
 
+    let engine_type = if rpc_binary.to_string_lossy().contains("turboquant") {
+        "llama-cpp-turboquant".to_string()
+    } else {
+        "llama-cpp".to_string()
+    };
+
     let telemetry_cache = Arc::new(Mutex::new(TelemetryResponse {
         cpu_name: "Loading...".to_string(),
         cpu_usage_pct: 0.0,
@@ -179,6 +186,7 @@ async fn main() {
         ram_used_gb: 0.0,
         ram_total_gb: 0.0,
         gpus: vec![],
+        engine: engine_type,
     }));
 
     let cache_clone = telemetry_cache.clone();
@@ -282,13 +290,26 @@ fn interactive_install(rpc_binary_name: &str) -> std::path::PathBuf {
     println!("===========================================================");
     println!("{} was not found.", rpc_binary_name);
     
-    // Create llama-cpp directory relative to executable
+    println!("Which engine would you like to install?");
+    println!("[1] Standard llama.cpp");
+    println!("[2] llama-cpp-turboquant");
+    print!("Select an option (1-2): ");
+    std::io::stdout().flush().unwrap();
+    let mut engine_input = String::new();
+    std::io::stdin().read_line(&mut engine_input).unwrap();
+    let engine_name = match engine_input.trim() {
+        "2" => "llama-cpp-turboquant",
+        _ => "llama-cpp",
+    };
+
+    // Create directory relative to executable
     let exe_dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
-    let target_dir = exe_dir.join(if cfg!(windows) { "." } else { "../../../engines/llama-cpp" });
+    let rel_path = format!("../../../engines/{}", engine_name);
+    let target_dir = exe_dir.join(if cfg!(windows) { engine_name } else { &rel_path });
     let target_dir = if target_dir.exists() || std::fs::create_dir_all(&target_dir).is_ok() {
         target_dir
     } else {
-        let d = std::env::current_dir().unwrap().join("engines").join("llama-cpp");
+        let d = std::env::current_dir().unwrap().join("engines").join(engine_name);
         std::fs::create_dir_all(&d).unwrap();
         d
     };
@@ -296,31 +317,45 @@ fn interactive_install(rpc_binary_name: &str) -> std::path::PathBuf {
     let target_bin = target_dir.join(rpc_binary_name);
 
     if cfg!(windows) {
-        println!("Please select the version of llama.cpp you want to download:");
-        println!("[1] NVIDIA GPU (CUDA 12)");
-        println!("[2] NVIDIA GPU (CUDA 11)");
-        println!("[3] Vulkan (AMD/Intel/Cross-platform)");
-        println!("[4] CPU Only (AVX2)");
-        print!("Select an option (1-4): ");
-        std::io::stdout().flush().unwrap();
-        
-        std::io::stdin().read_line(&mut input).unwrap();
-        
-        let (pattern, requires_cudart) = match input.trim() {
-            "1" => ("win-cuda-cu12", true),
-            "2" => ("win-cuda-cu11", true),
-            "3" => ("win-vulkan-x64", false),
-            "4" => ("win-avx2-x64", false),
-            _ => {
-                eprintln!("Invalid selection.");
-                wait_and_exit(1);
-            }
-        };
-        
-        let cudart_version = if pattern.contains("cu12") { "cu12" } else { "cu11" };
-        let requires_cudart_str = if requires_cudart { "$true" } else { "$false" };
-        
-        let ps_script = format!(
+        let ps_script = if engine_name == "llama-cpp-turboquant" {
+            format!(
+r#"
+$ErrorActionPreference = 'Stop'
+$targetDir = "{}"
+Write-Host "Downloading turboquant..."
+$zipPath = Join-Path -Path $targetDir -ChildPath "llama.zip"
+Invoke-WebRequest -Uri "https://github.com/TheTom/llama-cpp-turboquant/releases/download/tqp-v0.3.0/turboquant-plus-tqp-v0.3.0-windows-x64-cuda12.4.zip" -OutFile $zipPath
+Write-Host "Extracting..."
+Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
+Remove-Item -Path $zipPath
+Write-Host "Download complete!"
+"#, target_dir.display())
+        } else {
+            println!("Please select the version of llama.cpp you want to download:");
+            println!("[1] NVIDIA GPU (CUDA 12)");
+            println!("[2] NVIDIA GPU (CUDA 11)");
+            println!("[3] Vulkan (AMD/Intel/Cross-platform)");
+            println!("[4] CPU Only (AVX2)");
+            print!("Select an option (1-4): ");
+            std::io::stdout().flush().unwrap();
+            
+            std::io::stdin().read_line(&mut input).unwrap();
+            
+            let (pattern, requires_cudart) = match input.trim() {
+                "1" => ("win-cuda-cu12", true),
+                "2" => ("win-cuda-cu11", true),
+                "3" => ("win-vulkan-x64", false),
+                "4" => ("win-avx2-x64", false),
+                _ => {
+                    eprintln!("Invalid selection.");
+                    wait_and_exit(1);
+                }
+            };
+            
+            let cudart_version = if pattern.contains("cu12") { "cu12" } else { "cu11" };
+            let requires_cudart_str = if requires_cudart { "$true" } else { "$false" };
+            
+            format!(
 r#"
 $ErrorActionPreference = 'Stop'
 $targetDir = "{}"
@@ -356,7 +391,8 @@ if ({} -eq $true) {{
 
 Write-Host "Download complete!"
 "#, target_dir.display(), pattern, pattern, requires_cudart_str, cudart_version
-        );
+            )
+        };
         
         println!("Downloading and extracting pre-compiled binaries...");
         let status = std::process::Command::new("powershell")
@@ -427,9 +463,15 @@ Write-Host "Download complete!"
             std::fs::remove_dir_all(&temp_dir).unwrap();
         }
         
-        println!("Cloning llama.cpp repository...");
+        let git_repo = if engine_name == "llama-cpp-turboquant" {
+            "https://github.com/TheTom/llama-cpp-turboquant.git"
+        } else {
+            "https://github.com/ggerganov/llama.cpp.git"
+        };
+        
+        println!("Cloning repository...");
         let status = std::process::Command::new("git")
-            .args(["clone", "https://github.com/ggerganov/llama.cpp.git", temp_dir.to_str().unwrap()])
+            .args(["clone", git_repo, temp_dir.to_str().unwrap()])
             .status()
             .expect("Failed to run git clone");
             
