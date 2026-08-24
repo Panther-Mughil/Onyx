@@ -805,20 +805,57 @@ async fn proxy_handler(
     let mut target_port = 8080;
     let mut found_target = false;
     
+    let mut model_str_opt: Option<String> = None;
+    
+    // 1. Try to get model from JSON body
     if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-        if let Some(model_str) = json.get("model").and_then(|m| m.as_str()) {
-            let servers = state.active_servers.lock().await;
-            if let Some(server) = servers.get(model_str) {
-                target_port = server.port;
-                found_target = true;
-            }
-            if !found_target {
-                for (id, server) in servers.iter() {
-                    if id.starts_with(model_str) {
-                        target_port = server.port;
-                        found_target = true;
-                        break;
+        if let Some(m) = json.get("model").and_then(|m| m.as_str()) {
+            model_str_opt = Some(m.to_string());
+        }
+    }
+    
+    // 2. Try to get model from URL query parameters
+    if model_str_opt.is_none() {
+        if let Some(query) = parts.uri.query() {
+            for pair in query.split('&') {
+                let mut p = pair.split('=');
+                if let (Some(k), Some(v)) = (p.next(), p.next()) {
+                    if k == "model" {
+                        model_str_opt = Some(v.to_string());
                     }
+                }
+            }
+        }
+    }
+
+    if let Some(model_str) = model_str_opt {
+        let servers = state.active_servers.lock().await;
+        
+        let settings_path = format!("{}/data/model_settings.json", base_dir().0);
+        let model_settings: std::collections::HashMap<String, String> = if Path::new(&settings_path).exists() {
+            if let Ok(file_data) = fs::read_to_string(&settings_path) {
+                serde_json::from_str(&file_data).unwrap_or_default()
+            } else {
+                std::collections::HashMap::new()
+            }
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        if let Some(server) = servers.get(&model_str) {
+            target_port = server.port;
+            found_target = true;
+        }
+        
+        if !found_target {
+            for (id, server) in servers.iter() {
+                let clean_id = id.strip_suffix(".gguf").unwrap_or(id).to_string();
+                let display_id = model_settings.get(id).cloned().unwrap_or(clean_id.clone());
+                
+                if id == &model_str || clean_id == model_str || display_id == model_str || id.starts_with(&model_str) {
+                    target_port = server.port;
+                    found_target = true;
+                    break;
                 }
             }
         }
@@ -1534,18 +1571,15 @@ async fn run_benchmark(
     *state.benchmark_pp.lock().await = None;
     *state.benchmark_tg.lock().await = None;
 
+    // TARGETED UNLOAD: Unload ONLY the model being benchmarked if it is currently running.
     {
         let mut servers_map = state.active_servers.lock().await;
-        for server in servers_map.values_mut() {
+        if let Some(mut server) = servers_map.remove(&payload.model_id) {
             if let Some(mut child) = server.process.take() {
                 let _ = child.kill().await;
                 let _ = child.wait().await;
             }
         }
-        servers_map.clear();
-        let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/IM", "llama-server.exe", "/T"])
-            .output();
     }
 
     let model_path = format!("{}/models/{}", base_dir().0, payload.model_id);
