@@ -70,3 +70,6 @@ Error: Command failed: cd "/mnt/G/Onyx/engines/temp_src_llama.cpp (Vulkan)" && c
 `Before compiling, please run the following command(s) in your terminal:
 
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` 2. Next Problem in Macbook it shows Nvidia GPU: NO actually that dont want to be shown in the macOS and mac systems cuz there is no nvidia GPU obviously. It should be only shown in Linux and Windows.
+
+4. `llama-bench` does not account for MTP / Speculative Decoding in testing:
+When running benchmarks on models with Multi-Token Prediction (MTP) or draft models enabled (`--spec-type draft-mtp` / `-md`), `llama-bench` only accepts standard single-model parameters (`-m`, `-ngl`, `-t`, `-b`, `-ub`, `-ctk`, `-ctv`, `-p`, `-n`) and lacks speculative decoding options. Consequently, benchmark results (PP and TG tokens/sec) only reflect baseline non-speculative inference and do not measure MTP generation speedups or draft token acceptance rates. (GitHub Issue #2)
