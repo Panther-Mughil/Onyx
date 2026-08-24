@@ -202,6 +202,8 @@ struct Model {
     feed_forward_length: Option<u32>,
     mmproj: Option<String>,
     mmproj_size_gb: Option<f32>,
+    draft_model: Option<String>,
+    draft_model_size_gb: Option<f32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -257,6 +259,8 @@ struct ServerConfig {
     device_order: Option<Vec<String>>,
     #[serde(default)]
     mmproj: Option<String>,
+    #[serde(default)]
+    draft_model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -471,15 +475,20 @@ let models_dir_str = format!("{}/models", base_dir_root);
 
     let mut files_to_process = Vec::new();
     let mut mmprojs_by_dir: std::collections::HashMap<String, (String, f32)> = std::collections::HashMap::new();
+    let mut drafts_by_dir: std::collections::HashMap<String, (String, f32)> = std::collections::HashMap::new();
 
     if let Ok(entries) = fs::read_dir(models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().is_some_and(|ext| ext == "gguf") {
                 let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                if filename.contains("mmproj") {
+                let fname_lower = filename.to_lowercase();
+                if fname_lower.contains("mmproj") {
                     let size = std::fs::metadata(&path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
                     mmprojs_by_dir.insert("".to_string(), (filename, size));
+                } else if fname_lower.contains("mtp") || fname_lower.contains("draft") {
+                    let size = std::fs::metadata(&path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                    drafts_by_dir.insert("".to_string(), (filename, size));
                 } else {
                     files_to_process.push((path, filename.clone(), filename));
                 }
@@ -491,9 +500,13 @@ let models_dir_str = format!("{}/models", base_dir_root);
                         if sub_path.is_file() && sub_path.extension().is_some_and(|ext| ext == "gguf") {
                             let filename = sub_path.file_name().unwrap_or_default().to_string_lossy().to_string();
                             let rel_path = format!("{}/{}", dir_name, filename);
-                            if filename.contains("mmproj") {
+                            let fname_lower = filename.to_lowercase();
+                            if fname_lower.contains("mmproj") {
                                 let size = std::fs::metadata(&sub_path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
                                 mmprojs_by_dir.insert(dir_name.clone(), (rel_path, size));
+                            } else if fname_lower.contains("mtp") || fname_lower.contains("draft") {
+                                let size = std::fs::metadata(&sub_path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                                drafts_by_dir.insert(dir_name.clone(), (rel_path, size));
                             } else {
                                 files_to_process.push((sub_path, filename, rel_path));
                             }
@@ -725,6 +738,10 @@ let models_dir_str = format!("{}/models", base_dir_root);
                 let mmproj = mmproj_data.map(|d| d.0.clone());
                 let mmproj_size_gb = mmproj_data.map(|d| d.1);
 
+                let draft_data = drafts_by_dir.get(&dir_key);
+                let draft_model = draft_data.map(|d| d.0.clone());
+                let draft_model_size_gb = draft_data.map(|d| d.1);
+
                 models.push(Model {
                     id: rel_path.clone(),
                     name,
@@ -738,6 +755,8 @@ let models_dir_str = format!("{}/models", base_dir_root);
                     feed_forward_length,
                     mmproj,
                     mmproj_size_gb,
+                    draft_model,
+                    draft_model_size_gb,
                 });
     }
 
@@ -1359,20 +1378,64 @@ async fn start_server(
             args.push("--spec-draft-n-max".to_string());
             args.push(payload.spec_draft_n_max.to_string());
         }
+
+        let draft_path_opt = payload.draft_model.clone().or_else(|| {
+            let model_path_obj = std::path::Path::new(&model_path);
+            if let Some(parent) = model_path_obj.parent() {
+                if let Ok(entries) = std::fs::read_dir(parent) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_file() && p.extension().is_some_and(|ext| ext == "gguf") {
+                            let fname = entry.file_name().to_string_lossy().to_lowercase();
+                            let candidate_path = entry.path().to_string_lossy().to_string();
+                            if (fname.contains("mtp") || fname.contains("draft")) && candidate_path != model_path {
+                                return Some(candidate_path);
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        });
+
+        if let Some(draft_path) = draft_path_opt {
+            let full_draft_path = if std::path::Path::new(&draft_path).is_absolute() || draft_path.starts_with("models/") {
+                draft_path
+            } else {
+                format!("{}/models/{}", base_dir().0, draft_path)
+            };
+            if std::path::Path::new(&full_draft_path).exists() {
+                args.push("-md".to_string());
+                args.push(full_draft_path);
+            }
+        }
     }
 
     if payload.enable_vision {
-        let model_path_obj = std::path::Path::new(&model_path);
-        if let Some(parent) = model_path_obj.parent() {
-            if let Ok(entries) = std::fs::read_dir(parent) {
-                for entry in entries.flatten() {
-                    let fname = entry.file_name().to_string_lossy().to_lowercase();
-                    if fname.contains("mmproj") && fname.ends_with(".gguf") {
-                        args.push("--mmproj".to_string());
-                        args.push(entry.path().to_string_lossy().to_string());
-                        break;
+        let mmproj_path_opt = payload.mmproj.clone().or_else(|| {
+            let model_path_obj = std::path::Path::new(&model_path);
+            if let Some(parent) = model_path_obj.parent() {
+                if let Ok(entries) = std::fs::read_dir(parent) {
+                    for entry in entries.flatten() {
+                        let fname = entry.file_name().to_string_lossy().to_lowercase();
+                        if fname.contains("mmproj") && fname.ends_with(".gguf") {
+                            return Some(entry.path().to_string_lossy().to_string());
+                        }
                     }
                 }
+            }
+            None
+        });
+
+        if let Some(mm_path) = mmproj_path_opt {
+            let full_mm_path = if std::path::Path::new(&mm_path).is_absolute() || mm_path.starts_with("models/") {
+                mm_path
+            } else {
+                format!("{}/models/{}", base_dir().0, mm_path)
+            };
+            if std::path::Path::new(&full_mm_path).exists() {
+                args.push("--mmproj".to_string());
+                args.push(full_mm_path);
             }
         }
     }
@@ -1446,12 +1509,6 @@ async fn start_server(
     
     args.push("--flash-attn".to_string());
     args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
-
-    if let Some(mmproj_path) = &payload.mmproj {
-        let full_mmproj_path = format!("{}/models/{}", base_dir().0, mmproj_path);
-        args.push("--mmproj".to_string());
-        args.push(full_mmproj_path);
-    }
 
     let full_command = format!("{} {}", binary_path, args.join(" "));
     state.system_logs.lock().await.push_back("I [SYSTEM] Booting llama-server with parameters:".to_string());

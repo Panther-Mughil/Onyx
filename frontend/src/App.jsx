@@ -110,7 +110,8 @@ const MemoryEstimator = ({
 		}
 		const baseGraphGb = (config.ctxSize / 100000) * 0.5; // ~500MB graph logic per 100k tokens
 		const visionBufferGb = config.enableVision && selectedModel.mmproj_size_gb ? selectedModel.mmproj_size_gb : 0.0;
-		const computeBufferGb = attentionBufferGb + baseGraphGb + visionBufferGb;
+		const draftBufferGb = config.specType && config.specType !== "none" && selectedModel.draft_model_size_gb ? selectedModel.draft_model_size_gb : 0.0;
+		const computeBufferGb = attentionBufferGb + baseGraphGb + visionBufferGb + draftBufferGb;
 
 		const hostOverheadGb = 0.4; // Host OS / Llama.cpp base binary overhead
 		const cudaOverheadGb = 0.25; // Base CUDA Context initialization overhead per GPU
@@ -1318,6 +1319,8 @@ function App() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					modelId: selectedModel.id,
+					draftModel: selectedModel.draft_model || null,
+					mmproj: selectedModel.mmproj || null,
 					...sanitizedConfig,
 					rpcServers: serverSettings.rpcServers || [],
 					deviceOrder: serverSettings.deviceOrder || [],
@@ -3397,6 +3400,36 @@ function App() {
 												{selectedModel.size_gb.toFixed(2)} GB
 											</span>
 										</div>
+
+										{selectedModel.draft_model && (
+											<div className="info-row">
+												<span>MTP Draft Model</span>{" "}
+												<span
+													style={{
+														background: "rgba(255,255,255,0.05)",
+														padding: "2px 8px",
+														borderRadius: "12px",
+													}}
+												>
+													{selectedModel.draft_model.split("/").pop()} ({selectedModel.draft_model_size_gb ? selectedModel.draft_model_size_gb.toFixed(2) : "0"} GB)
+												</span>
+											</div>
+										)}
+
+										{selectedModel.mmproj && (
+											<div className="info-row">
+												<span>Vision Projector</span>{" "}
+												<span
+													style={{
+														background: "rgba(255,255,255,0.05)",
+														padding: "2px 8px",
+														borderRadius: "12px",
+													}}
+												>
+													{selectedModel.mmproj.split("/").pop()} ({selectedModel.mmproj_size_gb ? selectedModel.mmproj_size_gb.toFixed(2) : "0"} GB)
+												</span>
+											</div>
+										)}
 									</div>
 								</div>
 							) : (
@@ -3847,19 +3880,26 @@ function App() {
 										</div>
 
 										{config.specType && config.specType !== "none" && (
-											<div className="form-row" style={{ marginBottom: "16px" }}>
-												<span>Draft Tokens (n-max)</span>
-												<input
-													type="number"
-													className="num-input"
-													name="specDraftNMax"
-													value={config.specDraftNMax || 2}
-													onChange={handleConfigChange}
-													min="1"
-													max="10"
-													style={{ width: "60px" }}
-												/>
-											</div>
+											<>
+												<div className="form-row" style={{ marginBottom: "16px" }}>
+													<span>Draft Tokens (n-max)</span>
+													<input
+														type="number"
+														className="num-input"
+														name="specDraftNMax"
+														value={config.specDraftNMax || 2}
+														onChange={handleConfigChange}
+														min="1"
+														max="10"
+														style={{ width: "60px" }}
+													/>
+												</div>
+												{selectedModel?.draft_model && (
+													<div style={{ fontSize: "11px", color: "var(--accent, #6366f1)", marginBottom: "16px", marginTop: "-8px" }}>
+														✨ Separate MTP draft file detected ({selectedModel.draft_model.split("/").pop()})
+													</div>
+												)}
+											</>
 										)}
 
 										<div className="form-row" style={{ marginBottom: "16px" }}>
