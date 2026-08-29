@@ -261,6 +261,8 @@ struct ServerConfig {
     mmproj: Option<String>,
     #[serde(default)]
     draft_model: Option<String>,
+    #[serde(default)]
+    reasoning_mode: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1135,7 +1137,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     if dev_id.starts_with("rpc_") {
                         if let Ok(idx) = dev_id[4..].parse::<usize>() {
                             if let Some(rpcs) = &payload.rpc_servers {
-                                is_active = rpcs.get(idx).map_or(false, |r| r.active);
+                                is_active = rpcs.get(idx).is_some_and(|r| r.active);
                             } else { is_active = false; }
                             if is_active {
                                 rpc_splits[idx] = allocs.get(dev_id).copied().unwrap_or(0);
@@ -1144,7 +1146,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     } else if dev_id.starts_with("gpu_") {
                         if let Ok(idx) = dev_id[4..].parse::<usize>() {
                             if let Some(gpus) = &payload.local_gpus {
-                                is_active = gpus.iter().find(|g| g.index == idx).map_or(false, |g| g.active);
+                                is_active = gpus.iter().find(|g| g.index == idx).is_some_and(|g| g.active);
                             } else { is_active = false; }
                             
                             if is_active {
@@ -1163,7 +1165,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
 
                 if let Some(gpus) = &payload.local_gpus {
                     for i in 0..=max_gpu_index {
-                        let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
+                        let is_active = gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
                         if is_active {
                             splits.push(gpu_splits[i].to_string());
                             devices.push(format!("{}{}", prefix, i));
@@ -1187,7 +1189,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     if !gpus.is_empty() {
                         for i in 0..=max_gpu_index {
                             let key = format!("gpu_{}", i);
-                            let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
+                            let is_active = gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
                             if is_active {
                                 let layers = allocs.get(&key).copied().unwrap_or(0);
                                 splits.push(layers.to_string());
@@ -1220,7 +1222,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
                     for i in 0..=max_gpu_index {
                         let key = format!("gpu_{}", i);
-                        let is_active = gpus.iter().find(|g| g.index == i).map_or(false, |g| g.active);
+                        let is_active = gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
                         if is_active {
                             let layers = allocs.get(&key).copied().unwrap_or(0);
                             splits.push(layers.to_string());
@@ -1499,16 +1501,24 @@ async fn start_server(
         args.push(payload.moe_cpu_layers.to_string());
     }
     
-    if payload.keep_in_memory { 
-        args.push("--load-mode".to_string()); 
-        args.push("mlock".to_string()); 
-    } else if !payload.mmap { 
-        args.push("--load-mode".to_string()); 
-        args.push("none".to_string()); 
+    // We now use the modern `--load-mode` and `--flash-attn` value flags,
+    // as the turboquant engine (and upstream llama.cpp) have updated to require them.
+    if payload.keep_in_memory {
+        args.push("--load-mode".to_string());
+        args.push("mlock".to_string());
+    } else if !payload.mmap {
+        args.push("--load-mode".to_string());
+        args.push("none".to_string());
     }
-    
-    args.push("--flash-attn".to_string());
-    args.push(if payload.flash_attention { "on".to_string() } else { "off".to_string() });
+
+    if payload.flash_attention {
+        args.push("--flash-attn".to_string());
+        args.push("on".to_string());
+    }
+
+    let reasoning_val = payload.reasoning_mode.as_deref().unwrap_or("auto");
+    args.push("--reasoning".to_string());
+    args.push(reasoning_val.to_string());
 
     let full_command = format!("{} {}", binary_path, args.join(" "));
     state.system_logs.lock().await.push_back("I [SYSTEM] Booting llama-server with parameters:".to_string());
@@ -1545,7 +1555,7 @@ async fn start_server(
         is_ready: false,
         logs: initial_logs,
         progress: 0.0,
-        instance_id: instance_id.clone(),
+        instance_id: instance_id,
     };
     
     {
@@ -1553,7 +1563,7 @@ async fn start_server(
         servers_map.insert(payload.model_id.clone(), server_state);
     }
 
-    spawn_log_reader(stdout, state.clone(), payload.model_id.clone(), instance_id.clone());
+    spawn_log_reader(stdout, state.clone(), payload.model_id.clone(), instance_id);
     spawn_log_reader(stderr, state.clone(), payload.model_id.clone(), instance_id);
 
     Json(StartResponse {

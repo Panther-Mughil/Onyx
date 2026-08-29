@@ -15,6 +15,7 @@ export default function EngineManager({ apiBase }) {
   const [installed, setInstalled] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [releasesError, setReleasesError] = useState(null);
   const [activeAction, setActiveAction] = useState(null);
   const pollIntervalRef = useRef(null);
 
@@ -72,9 +73,21 @@ export default function EngineManager({ apiBase }) {
       if (res.ok) {
         const data = await res.json();
         setReleases(data.assets || []);
+        setReleasesError(null);
+      } else {
+        // e.g. GitHub unauthenticated rate-limit (403) — surface why the
+        // base llama.cpp download options are missing instead of hiding them.
+        setReleases([]);
+        setReleasesError(
+          `GitHub API returned ${res.status} (likely a rate limit). Try again in a few minutes.`,
+        );
       }
     } catch (e) {
       console.error(e);
+      setReleases([]);
+      setReleasesError(
+        "Could not reach GitHub to list llama.cpp releases. Check your internet connection.",
+      );
     } finally {
       setLoading(false);
     }
@@ -538,6 +551,35 @@ export default function EngineManager({ apiBase }) {
         >
           Available Engines
         </h3>
+        {releasesError && (
+          <div
+            style={{
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              padding: "12px 16px",
+              borderRadius: "8px",
+              marginBottom: "12px",
+              fontSize: "13px",
+              color: "#fecaca",
+            }}
+          >
+            <div style={{ marginBottom: "8px" }}>
+              <b>Couldn't load llama.cpp releases from GitHub.</b>{" "}
+              {releasesError}
+            </div>
+            <button
+              className="engine-action-btn compile-btn"
+              onClick={() => {
+                setLoading(true);
+                setReleasesError(null);
+                fetchReleases();
+              }}
+              style={{ padding: "6px 10px" }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {options.map((opt) => {
             const isInstalled = installed.includes(opt.id);

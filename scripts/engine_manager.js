@@ -66,11 +66,40 @@ async function handleDownload() {
 		console.log("Extracting archive...");
 		const { spawnSync } = require("child_process");
 		if (platform === "win32") {
-			spawnSync("powershell", ["-Command", "Expand-Archive", "-Path", zipPath, "-DestinationPath", ENGINE_DIR, "-Force"], { stdio: "inherit" });
+			// Windows 10+ ships `tar` (bsdtar), which extracts .zip files and
+			// handles spaces/parentheses in engine ids safely (separate argv).
+			// Fall back to PowerShell only if tar is unavailable, quoting every
+			// path because `powershell -Command` re-parses the concatenated
+			// command line and breaks on bare spaces/parens (e.g. the engine id
+			// `llama-cpp-turboquant (CUDA 12.4)`). Check exit codes so failures
+			// are surfaced instead of being reported as a false success.
+			let tarStatus = null;
+			const tarRes = spawnSync("tar", ["-xf", zipPath, "-C", ENGINE_DIR], {
+				stdio: "inherit",
+			});
+			tarStatus = tarRes.error ? tarRes.error.code : tarRes.status;
+			if (tarRes.error || tarRes.status !== 0) {
+				const psCmd = `Expand-Archive -Path "${zipPath}" -DestinationPath "${ENGINE_DIR}" -Force`;
+				const psRes = spawnSync("powershell", ["-NoProfile", "-Command", psCmd], {
+					stdio: "inherit",
+				});
+				if (psRes.error || psRes.status !== 0) {
+					throw new Error(
+						`Failed to extract archive (tar exit ${tarStatus}, PowerShell exit ${psRes.status}). Check the zip is valid and writable.`,
+					);
+				}
+			}
 		} else {
-			const res = spawnSync("unzip", ["-o", zipPath, "-d", ENGINE_DIR], { stdio: "inherit" });
+			const res = spawnSync("unzip", ["-o", zipPath, "-d", ENGINE_DIR], {
+				stdio: "inherit",
+			});
 			if (res.error || res.status !== 0) {
-				spawnSync("tar", ["-xf", zipPath, "-C", ENGINE_DIR], { stdio: "inherit" });
+				const tarRes = spawnSync("tar", ["-xf", zipPath, "-C", ENGINE_DIR], {
+					stdio: "inherit",
+				});
+				if (tarRes.error || tarRes.status !== 0) {
+					throw new Error("Failed to extract archive (both unzip and tar failed)");
+				}
 			}
 		}
 
@@ -89,11 +118,18 @@ async function handleCompile() {
 		fs.rmSync(tempDir, { recursive: true, force: true });
 
 	const { spawnSync } = require("child_process");
-	const gitRepo = engineId.includes("turboquant") ? "https://github.com/TheTom/llama-cpp-turboquant.git" : "https://github.com/ggerganov/llama.cpp.git";
+	const gitRepo = engineId.includes("turboquant")
+		? "https://github.com/TheTom/llama-cpp-turboquant.git"
+		: "https://github.com/ggerganov/llama.cpp.git";
 	spawnSync("git", ["clone", gitRepo, tempDir], { stdio: "inherit" });
 	const buildDir = path.join(tempDir, "build");
 
-	let cmakeFlagsArr = ["-B", "build", "-DGGML_RPC=ON", "-DBUILD_SHARED_LIBS=OFF"];
+	const cmakeFlagsArr = [
+		"-B",
+		"build",
+		"-DGGML_RPC=ON",
+		"-DBUILD_SHARED_LIBS=OFF",
+	];
 	const env = Object.assign({}, process.env);
 
 	if (urlOrFlags === "mac-silicon" || urlOrFlags === "mac-intel") {
@@ -112,7 +148,23 @@ async function handleCompile() {
 	}
 
 	spawnSync("cmake", cmakeFlagsArr, { env, cwd: tempDir, stdio: "inherit" });
-	spawnSync("cmake", ["--build", "build", "--config", "Release", "-j4", "--target", "llama-server", "--target", "llama-bench", "--target", "ggml-rpc-server"], { env, cwd: tempDir, stdio: "inherit" });
+	spawnSync(
+		"cmake",
+		[
+			"--build",
+			"build",
+			"--config",
+			"Release",
+			"-j4",
+			"--target",
+			"llama-server",
+			"--target",
+			"llama-bench",
+			"--target",
+			"ggml-rpc-server",
+		],
+		{ env, cwd: tempDir, stdio: "inherit" },
+	);
 
 	const binaries = [
 		"llama-server",
@@ -159,10 +211,9 @@ async function handleCompile() {
 			const binPath = path.join(ENGINE_DIR, bin);
 			if (fs.existsSync(binPath)) {
 				try {
-					execSync(
-						`install_name_tool -add_rpath @executable_path "${binPath}"`,
-						{ stdio: "ignore" },
-					);
+					execSync(`install_name_tool -add_rpath @executable_path "${binPath}"`, {
+						stdio: "ignore",
+					});
 				} catch (e) {}
 			}
 		}

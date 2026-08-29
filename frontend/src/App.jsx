@@ -26,6 +26,7 @@ import {
   Search,
   Database,
   Wrench,
+  Brain,
 } from "lucide-react";
 import EngineManager from "./EngineManager";
 import { API_BASE } from "./api";
@@ -3955,8 +3956,40 @@ function App() {
                         onClick={() => handleToggle("enableVision")}
                       ></div>
                     </div>
+                  </div>
+
+                  <div className="form-section">
+                    <div
+                      style={{
+                        marginBottom: "16px",
+                        fontWeight: "bold",
+                        fontSize: "13px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <Brain size={16} color="var(--text-main)" /> Inference
+                    </div>
 
                     <div className="form-row" style={{ marginBottom: "16px" }}>
+                      <span>Reasoning</span>
+                      <select
+                        className="dropdown-select"
+                        name="reasoningMode"
+                        value={config.reasoningMode || "auto"}
+                        onChange={handleConfigChange}
+                        style={{ width: "140px" }}
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-section" style={{ marginTop: "16px" }}>
+                    <div className="form-row" style={{ marginBottom: "0px" }}>
                       <span>Identifier</span>
                       <input
                         type="text"
