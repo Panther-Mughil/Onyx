@@ -995,14 +995,16 @@ async fn get_server_status(
     let mut to_remove = Vec::new();
     for (model_id, server) in servers_map.iter_mut() {
         if let Some(child) = server.process.as_mut() {
-            if let Ok(Some(_)) = child.try_wait() {
-                to_remove.push(model_id.clone());
+            if let Ok(Some(status)) = child.try_wait() {
+                to_remove.push((model_id.clone(), status));
             }
         }
     }
     
-    for id in to_remove {
+    for (id, status) in to_remove {
         servers_map.remove(&id);
+        let mut sys_logs = state.system_logs.lock().await;
+        sys_logs.push_back(format!("E [SYSTEM] llama-server for {} exited with status: {}", id, status));
     }
     
     let servers: Vec<ServerInfo> = servers_map.values().map(|s| {
