@@ -1501,12 +1501,20 @@ async fn start_server(
         args.push(payload.moe_cpu_layers.to_string());
     }
     
-    // We revert back to legacy `--mlock` and `--no-mmap` flags for compatibility
-    // with older forks like turboquant that haven't merged `--load-mode` yet.
-    if payload.keep_in_memory {
-        args.push("--mlock".to_string());
-    } else if !payload.mmap {
-        args.push("--no-mmap".to_string());
+    if cfg!(windows) {
+        if payload.keep_in_memory {
+            args.push("--mlock".to_string());
+        } else if !payload.mmap {
+            args.push("--no-mmap".to_string());
+        }
+    } else {
+        if payload.keep_in_memory {
+            args.push("--load-mode".to_string());
+            args.push("mlock".to_string());
+        } else if !payload.mmap {
+            args.push("--load-mode".to_string());
+            args.push("none".to_string());
+        }
     }
 
     if payload.flash_attention {
@@ -1725,7 +1733,21 @@ async fn run_benchmark(
     }
 
     if !payload.offload_kv { args.push("-nkvo".to_string()); args.push("1".to_string()); }
-    if !payload.mmap || payload.keep_in_memory { args.push("-mmp".to_string()); args.push("0".to_string()); }
+    if cfg!(windows) {
+        if !payload.mmap || payload.keep_in_memory { 
+            args.push("-mmp".to_string()); 
+            args.push("0".to_string()); 
+        }
+    } else {
+        if payload.keep_in_memory { 
+            args.push("-lm".to_string()); 
+            args.push("mlock".to_string()); 
+        }
+        else if !payload.mmap { 
+            args.push("-lm".to_string()); 
+            args.push("none".to_string()); 
+        }
+    }
     if payload.flash_attention { args.push("-fa".to_string()); args.push("on".to_string()); }
 
     let shared_state = state.clone();
