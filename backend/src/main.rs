@@ -1103,11 +1103,11 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         let mut devices = Vec::new();
 
         let prefix = if let Some(e) = &payload.engine_id {
-            if e.to_lowercase().contains("metal") { "MTL" }
-            else if e.to_lowercase().contains("vulkan") { "Vulkan" }
-            else { "CUDA" }
+            if e.to_lowercase().contains("metal") { "mtl" }
+            else if e.to_lowercase().contains("vulkan") { "vulkan" }
+            else { "cuda" }
         } else {
-            "CUDA"
+            "cuda"
         };
 
         let mut max_gpu_index = 0;

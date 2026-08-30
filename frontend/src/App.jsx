@@ -744,9 +744,8 @@ function App() {
         shouldRemember = true;
       }
       if (
-        targetConfig.engineId &&
         installedEngines.length > 0 &&
-        !installedEngines.includes(targetConfig.engineId)
+        (!targetConfig.engineId || !installedEngines.includes(targetConfig.engineId))
       ) {
         targetConfig.engineId = installedEngines[0];
         shouldRemember = true;

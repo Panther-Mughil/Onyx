@@ -68,11 +68,12 @@ export default function EngineManager({ apiBase }) {
   const fetchReleases = async () => {
     try {
       const res = await fetch(
-        "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest",
+        "https://api.github.com/repos/ggml-org/llama.cpp/releases",
       );
       if (res.ok) {
         const data = await res.json();
-        setReleases(data.assets || []);
+        const latestWithAssets = data.find(r => r.assets && r.assets.length > 5);
+        setReleases(latestWithAssets ? latestWithAssets.assets : []);
         setReleasesError(null);
       } else {
         // e.g. GitHub unauthenticated rate-limit (403) — surface why the

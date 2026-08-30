@@ -79,7 +79,7 @@ async function handleDownload() {
 			});
 			tarStatus = tarRes.error ? tarRes.error.code : tarRes.status;
 			if (tarRes.error || tarRes.status !== 0) {
-				const psCmd = `Expand-Archive -Path "${zipPath}" -DestinationPath "${ENGINE_DIR}" -Force`;
+				const psCmd = `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${ENGINE_DIR.replace(/'/g, "''")}' -Force`;
 				const psRes = spawnSync("powershell", ["-NoProfile", "-Command", psCmd], {
 					stdio: "inherit",
 				});
