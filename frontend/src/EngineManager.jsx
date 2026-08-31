@@ -7,6 +7,7 @@ import {
   Search,
   CheckCircle,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 
 export default function EngineManager({ apiBase }) {
@@ -67,27 +68,22 @@ export default function EngineManager({ apiBase }) {
 
   const fetchReleases = async () => {
     try {
-      const res = await fetch(
-        "https://api.github.com/repos/ggml-org/llama.cpp/releases",
-      );
+      const res = await fetch(`${apiBase}/api/engines/available`);
       if (res.ok) {
         const data = await res.json();
-        const latestWithAssets = data.find(r => r.assets && r.assets.length > 5);
-        setReleases(latestWithAssets ? latestWithAssets.assets : []);
+        setReleases(data);
         setReleasesError(null);
       } else {
-        // e.g. GitHub unauthenticated rate-limit (403) — surface why the
-        // base llama.cpp download options are missing instead of hiding them.
         setReleases([]);
         setReleasesError(
-          `GitHub API returned ${res.status} (likely a rate limit). Try again in a few minutes.`,
+          `Backend API returned ${res.status}. Try again in a few minutes.`,
         );
       }
     } catch (e) {
       console.error(e);
       setReleases([]);
       setReleasesError(
-        "Could not reach GitHub to list llama.cpp releases. Check your internet connection.",
+        "Could not fetch available engines. Check your connection to the backend.",
       );
     } finally {
       setLoading(false);
@@ -649,14 +645,39 @@ export default function EngineManager({ apiBase }) {
                       Stop
                     </button>
                   ) : isInstalled ? (
-                    <button
-                      className="danger-btn"
-                      onClick={() => deleteEngine(opt.id)}
-                      title="Uninstall Engine"
-                      style={{ padding: "6px 10px" }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <>
+                      {opt.asset ? (
+                        <button
+                          className="engine-action-btn compile-btn"
+                          onClick={() =>
+                            downloadEngine(opt.id, opt.asset.browser_download_url)
+                          }
+                          title="Update Engine"
+                          style={{ padding: "6px 10px", display: "flex", alignItems: "center", gap: "6px" }}
+                        >
+                          <RefreshCw size={16} />
+                          Update
+                        </button>
+                      ) : opt.compile ? (
+                        <button
+                          className="engine-action-btn compile-btn"
+                          onClick={() => compileEngine(opt.id, opt.compile)}
+                          title="Update Engine"
+                          style={{ padding: "6px 10px", display: "flex", alignItems: "center", gap: "6px" }}
+                        >
+                          <RefreshCw size={16} />
+                          Update
+                        </button>
+                      ) : null}
+                      <button
+                        className="danger-btn"
+                        onClick={() => deleteEngine(opt.id)}
+                        title="Uninstall Engine"
+                        style={{ padding: "6px 10px" }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
                   ) : opt.compile ? (
                     <button
                       className="engine-action-btn compile-btn"

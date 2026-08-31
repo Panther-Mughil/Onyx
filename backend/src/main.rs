@@ -359,6 +359,7 @@ struct AppState {
     system_logs: Mutex<std::collections::VecDeque<String>>,
     hf_downloads: Mutex<std::collections::HashMap<String, DownloadState>>,
     engine_setup_killer: Mutex<Option<(String, tokio::sync::oneshot::Sender<()>)>>,
+    available_engines_cache: Mutex<Option<(std::time::Instant, Vec<serde_json::Value>)>>,
 }
 
 #[derive(Deserialize)]
@@ -1084,6 +1085,14 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
                     if line.to_lowercase().contains("error") {
                         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
                         state.system_logs.lock().await.push_back(format!("[{}] {} Error: {}", timestamp, model_id, line));
+                    }
+
+                    if line.to_lowercase().contains("unknown model architecture") {
+                        let arch_msg = "E [SYSTEM] Error: The model architecture is not supported by your currently installed engine build. Please navigate to the Engine Manager to update or re-download your engine.".to_string();
+                        server.logs.push_back(arch_msg.clone());
+                        if server.logs.len() > 1000 { server.logs.pop_front(); }
+                        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                        state.system_logs.lock().await.push_back(format!("[{}] {} {}", timestamp, model_id, arch_msg));
                     }
                 } else {
                     break;
@@ -2252,6 +2261,72 @@ async fn get_version() -> Json<serde_json::Value> {
     }))
 }
 
+async fn get_available_engines(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> Json<Vec<serde_json::Value>> {
+    {
+        let cache_lock = state.available_engines_cache.lock().await;
+        if let Some((timestamp, cached_assets)) = &*cache_lock {
+            if timestamp.elapsed().as_secs() < 300 {
+                return Json(cached_assets.clone());
+            }
+        }
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("Onyx-Engine-Manager")
+        .build()
+        .unwrap_or_default();
+
+    let fallback_assets = vec![
+        serde_json::json!({
+            "name": "llama-b4618-bin-win-vulkan-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-vulkan-x64.zip"
+        }),
+        serde_json::json!({
+            "name": "llama-b4618-bin-win-cpu-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-cpu-x64.zip"
+        }),
+        serde_json::json!({
+            "name": "llama-b4618-bin-win-cuda-13.3-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-cuda-13.3-x64.zip"
+        }),
+        serde_json::json!({
+            "name": "llama-b4618-bin-win-cuda-12.4-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-cuda-12.4-x64.zip"
+        }),
+        serde_json::json!({
+            "name": "cudart-llama-bin-win-cuda-13-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/cudart-llama-bin-win-cuda-13-x64.zip"
+        }),
+        serde_json::json!({
+            "name": "cudart-llama-bin-win-cuda-12-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/cudart-llama-bin-win-cuda-12-x64.zip"
+        })
+    ];
+
+    if let Ok(res) = client.get("https://api.github.com/repos/ggml-org/llama.cpp/releases").send().await {
+        if res.status().is_success() {
+            if let Ok(data) = res.json::<Vec<serde_json::Value>>().await {
+                for release in data {
+                    if let Some(assets) = release.get("assets").and_then(|a| a.as_array()) {
+                        if assets.len() > 5 {
+                            let mut cache_lock = state.available_engines_cache.lock().await;
+                            *cache_lock = Some((std::time::Instant::now(), assets.clone()));
+                            return Json(assets.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut cache_lock = state.available_engines_cache.lock().await;
+    *cache_lock = Some((std::time::Instant::now(), fallback_assets.clone()));
+    Json(fallback_assets)
+}
+
+
 async fn get_installed_engines() -> Json<Vec<String>> {
     let mut engines = Vec::new();
     let (base, _) = base_dir();
@@ -2500,6 +2575,7 @@ async fn main() {
         system_logs: Mutex::new(std::collections::VecDeque::new()),
         hf_downloads: Mutex::new(std::collections::HashMap::new()),
         engine_setup_killer: Mutex::new(None),
+        available_engines_cache: Mutex::new(None),
     });
 
     let app = Router::new()
@@ -2529,6 +2605,7 @@ async fn main() {
         .route("/api/system/info", get(get_system_info))
         .route("/api/version", get(get_version))
         .route("/api/engines", get(get_installed_engines))
+        .route("/api/engines/available", get(get_available_engines))
         .route("/api/engines/download", post(download_engine))
         .route("/api/engines/compile", post(compile_engine))
         .route("/api/engines/stop", post(stop_engine_setup))
