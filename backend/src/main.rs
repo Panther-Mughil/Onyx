@@ -2280,28 +2280,28 @@ async fn get_available_engines(
 
     let fallback_assets = vec![
         serde_json::json!({
-            "name": "llama-b4618-bin-win-vulkan-x64.zip",
-            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-vulkan-x64.zip"
+            "name": "llama-b10713-bin-win-vulkan-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/llama-b10713-bin-win-vulkan-x64.zip"
         }),
         serde_json::json!({
-            "name": "llama-b4618-bin-win-cpu-x64.zip",
-            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-cpu-x64.zip"
+            "name": "llama-b10713-bin-win-cpu-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/llama-b10713-bin-win-cpu-x64.zip"
         }),
         serde_json::json!({
-            "name": "llama-b4618-bin-win-cuda-13.3-x64.zip",
-            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-cuda-13.3-x64.zip"
+            "name": "llama-b10713-bin-win-cuda-13.3-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/llama-b10713-bin-win-cuda-13.3-x64.zip"
         }),
         serde_json::json!({
-            "name": "llama-b4618-bin-win-cuda-12.4-x64.zip",
-            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/llama-b4618-bin-win-cuda-12.4-x64.zip"
+            "name": "llama-b10713-bin-win-cuda-12.4-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/llama-b10713-bin-win-cuda-12.4-x64.zip"
         }),
         serde_json::json!({
-            "name": "cudart-llama-bin-win-cuda-13-x64.zip",
-            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/cudart-llama-bin-win-cuda-13-x64.zip"
+            "name": "cudart-llama-bin-win-cuda-13.3-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/cudart-llama-bin-win-cuda-13.3-x64.zip"
         }),
         serde_json::json!({
-            "name": "cudart-llama-bin-win-cuda-12-x64.zip",
-            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b4618/cudart-llama-bin-win-cuda-12-x64.zip"
+            "name": "cudart-llama-bin-win-cuda-12.4-x64.zip",
+            "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/cudart-llama-bin-win-cuda-12.4-x64.zip"
         })
     ];
 

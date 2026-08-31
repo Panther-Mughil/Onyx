@@ -105,10 +105,7 @@ export default function EngineManager({ apiBase }) {
 
           setInstalled(enginesData);
 
-          if (enginesData.includes(id)) {
-            clearInterval(pollIntervalRef.current);
-            setActiveAction(null);
-          } else if (statusData.active_engine !== id) {
+          if (statusData.active_engine !== id) {
             clearInterval(pollIntervalRef.current);
             setActiveAction(null);
           }
