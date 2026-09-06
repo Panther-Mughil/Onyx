@@ -2305,7 +2305,7 @@ async fn get_available_engines(
         })
     ];
 
-    if let Ok(res) = client.get("https://api.github.com/repos/ggml-org/llama.cpp/releases_BAD").send().await {
+    if let Ok(res) = client.get("https://api.github.com/repos/ggml-org/llama.cpp/releases").send().await {
         if res.status().is_success() {
             if let Ok(data) = res.json::<Vec<serde_json::Value>>().await {
                 for release in data {
