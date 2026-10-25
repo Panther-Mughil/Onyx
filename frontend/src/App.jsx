@@ -4692,11 +4692,34 @@ function App() {
                   width: "fit-content",
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={rememberSettings}
-                  onChange={(e) => setRememberSettings(e.target.checked)}
-                />
+                  <input
+                    type="checkbox"
+                    checked={rememberSettings}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setRememberSettings(checked);
+                      if (selectedModel) {
+                        const newSavedConfigs = { ...(serverSettings.savedModelConfigs || {}) };
+                        if (checked) {
+                          let sanitizedConfig = { ...config };
+                          if (sanitizedConfig.layerAllocations) {
+                            const cleanAllocs = {};
+                            if (sanitizedConfig.layerAllocations["cpu"]) cleanAllocs["cpu"] = sanitizedConfig.layerAllocations["cpu"];
+                            (serverSettings.localGpus || []).forEach(d => { if (sanitizedConfig.layerAllocations[`gpu_${d.index}`]) cleanAllocs[`gpu_${d.index}`] = sanitizedConfig.layerAllocations[`gpu_${d.index}`] });
+                            (serverSettings.rpcServers || []).forEach((d, idx) => { if (sanitizedConfig.layerAllocations[`rpc_${idx}`]) cleanAllocs[`rpc_${idx}`] = sanitizedConfig.layerAllocations[`rpc_${idx}`] });
+                            sanitizedConfig.layerAllocations = cleanAllocs;
+                          }
+                          newSavedConfigs[selectedModel.id] = sanitizedConfig;
+                        } else {
+                          delete newSavedConfigs[selectedModel.id];
+                        }
+                        saveSettings({
+                          ...serverSettings,
+                          savedModelConfigs: newSavedConfigs,
+                        });
+                      }
+                    }}
+                  />
                 <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                   Remember model settings
                 </span>
@@ -4735,7 +4758,30 @@ function App() {
                   <input
                     type="checkbox"
                     checked={rememberSettings}
-                    onChange={(e) => setRememberSettings(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setRememberSettings(checked);
+                      if (selectedModel) {
+                        const newSavedConfigs = { ...(serverSettings.savedModelConfigs || {}) };
+                        if (checked) {
+                          let sanitizedConfig = { ...config };
+                          if (sanitizedConfig.layerAllocations) {
+                            const cleanAllocs = {};
+                            if (sanitizedConfig.layerAllocations["cpu"]) cleanAllocs["cpu"] = sanitizedConfig.layerAllocations["cpu"];
+                            (serverSettings.localGpus || []).forEach(d => { if (sanitizedConfig.layerAllocations[`gpu_${d.index}`]) cleanAllocs[`gpu_${d.index}`] = sanitizedConfig.layerAllocations[`gpu_${d.index}`] });
+                            (serverSettings.rpcServers || []).forEach((d, idx) => { if (sanitizedConfig.layerAllocations[`rpc_${idx}`]) cleanAllocs[`rpc_${idx}`] = sanitizedConfig.layerAllocations[`rpc_${idx}`] });
+                            sanitizedConfig.layerAllocations = cleanAllocs;
+                          }
+                          newSavedConfigs[selectedModel.id] = sanitizedConfig;
+                        } else {
+                          delete newSavedConfigs[selectedModel.id];
+                        }
+                        saveSettings({
+                          ...serverSettings,
+                          savedModelConfigs: newSavedConfigs,
+                        });
+                      }
+                    }}
                   />
                   <span
                     style={{ fontSize: "12px", color: "var(--text-muted)" }}
@@ -4946,12 +4992,23 @@ function App() {
                 </span>
                 <div
                   className={`toggle-switch ${serverSettings.networkHost ? "active" : ""}`}
-                  onClick={() =>
+                  onClick={() => {
+                    const newValue = !serverSettings.networkHost;
                     saveSettings({
                       ...serverSettings,
-                      networkHost: !serverSettings.networkHost,
-                    })
-                  }
+                      networkHost: newValue,
+                    });
+                    if (isProxyRunning) {
+                      fetch(`${API_BASE}/api/server/network`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          port: parseInt(serverSettings.port),
+                          networkHost: newValue,
+                        }),
+                      });
+                    }
+                  }}
                 ></div>
               </div>
 
