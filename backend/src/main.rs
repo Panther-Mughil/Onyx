@@ -2335,10 +2335,15 @@ async fn get_installed_engines() -> Json<Vec<String>> {
         for entry in entries.flatten() {
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_dir() {
+                    let dir_name = entry.file_name().to_string_lossy().to_string();
+                    // Rollback backups are kept on disk but must not be selectable engines.
+                    if dir_name.contains(".bak-") {
+                        continue;
+                    }
                     let dir_path = entry.path();
                     let bin_path = if cfg!(windows) { dir_path.join("llama-server.exe") } else { dir_path.join("llama-server") };
                     if bin_path.exists() {
-                        engines.push(entry.file_name().to_string_lossy().to_string());
+                        engines.push(dir_name);
                     }
                 }
             }

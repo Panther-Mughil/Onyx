@@ -900,11 +900,6 @@ function App() {
       })
       .catch(() => {});
 
-    fetch(`${API_BASE}/api/telemetry`)
-      .then((res) => res.json())
-      .then((data) => setTelemetry(data))
-      .catch(() => {});
-
     if (selectedModel) {
       fetch(`${API_BASE}/api/server/logs?modelId=${selectedModel.id}`, {
         cache: "no-store",
