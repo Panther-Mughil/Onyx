@@ -1,31 +1,30 @@
 use axum::{
-    routing::{get, post},
-    Router,
-    Json,
     extract::Request,
-    response::{Response, IntoResponse},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
 };
+use command_group::AsyncCommandGroup;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
-use std::fs;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::process::Command;
-use command_group::AsyncCommandGroup;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tower_http::cors::CorsLayer;
+use std::sync::Arc;
 use sysinfo::System;
-use std::collections::HashMap;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use tokio::sync::Mutex;
+use tower_http::cors::CorsLayer;
 
 #[cfg(target_os = "macos")]
 fn get_macos_used_memory() -> Option<f32> {
     use std::process::Command as StdCommand;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    
+
     static PAGE_SIZE: AtomicUsize = AtomicUsize::new(0);
-    
+
     let mut page_size = PAGE_SIZE.load(Ordering::SeqCst);
     if page_size == 0 {
         if let Ok(out) = StdCommand::new("pagesize").output() {
@@ -43,27 +42,39 @@ fn get_macos_used_memory() -> Option<f32> {
 
     let output = StdCommand::new("vm_stat").output().ok()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     let mut active = 0.0;
     let mut wired = 0.0;
     let mut compressed = 0.0;
-    
+
     for line in stdout.lines() {
         if line.starts_with("Pages active:") {
             if let Some(val) = line.split(':').nth(1) {
-                active = val.trim().trim_end_matches('.').parse::<f32>().unwrap_or(0.0);
+                active = val
+                    .trim()
+                    .trim_end_matches('.')
+                    .parse::<f32>()
+                    .unwrap_or(0.0);
             }
         } else if line.starts_with("Pages wired down:") {
             if let Some(val) = line.split(':').nth(1) {
-                wired = val.trim().trim_end_matches('.').parse::<f32>().unwrap_or(0.0);
+                wired = val
+                    .trim()
+                    .trim_end_matches('.')
+                    .parse::<f32>()
+                    .unwrap_or(0.0);
             }
         } else if line.starts_with("Pages occupied by compressor:") {
             if let Some(val) = line.split(':').nth(1) {
-                compressed = val.trim().trim_end_matches('.').parse::<f32>().unwrap_or(0.0);
+                compressed = val
+                    .trim()
+                    .trim_end_matches('.')
+                    .parse::<f32>()
+                    .unwrap_or(0.0);
             }
         }
     }
-    
+
     let total_pages = active + wired + compressed;
     if total_pages > 0.0 {
         return Some((total_pages * page_size as f32) / (1024.0 * 1024.0 * 1024.0));
@@ -71,9 +82,9 @@ fn get_macos_used_memory() -> Option<f32> {
     None
 }
 
-use rust_embed::RustEmbed;
 use axum::http::{header, StatusCode, Uri};
 use mime_guess::from_path;
+use rust_embed::RustEmbed;
 
 pub fn app_dir() -> String {
     if let Ok(exe_path) = std::env::current_exe() {
@@ -139,7 +150,10 @@ fn node_command(base_path: &str) -> tokio::process::Command {
     if std::path::Path::new(&node_bin).exists() {
         tokio::process::Command::new(node_bin)
     } else {
-        eprintln!("Warning: bundled node not found at '{}'; falling back to PATH", node_bin);
+        eprintln!(
+            "Warning: bundled node not found at '{}'; falling back to PATH",
+            node_bin
+        );
         tokio::process::Command::new("node")
     }
 }
@@ -169,7 +183,6 @@ async fn static_handler(uri: Uri) -> impl IntoResponse {
         }
     }
 }
-
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -374,7 +387,6 @@ struct StopRequest {
     model_id: String,
 }
 
-
 async fn get_settings() -> Json<serde_json::Value> {
     let settings_path = format!("{}/data/settings.json", base_dir().0);
     if let Ok(data) = fs::read_to_string(&settings_path) {
@@ -397,13 +409,16 @@ async fn get_model_settings() -> Json<serde_json::Value> {
 
 async fn save_settings(Json(payload): Json<serde_json::Value>) -> Json<StartResponse> {
     let (base_dir, _) = base_dir();
-let data_dir = format!("{}/data", base_dir);
+    let data_dir = format!("{}/data", base_dir);
     let _ = fs::create_dir_all(&data_dir);
     if let Ok(json_str) = serde_json::to_string_pretty(&payload) {
         let settings_path = format!("{}/data/settings.json", base_dir);
         let _ = fs::write(&settings_path, json_str);
     }
-    Json(StartResponse { success: true, message: "Settings saved".to_string() })
+    Json(StartResponse {
+        success: true,
+        message: "Settings saved".to_string(),
+    })
 }
 
 async fn stop_proxy(
@@ -411,15 +426,21 @@ async fn stop_proxy(
 ) -> Json<StartResponse> {
     let mut proxy_lock = state.proxy_task.lock().await;
     let mut proxy_addr_lock = state.proxy_addr.lock().await;
-    
+
     if let Some(task) = proxy_lock.take() {
         task.abort();
         *proxy_addr_lock = None;
         let mut logs = state.system_logs.lock().await;
         logs.push_back("[System] Gateway stopped.".to_string());
-        return Json(StartResponse { success: true, message: "Gateway stopped".to_string() });
+        return Json(StartResponse {
+            success: true,
+            message: "Gateway stopped".to_string(),
+        });
     }
-    Json(StartResponse { success: false, message: "Gateway not running".to_string() })
+    Json(StartResponse {
+        success: false,
+        message: "Gateway not running".to_string(),
+    })
 }
 
 async fn get_system_logs(
@@ -441,18 +462,23 @@ struct DeleteModelQuery {
     id: String,
 }
 
-async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<DeleteModelQuery>) -> Json<StartResponse> {
+async fn delete_local_model(
+    axum::extract::Query(query): axum::extract::Query<DeleteModelQuery>,
+) -> Json<StartResponse> {
     let (base, _) = base_dir();
     let models_dir = std::path::Path::new(&base).join("models");
-    
+
     // Safety check to prevent escaping models_dir
     let clean_id = query.id.replace("..", "");
     let target_path = models_dir.join(&clean_id);
-    
+
     if target_path.exists() && target_path.starts_with(&models_dir) {
         if target_path.is_file() {
             if let Err(e) = std::fs::remove_file(&target_path) {
-                return Json(StartResponse { success: false, message: e.to_string() });
+                return Json(StartResponse {
+                    success: false,
+                    message: e.to_string(),
+                });
             }
             if let Some(parent) = target_path.parent() {
                 if parent != models_dir && parent.starts_with(&models_dir) {
@@ -461,54 +487,87 @@ async fn delete_local_model(axum::extract::Query(query): axum::extract::Query<De
             }
         } else if target_path.is_dir() {
             if let Err(e) = std::fs::remove_dir_all(&target_path) {
-                return Json(StartResponse { success: false, message: e.to_string() });
+                return Json(StartResponse {
+                    success: false,
+                    message: e.to_string(),
+                });
             }
         }
-        Json(StartResponse { success: true, message: "Model deleted".to_string() })
+        Json(StartResponse {
+            success: true,
+            message: "Model deleted".to_string(),
+        })
     } else {
-        Json(StartResponse { success: false, message: "Model not found".to_string() })
+        Json(StartResponse {
+            success: false,
+            message: "Model not found".to_string(),
+        })
     }
 }
 
 async fn get_local_models() -> Response {
     let mut models = Vec::new();
     let (base_dir_root, _) = base_dir();
-let models_dir_str = format!("{}/models", base_dir_root);
+    let models_dir_str = format!("{}/models", base_dir_root);
     let models_dir = Path::new(&models_dir_str);
 
     let mut files_to_process = Vec::new();
-    let mut mmprojs_by_dir: std::collections::HashMap<String, (String, f32)> = std::collections::HashMap::new();
-    let mut drafts_by_dir: std::collections::HashMap<String, (String, f32)> = std::collections::HashMap::new();
+    let mut mmprojs_by_dir: std::collections::HashMap<String, (String, f32)> =
+        std::collections::HashMap::new();
+    let mut drafts_by_dir: std::collections::HashMap<String, (String, f32)> =
+        std::collections::HashMap::new();
 
     if let Ok(entries) = fs::read_dir(models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().is_some_and(|ext| ext == "gguf") {
-                let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let filename = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 let fname_lower = filename.to_lowercase();
                 if fname_lower.contains("mmproj") {
-                    let size = std::fs::metadata(&path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                    let size = std::fs::metadata(&path)
+                        .map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0))
+                        .unwrap_or(0.0);
                     mmprojs_by_dir.insert("".to_string(), (filename, size));
                 } else if fname_lower.contains("mtp") || fname_lower.contains("draft") {
-                    let size = std::fs::metadata(&path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                    let size = std::fs::metadata(&path)
+                        .map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0))
+                        .unwrap_or(0.0);
                     drafts_by_dir.insert("".to_string(), (filename, size));
                 } else {
                     files_to_process.push((path, filename.clone(), filename));
                 }
             } else if path.is_dir() {
-                let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let dir_name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 if let Ok(sub_entries) = fs::read_dir(&path) {
                     for sub_entry in sub_entries.flatten() {
                         let sub_path = sub_entry.path();
-                        if sub_path.is_file() && sub_path.extension().is_some_and(|ext| ext == "gguf") {
-                            let filename = sub_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        if sub_path.is_file()
+                            && sub_path.extension().is_some_and(|ext| ext == "gguf")
+                        {
+                            let filename = sub_path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string();
                             let rel_path = format!("{}/{}", dir_name, filename);
                             let fname_lower = filename.to_lowercase();
                             if fname_lower.contains("mmproj") {
-                                let size = std::fs::metadata(&sub_path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                                let size = std::fs::metadata(&sub_path)
+                                    .map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0))
+                                    .unwrap_or(0.0);
                                 mmprojs_by_dir.insert(dir_name.clone(), (rel_path, size));
                             } else if fname_lower.contains("mtp") || fname_lower.contains("draft") {
-                                let size = std::fs::metadata(&sub_path).map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0)).unwrap_or(0.0);
+                                let size = std::fs::metadata(&sub_path)
+                                    .map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0))
+                                    .unwrap_or(0.0);
                                 drafts_by_dir.insert(dir_name.clone(), (rel_path, size));
                             } else {
                                 files_to_process.push((sub_path, filename, rel_path));
@@ -529,242 +588,320 @@ let models_dir_str = format!("{}/models", base_dir_root);
             0.0
         };
 
-                // Try to load from cache first
-                let (base_dir_cache, _) = base_dir();
-                let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
-                let cache_path = std::path::Path::new(&cache_path_str);
-                let mut cache: std::collections::HashMap<String, CachedModelMetadata> = if cache_path.exists() {
-                    if let Ok(cache_str) = fs::read_to_string(cache_path) {
-                        serde_json::from_str(&cache_str).unwrap_or_default()
-                    } else {
-                        std::collections::HashMap::new()
-                    }
+        // Try to load from cache first
+        let (base_dir_cache, _) = base_dir();
+        let cache_path_str = format!("{}/models/metadata_cache.json", base_dir_cache);
+        let cache_path = std::path::Path::new(&cache_path_str);
+        let mut cache: std::collections::HashMap<String, CachedModelMetadata> =
+            if cache_path.exists() {
+                if let Ok(cache_str) = fs::read_to_string(cache_path) {
+                    serde_json::from_str(&cache_str).unwrap_or_default()
                 } else {
                     std::collections::HashMap::new()
-                };
+                }
+            } else {
+                std::collections::HashMap::new()
+            };
 
-                let mut context_length = 0;
-                let mut block_count = 0;
-                let mut architecture = String::new();
-                let mut quantization;
-                let mut expert_count = None;
-                let mut embedding_length = None;
-                let mut feed_forward_length = None;
+        let mut context_length = 0;
+        let mut block_count = 0;
+        let mut architecture = String::new();
+        let mut quantization;
+        let mut expert_count = None;
+        let mut embedding_length = None;
+        let mut feed_forward_length = None;
 
-                if let Some(cached_data) = cache.get(&filename) {
-                    context_length = cached_data.context_length;
-                    block_count = cached_data.block_count;
-                    architecture = cached_data.architecture.clone();
-                    quantization = cached_data.quantization.clone();
-                    expert_count = cached_data.expert_count;
-                    embedding_length = cached_data.embedding_length;
-                    feed_forward_length = cached_data.feed_forward_length;
-                } else {
-                    // Extract quantization from filename
-                    let filename_lower = filename.to_lowercase();
-                    quantization = "Unknown".to_string();
-                    let q_patterns = ["q2_", "q3_", "q4_", "q5_", "q6_", "q8_", "iq1_", "iq2_", "iq3_", "iq4_", "f16", "f32"];
-                    for p in q_patterns.iter() {
-                        if let Some(idx) = filename_lower.find(p) {
-                            let sub = &filename[idx..];
-                            let end_idx = sub.find('.').unwrap_or(sub.len());
-                            quantization = sub[..end_idx].to_uppercase();
-                            break;
-                        }
-                    }
+        if let Some(cached_data) = cache.get(&filename) {
+            context_length = cached_data.context_length;
+            block_count = cached_data.block_count;
+            architecture = cached_data.architecture.clone();
+            quantization = cached_data.quantization.clone();
+            expert_count = cached_data.expert_count;
+            embedding_length = cached_data.embedding_length;
+            feed_forward_length = cached_data.feed_forward_length;
+        } else {
+            // Extract quantization from filename
+            let filename_lower = filename.to_lowercase();
+            quantization = "Unknown".to_string();
+            let q_patterns = [
+                "q2_", "q3_", "q4_", "q5_", "q6_", "q8_", "iq1_", "iq2_", "iq3_", "iq4_", "f16",
+                "f32",
+            ];
+            for p in q_patterns.iter() {
+                if let Some(idx) = filename_lower.find(p) {
+                    let sub = &filename[idx..];
+                    let end_idx = sub.find('.').unwrap_or(sub.len());
+                    quantization = sub[..end_idx].to_uppercase();
+                    break;
+                }
+            }
 
-                    // Full reliable parser using gguf crate
-                    if let Ok(mut file) = fs::File::open(&path) {
-                        use std::io::Read;
-                        if let Ok(bytes_read) = file.read(&mut header_buffer) {
-                            match gguf::GGUFFile::read(&header_buffer[..bytes_read]) {
-                                Ok(Some(gguf_file)) => {
-                                    for md in gguf_file.header.metadata {
-                                        if md.key.ends_with(".context_length") || md.key.ends_with(".n_ctx_train") {
-                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
-                                            if context_length == 0 { context_length = v; }
-                                        }
-                                    }
-                                    if md.key.ends_with(".block_count") {
-                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
-                                            block_count = v;
-                                        }
-                                    }
-                                    if md.key == "general.architecture" {
-                                        if let gguf::GGUFMetadataValue::String(v) = &md.value {
-                                            architecture = v.clone();
-                                        }
-                                    }
-                                    if md.key.ends_with(".expert_count") {
-                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
-                                            expert_count = Some(v);
-                                        }
-                                    }
-                                    if md.key.ends_with(".embedding_length") {
-                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
-                                            embedding_length = Some(v);
-                                        }
-                                    }
-                                    if md.key.ends_with(".feed_forward_length") {
-                                        if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
-                                            feed_forward_length = Some(v);
+            // Full reliable parser using gguf crate
+            if let Ok(mut file) = fs::File::open(&path) {
+                use std::io::Read;
+                if let Ok(bytes_read) = file.read(&mut header_buffer) {
+                    match gguf::GGUFFile::read(&header_buffer[..bytes_read]) {
+                        Ok(Some(gguf_file)) => {
+                            for md in gguf_file.header.metadata {
+                                if md.key.ends_with(".context_length")
+                                    || md.key.ends_with(".n_ctx_train")
+                                {
+                                    if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                        if context_length == 0 {
+                                            context_length = v;
                                         }
                                     }
                                 }
-                            }
-                            Ok(None) => {
-                                println!("gguf parser returned None for {}", filename);
-                            }
-                            Err(_) => {
-                                println!("gguf parser failed for {}", filename);
-                            }
-                        }
-                        }
-                    }
-                    
-                    // Fallback to substring binary search if full parser fails (e.g. header > 5MB)
-                    if context_length == 0 || block_count == 0 {
-                        if let Ok(mut file) = fs::File::open(&path) {
-                            use std::io::Read;
-                            if let Ok(bytes_read) = file.read(&mut header_buffer) {
-                                let buffer_slice = &header_buffer[..bytes_read];
-                                let ctx_needle = b".context_length";
-                                if let Some(pos) = buffer_slice.windows(ctx_needle.len()).position(|w| w == ctx_needle) {
-                                    let type_pos = pos + ctx_needle.len();
-                                    if type_pos + 8 <= buffer_slice.len() {
-                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                        if val_type == 4 {
-                                            context_length = u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap());
-                                        }
+                                if md.key.ends_with(".block_count") {
+                                    if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                        block_count = v;
                                     }
                                 }
-                                let ctx_train_needle = b".n_ctx_train";
-                                if context_length == 0 {
-                                    if let Some(pos) = buffer_slice.windows(ctx_train_needle.len()).position(|w| w == ctx_train_needle) {
-                                        let type_pos = pos + ctx_train_needle.len();
-                                        if type_pos + 8 <= buffer_slice.len() {
-                                            let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                            if val_type == 4 {
-                                                context_length = u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap());
-                                            }
-                                        }
+                                if md.key == "general.architecture" {
+                                    if let gguf::GGUFMetadataValue::String(v) = &md.value {
+                                        architecture = v.clone();
                                     }
                                 }
-                                let blk_needle = b".block_count";
-                                if let Some(pos) = buffer_slice.windows(blk_needle.len()).position(|w| w == blk_needle) {
-                                    let type_pos = pos + blk_needle.len();
-                                    if type_pos + 8 <= buffer_slice.len() {
-                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                        if val_type == 4 {
-                                            block_count = u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap());
-                                        }
+                                if md.key.ends_with(".expert_count") {
+                                    if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                        expert_count = Some(v);
                                     }
                                 }
-                                
-                                let exp_needle = b".expert_count";
-                                if let Some(pos) = buffer_slice.windows(exp_needle.len()).position(|w| w == exp_needle) {
-                                    let type_pos = pos + exp_needle.len();
-                                    if type_pos + 8 <= buffer_slice.len() {
-                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                        if val_type == 4 {
-                                            expert_count = Some(u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap()));
-                                        }
+                                if md.key.ends_with(".embedding_length") {
+                                    if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                        embedding_length = Some(v);
                                     }
                                 }
-                                let emb_needle = b".embedding_length";
-                                if let Some(pos) = buffer_slice.windows(emb_needle.len()).position(|w| w == emb_needle) {
-                                    let type_pos = pos + emb_needle.len();
-                                    if type_pos + 8 <= buffer_slice.len() {
-                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                        if val_type == 4 {
-                                            embedding_length = Some(u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap()));
-                                        }
-                                    }
-                                }
-                                let ffn_needle = b".feed_forward_length";
-                                if let Some(pos) = buffer_slice.windows(ffn_needle.len()).position(|w| w == ffn_needle) {
-                                    let type_pos = pos + ffn_needle.len();
-                                    if type_pos + 8 <= buffer_slice.len() {
-                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                        if val_type == 4 {
-                                            feed_forward_length = Some(u32::from_le_bytes(buffer_slice[type_pos+4..type_pos+8].try_into().unwrap()));
-                                        }
-                                    }
-                                }
-                                let arch_needle = b"general.architecture";
-                                if let Some(pos) = buffer_slice.windows(arch_needle.len()).position(|w| w == arch_needle) {
-                                    let type_pos = pos + arch_needle.len();
-                                    if type_pos + 12 <= buffer_slice.len() {
-                                        let val_type = u32::from_le_bytes(buffer_slice[type_pos..type_pos+4].try_into().unwrap());
-                                        if val_type == 8 {
-                                            let str_len = u64::from_le_bytes(buffer_slice[type_pos+4..type_pos+12].try_into().unwrap()) as usize;
-                                            if type_pos + 12 + str_len <= buffer_slice.len() {
-                                                if let Ok(s) = std::str::from_utf8(&buffer_slice[type_pos+12..type_pos+12+str_len]) {
-                                                    architecture = s.to_string();
-                                                }
-                                            }
-                                        }
+                                if md.key.ends_with(".feed_forward_length") {
+                                    if let gguf::GGUFMetadataValue::Uint32(v) = md.value {
+                                        feed_forward_length = Some(v);
                                     }
                                 }
                             }
                         }
-                    }
-
-                    // Update cache with the new CachedModelMetadata
-                    let new_metadata = CachedModelMetadata {
-                        context_length,
-                        block_count,
-                        architecture: architecture.clone(),
-                        quantization: quantization.clone(),
-                        expert_count,
-                        embedding_length,
-                        feed_forward_length,
-                    };
-                    cache.insert(filename.clone(), new_metadata);
-                    if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
-                        let temp_cache_path = cache_path.with_extension("tmp");
-                        let _ = fs::write(&temp_cache_path, cache_str);
-                        let _ = fs::rename(&temp_cache_path, cache_path);
+                        Ok(None) => {
+                            println!("gguf parser returned None for {}", filename);
+                        }
+                        Err(_) => {
+                            println!("gguf parser failed for {}", filename);
+                        }
                     }
                 }
+            }
 
-                let name = if filename.ends_with(".gguf") {
-                    filename[..filename.len() - 5].to_string()
-                } else {
-                    filename.clone()
-                };
+            // Fallback to substring binary search if full parser fails (e.g. header > 5MB)
+            if context_length == 0 || block_count == 0 {
+                if let Ok(mut file) = fs::File::open(&path) {
+                    use std::io::Read;
+                    if let Ok(bytes_read) = file.read(&mut header_buffer) {
+                        let buffer_slice = &header_buffer[..bytes_read];
+                        let ctx_needle = b".context_length";
+                        if let Some(pos) = buffer_slice
+                            .windows(ctx_needle.len())
+                            .position(|w| w == ctx_needle)
+                        {
+                            let type_pos = pos + ctx_needle.len();
+                            if type_pos + 8 <= buffer_slice.len() {
+                                let val_type = u32::from_le_bytes(
+                                    buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                );
+                                if val_type == 4 {
+                                    context_length = u32::from_le_bytes(
+                                        buffer_slice[type_pos + 4..type_pos + 8]
+                                            .try_into()
+                                            .unwrap(),
+                                    );
+                                }
+                            }
+                        }
+                        let ctx_train_needle = b".n_ctx_train";
+                        if context_length == 0 {
+                            if let Some(pos) = buffer_slice
+                                .windows(ctx_train_needle.len())
+                                .position(|w| w == ctx_train_needle)
+                            {
+                                let type_pos = pos + ctx_train_needle.len();
+                                if type_pos + 8 <= buffer_slice.len() {
+                                    let val_type = u32::from_le_bytes(
+                                        buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                    );
+                                    if val_type == 4 {
+                                        context_length = u32::from_le_bytes(
+                                            buffer_slice[type_pos + 4..type_pos + 8]
+                                                .try_into()
+                                                .unwrap(),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        let blk_needle = b".block_count";
+                        if let Some(pos) = buffer_slice
+                            .windows(blk_needle.len())
+                            .position(|w| w == blk_needle)
+                        {
+                            let type_pos = pos + blk_needle.len();
+                            if type_pos + 8 <= buffer_slice.len() {
+                                let val_type = u32::from_le_bytes(
+                                    buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                );
+                                if val_type == 4 {
+                                    block_count = u32::from_le_bytes(
+                                        buffer_slice[type_pos + 4..type_pos + 8]
+                                            .try_into()
+                                            .unwrap(),
+                                    );
+                                }
+                            }
+                        }
 
-                let parent_dir = path.parent().and_then(|p| p.file_name()).unwrap_or_default().to_string_lossy().to_string();
-                let is_root = path.parent().is_none_or(|p| p == models_dir);
-                let dir_key = if is_root { "".to_string() } else { parent_dir };
-                let mmproj_data = mmprojs_by_dir.get(&dir_key);
-                let mmproj = mmproj_data.map(|d| d.0.clone());
-                let mmproj_size_gb = mmproj_data.map(|d| d.1);
+                        let exp_needle = b".expert_count";
+                        if let Some(pos) = buffer_slice
+                            .windows(exp_needle.len())
+                            .position(|w| w == exp_needle)
+                        {
+                            let type_pos = pos + exp_needle.len();
+                            if type_pos + 8 <= buffer_slice.len() {
+                                let val_type = u32::from_le_bytes(
+                                    buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                );
+                                if val_type == 4 {
+                                    expert_count = Some(u32::from_le_bytes(
+                                        buffer_slice[type_pos + 4..type_pos + 8]
+                                            .try_into()
+                                            .unwrap(),
+                                    ));
+                                }
+                            }
+                        }
+                        let emb_needle = b".embedding_length";
+                        if let Some(pos) = buffer_slice
+                            .windows(emb_needle.len())
+                            .position(|w| w == emb_needle)
+                        {
+                            let type_pos = pos + emb_needle.len();
+                            if type_pos + 8 <= buffer_slice.len() {
+                                let val_type = u32::from_le_bytes(
+                                    buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                );
+                                if val_type == 4 {
+                                    embedding_length = Some(u32::from_le_bytes(
+                                        buffer_slice[type_pos + 4..type_pos + 8]
+                                            .try_into()
+                                            .unwrap(),
+                                    ));
+                                }
+                            }
+                        }
+                        let ffn_needle = b".feed_forward_length";
+                        if let Some(pos) = buffer_slice
+                            .windows(ffn_needle.len())
+                            .position(|w| w == ffn_needle)
+                        {
+                            let type_pos = pos + ffn_needle.len();
+                            if type_pos + 8 <= buffer_slice.len() {
+                                let val_type = u32::from_le_bytes(
+                                    buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                );
+                                if val_type == 4 {
+                                    feed_forward_length = Some(u32::from_le_bytes(
+                                        buffer_slice[type_pos + 4..type_pos + 8]
+                                            .try_into()
+                                            .unwrap(),
+                                    ));
+                                }
+                            }
+                        }
+                        let arch_needle = b"general.architecture";
+                        if let Some(pos) = buffer_slice
+                            .windows(arch_needle.len())
+                            .position(|w| w == arch_needle)
+                        {
+                            let type_pos = pos + arch_needle.len();
+                            if type_pos + 12 <= buffer_slice.len() {
+                                let val_type = u32::from_le_bytes(
+                                    buffer_slice[type_pos..type_pos + 4].try_into().unwrap(),
+                                );
+                                if val_type == 8 {
+                                    let str_len = u64::from_le_bytes(
+                                        buffer_slice[type_pos + 4..type_pos + 12]
+                                            .try_into()
+                                            .unwrap(),
+                                    ) as usize;
+                                    if type_pos + 12 + str_len <= buffer_slice.len() {
+                                        if let Ok(s) = std::str::from_utf8(
+                                            &buffer_slice[type_pos + 12..type_pos + 12 + str_len],
+                                        ) {
+                                            architecture = s.to_string();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
-                let draft_data = drafts_by_dir.get(&dir_key);
-                let draft_model = draft_data.map(|d| d.0.clone());
-                let draft_model_size_gb = draft_data.map(|d| d.1);
+            // Update cache with the new CachedModelMetadata
+            let new_metadata = CachedModelMetadata {
+                context_length,
+                block_count,
+                architecture: architecture.clone(),
+                quantization: quantization.clone(),
+                expert_count,
+                embedding_length,
+                feed_forward_length,
+            };
+            cache.insert(filename.clone(), new_metadata);
+            if let Ok(cache_str) = serde_json::to_string_pretty(&cache) {
+                let temp_cache_path = cache_path.with_extension("tmp");
+                let _ = fs::write(&temp_cache_path, cache_str);
+                let _ = fs::rename(&temp_cache_path, cache_path);
+            }
+        }
 
-                models.push(Model {
-                    id: rel_path.clone(),
-                    name,
-                    quantization,
-                    size_gb,
-                    context_length,
-                    block_count,
-                    architecture,
-                    expert_count,
-                    embedding_length,
-                    feed_forward_length,
-                    mmproj,
-                    mmproj_size_gb,
-                    draft_model,
-                    draft_model_size_gb,
-                });
+        let name = if filename.ends_with(".gguf") {
+            filename[..filename.len() - 5].to_string()
+        } else {
+            filename.clone()
+        };
+
+        let parent_dir = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let is_root = path.parent().is_none_or(|p| p == models_dir);
+        let dir_key = if is_root { "".to_string() } else { parent_dir };
+        let mmproj_data = mmprojs_by_dir.get(&dir_key);
+        let mmproj = mmproj_data.map(|d| d.0.clone());
+        let mmproj_size_gb = mmproj_data.map(|d| d.1);
+
+        let draft_data = drafts_by_dir.get(&dir_key);
+        let draft_model = draft_data.map(|d| d.0.clone());
+        let draft_model_size_gb = draft_data.map(|d| d.1);
+
+        models.push(Model {
+            id: rel_path.clone(),
+            name,
+            quantization,
+            size_gb,
+            context_length,
+            block_count,
+            architecture,
+            expert_count,
+            embedding_length,
+            feed_forward_length,
+            mmproj,
+            mmproj_size_gb,
+            draft_model,
+            draft_model_size_gb,
+        });
     }
 
     models.sort_by(|a, b| a.name.cmp(&b.name));
-    
+
     let pretty = serde_json::to_string_pretty(&models).unwrap_or_else(|_| "[]".to_string());
     axum::response::Response::builder()
         .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -777,20 +914,24 @@ async fn proxy_models_handler(
 ) -> Response {
     let servers = state.active_servers.lock().await;
     let mut data = Vec::new();
-    
+
     let settings_path = format!("{}/data/model_settings.json", base_dir().0);
-    let model_settings: std::collections::HashMap<String, String> = if Path::new(&settings_path).exists() {
-        if let Ok(file_data) = fs::read_to_string(&settings_path) {
-            serde_json::from_str(&file_data).unwrap_or_default()
+    let model_settings: std::collections::HashMap<String, String> =
+        if Path::new(&settings_path).exists() {
+            if let Ok(file_data) = fs::read_to_string(&settings_path) {
+                serde_json::from_str(&file_data).unwrap_or_default()
+            } else {
+                std::collections::HashMap::new()
+            }
         } else {
             std::collections::HashMap::new()
-        }
-    } else {
-        std::collections::HashMap::new()
-    };
-    
+        };
+
     for model_id in servers.keys() {
-        let clean_id = model_id.strip_suffix(".gguf").unwrap_or(model_id).to_string();
+        let clean_id = model_id
+            .strip_suffix(".gguf")
+            .unwrap_or(model_id)
+            .to_string();
         let display_id = model_settings.get(model_id).cloned().unwrap_or(clean_id);
         data.push(serde_json::json!({
             "id": display_id,
@@ -799,12 +940,12 @@ async fn proxy_models_handler(
             "owned_by": "onyx"
         }));
     }
-    
+
     let payload = serde_json::json!({
         "object": "list",
         "data": data
     });
-    
+
     let pretty = serde_json::to_string_pretty(&payload).unwrap();
     axum::response::Response::builder()
         .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -817,25 +958,27 @@ async fn proxy_handler(
     req: Request,
 ) -> Response {
     let (parts, body) = req.into_parts();
-    
+
     const MAX_BODY_SIZE: usize = 100 * 1024 * 1024; // 100 MB
     let body_bytes = match axum::body::to_bytes(body, MAX_BODY_SIZE).await {
         Ok(b) => b,
-        Err(_) => return (axum::http::StatusCode::BAD_REQUEST, "Failed to read body").into_response(),
+        Err(_) => {
+            return (axum::http::StatusCode::BAD_REQUEST, "Failed to read body").into_response()
+        }
     };
-    
+
     let mut target_port = 8080;
     let mut found_target = false;
-    
+
     let mut model_str_opt: Option<String> = None;
-    
+
     // 1. Try to get model from JSON body
     if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
         if let Some(m) = json.get("model").and_then(|m| m.as_str()) {
             model_str_opt = Some(m.to_string());
         }
     }
-    
+
     // 2. Try to get model from URL query parameters
     if model_str_opt.is_none() {
         if let Some(query) = parts.uri.query() {
@@ -852,29 +995,34 @@ async fn proxy_handler(
 
     if let Some(model_str) = model_str_opt {
         let servers = state.active_servers.lock().await;
-        
+
         let settings_path = format!("{}/data/model_settings.json", base_dir().0);
-        let model_settings: std::collections::HashMap<String, String> = if Path::new(&settings_path).exists() {
-            if let Ok(file_data) = fs::read_to_string(&settings_path) {
-                serde_json::from_str(&file_data).unwrap_or_default()
+        let model_settings: std::collections::HashMap<String, String> =
+            if Path::new(&settings_path).exists() {
+                if let Ok(file_data) = fs::read_to_string(&settings_path) {
+                    serde_json::from_str(&file_data).unwrap_or_default()
+                } else {
+                    std::collections::HashMap::new()
+                }
             } else {
                 std::collections::HashMap::new()
-            }
-        } else {
-            std::collections::HashMap::new()
-        };
+            };
 
         if let Some(server) = servers.get(&model_str) {
             target_port = server.port;
             found_target = true;
         }
-        
+
         if !found_target {
             for (id, server) in servers.iter() {
                 let clean_id = id.strip_suffix(".gguf").unwrap_or(id).to_string();
                 let display_id = model_settings.get(id).cloned().unwrap_or(clean_id.clone());
-                
-                if id == &model_str || clean_id == model_str || display_id == model_str || id.starts_with(&model_str) {
+
+                if id == &model_str
+                    || clean_id == model_str
+                    || display_id == model_str
+                    || id.starts_with(&model_str)
+                {
                     target_port = server.port;
                     found_target = true;
                     break;
@@ -882,19 +1030,31 @@ async fn proxy_handler(
             }
         }
     }
-    
+
     if !found_target {
         let servers = state.active_servers.lock().await;
         if let Some(first) = servers.values().next() {
             target_port = first.port;
         } else {
-            return (axum::http::StatusCode::SERVICE_UNAVAILABLE, "No active models").into_response();
+            return (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "No active models",
+            )
+                .into_response();
         }
     }
 
     let client = &state.http_client;
-    let uri = format!("http://127.0.0.1:{}{}", target_port, parts.uri.path_and_query().map(|pq| pq.as_str()).unwrap_or(""));
-    
+    let uri = format!(
+        "http://127.0.0.1:{}{}",
+        target_port,
+        parts
+            .uri
+            .path_and_query()
+            .map(|pq| pq.as_str())
+            .unwrap_or("")
+    );
+
     let mut req_builder = client.request(parts.method, uri);
     for (k, v) in parts.headers.iter() {
         if k != axum::http::header::HOST {
@@ -913,11 +1073,19 @@ async fn proxy_handler(
             }
             let stream = response.bytes_stream();
             let body = axum::body::Body::from_stream(stream);
-            axum_res.body(body).unwrap_or_else(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to build response").into_response())
+            axum_res.body(body).unwrap_or_else(|_| {
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to build response",
+                )
+                    .into_response()
+            })
         }
-        Err(e) => {
-            (axum::http::StatusCode::BAD_GATEWAY, format!("Bad Gateway: {}", e)).into_response()
-        }
+        Err(e) => (
+            axum::http::StatusCode::BAD_GATEWAY,
+            format!("Bad Gateway: {}", e),
+        )
+            .into_response(),
     }
 }
 
@@ -925,11 +1093,15 @@ async fn update_network_config(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<NetworkConfig>,
 ) -> Json<StartResponse> {
-    let bind_ip = if payload.network_host { "0.0.0.0" } else { "127.0.0.1" };
+    let bind_ip = if payload.network_host {
+        "0.0.0.0"
+    } else {
+        "127.0.0.1"
+    };
     let bind_addr = format!("{}:{}", bind_ip, payload.port);
-    
+
     let mut proxy_addr_lock = state.proxy_addr.lock().await;
-    
+
     if let Some(current_addr) = proxy_addr_lock.as_ref() {
         if current_addr == &bind_addr {
             return Json(StartResponse {
@@ -938,24 +1110,27 @@ async fn update_network_config(
             });
         }
     }
-    
+
     let mut proxy_lock = state.proxy_task.lock().await;
-    
+
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    state.system_logs.lock().await.push_back(format!("[{}] Network gateway configured: {} (Port: {}, Network Host: {})", timestamp, bind_addr, payload.port, payload.network_host));
-    
+    state.system_logs.lock().await.push_back(format!(
+        "[{}] Network gateway configured: {} (Port: {}, Network Host: {})",
+        timestamp, bind_addr, payload.port, payload.network_host
+    ));
+
     if let Some(task) = proxy_lock.take() {
         task.abort();
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
     }
-    
+
     let app = Router::new()
         .route("/v1/models", axum::routing::get(proxy_models_handler))
         .route("/models", axum::routing::get(proxy_models_handler))
         .fallback(proxy_handler)
         .with_state(state.clone())
         .layer(CorsLayer::permissive());
-    
+
     let mut listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
     for _ in 0..10 {
         if listener_result.is_ok() {
@@ -964,7 +1139,7 @@ async fn update_network_config(
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         listener_result = tokio::net::TcpListener::bind(&bind_addr).await;
     }
-    
+
     match listener_result {
         Ok(listener) => {
             let task = tokio::spawn(async move {
@@ -972,19 +1147,21 @@ async fn update_network_config(
             });
             *proxy_lock = Some(task);
             *proxy_addr_lock = Some(bind_addr.clone());
-            state.system_logs.lock().await.push_back(format!("[System] Gateway started on {}", bind_addr));
-            
+            state
+                .system_logs
+                .lock()
+                .await
+                .push_back(format!("[System] Gateway started on {}", bind_addr));
+
             Json(StartResponse {
                 success: true,
                 message: format!("Proxy running on {}", bind_addr),
             })
-        },
-        Err(e) => {
-            Json(StartResponse {
-                success: false,
-                message: format!("Failed to bind {}: {}", bind_addr, e),
-            })
         }
+        Err(e) => Json(StartResponse {
+            success: false,
+            message: format!("Failed to bind {}: {}", bind_addr, e),
+        }),
     }
 }
 
@@ -992,7 +1169,7 @@ async fn get_server_status(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> Json<StatusResponse> {
     let mut servers_map = state.active_servers.lock().await;
-    
+
     let mut to_remove = Vec::new();
     for (model_id, server) in servers_map.iter_mut() {
         if let Some(child) = server.process.as_mut() {
@@ -1001,22 +1178,26 @@ async fn get_server_status(
             }
         }
     }
-    
+
     for (id, status) in to_remove {
         servers_map.remove(&id);
         let mut sys_logs = state.system_logs.lock().await;
-        sys_logs.push_back(format!("E [SYSTEM] llama-server for {} exited with status: {}", id, status));
+        sys_logs.push_back(format!(
+            "E [SYSTEM] llama-server for {} exited with status: {}",
+            id, status
+        ));
     }
-    
-    let servers: Vec<ServerInfo> = servers_map.values().map(|s| {
-        ServerInfo {
+
+    let servers: Vec<ServerInfo> = servers_map
+        .values()
+        .map(|s| ServerInfo {
             model_id: s.model_id.clone(),
             port: s.port,
             is_ready: s.is_ready,
             progress: s.progress,
-        }
-    }).collect();
-    
+        })
+        .collect();
+
     Json(StatusResponse { servers })
 }
 
@@ -1058,7 +1239,9 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
             if model_id == "engine_setup" || model_id == "system" {
                 let mut sys_logs = state.system_logs.lock().await;
                 sys_logs.push_back(line.clone());
-                if sys_logs.len() > 1000 { sys_logs.pop_front(); }
+                if sys_logs.len() > 1000 {
+                    sys_logs.pop_front();
+                }
             } else {
                 let mut servers = state.active_servers.lock().await;
                 if let Some(server) = servers.get_mut(&model_id) {
@@ -1066,16 +1249,21 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
                         break;
                     }
                     server.logs.push_back(line.clone());
-                    if server.logs.len() > 1000 { server.logs.pop_front(); }
+                    if server.logs.len() > 1000 {
+                        server.logs.pop_front();
+                    }
 
-                    if line.contains("model loaded") || line.contains("listening on") || line.contains("HTTP server listening") {
+                    if line.contains("model loaded")
+                        || line.contains("listening on")
+                        || line.contains("HTTP server listening")
+                    {
                         server.is_ready = true;
                     }
 
                     if line.contains("llm_load_tensors:") {
                         if let Some(idx) = line.find('%') {
                             if let Some(start) = line[..idx].rfind(' ') {
-                                if let Ok(pct) = line[start+1..idx].trim().parse::<f32>() {
+                                if let Ok(pct) = line[start + 1..idx].trim().parse::<f32>() {
                                     server.progress = pct;
                                 }
                             }
@@ -1083,16 +1271,28 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
                     }
 
                     if line.to_lowercase().contains("error") {
-                        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                        state.system_logs.lock().await.push_back(format!("[{}] {} Error: {}", timestamp, model_id, line));
+                        let timestamp =
+                            chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                        state
+                            .system_logs
+                            .lock()
+                            .await
+                            .push_back(format!("[{}] {} Error: {}", timestamp, model_id, line));
                     }
 
                     if line.to_lowercase().contains("unknown model architecture") {
                         let arch_msg = "E [SYSTEM] Error: The model architecture is not supported by your currently installed engine build. Please navigate to the Engine Manager to update or re-download your engine.".to_string();
                         server.logs.push_back(arch_msg.clone());
-                        if server.logs.len() > 1000 { server.logs.pop_front(); }
-                        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                        state.system_logs.lock().await.push_back(format!("[{}] {} {}", timestamp, model_id, arch_msg));
+                        if server.logs.len() > 1000 {
+                            server.logs.pop_front();
+                        }
+                        let timestamp =
+                            chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                        state
+                            .system_logs
+                            .lock()
+                            .await
+                            .push_back(format!("[{}] {} {}", timestamp, model_id, arch_msg));
                     }
                 } else {
                     break;
@@ -1102,7 +1302,60 @@ fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
-fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option<String>, Option<String>, Option<String>) {
+/// Physical indices of the GPUs the UI marks as active, ascending — the order in
+/// which llama.cpp sees them once `CUDA_VISIBLE_DEVICES` is applied.
+fn active_gpu_indices(payload: &ServerConfig) -> Vec<usize> {
+    let mut active: Vec<usize> = payload
+        .local_gpus
+        .as_ref()
+        .map(|gpus| gpus.iter().filter(|g| g.active).map(|g| g.index).collect())
+        .unwrap_or_default();
+    active.sort_unstable();
+    active.dedup();
+    active
+}
+
+/// Position of a physical GPU index inside the visible list. Falls back to the
+/// physical index when the list does not restrict anything.
+fn visible_gpu_index(active: &[usize], physical: usize) -> usize {
+    active
+        .iter()
+        .position(|&i| i == physical)
+        .unwrap_or(physical)
+}
+
+/// `-dev` entry for a physical GPU. CUDA is renumbered by `CUDA_VISIBLE_DEVICES`,
+/// so physical 1 with only that GPU active becomes `cuda0`; other backends
+/// (Vulkan, Metal) are not restricted by that variable and keep physical indices.
+fn device_name(prefix: &str, physical: usize, active: &[usize]) -> String {
+    if prefix == "cuda" {
+        format!("cuda{}", visible_gpu_index(active, physical))
+    } else {
+        format!("{}{}", prefix, physical)
+    }
+}
+
+/// Value for `CUDA_VISIBLE_DEVICES`, so llama.cpp never even sees the unselected
+/// GPUs (and therefore never creates a CUDA context on them).
+fn cuda_visible_devices(payload: &ServerConfig) -> Option<String> {
+    let active = active_gpu_indices(payload);
+    if active.is_empty() {
+        None
+    } else {
+        Some(
+            active
+                .iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+        )
+    }
+}
+
+fn compute_gpu_offloads(
+    payload: &ServerConfig,
+    delimiter: &str,
+) -> (u32, Option<String>, Option<String>, Option<String>) {
     let mut actual_gpu_layers = payload.gpu_layers;
     let mut ts_arg = None;
     let mut dev_arg = None;
@@ -1114,12 +1367,18 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
         let mut devices = Vec::new();
 
         let prefix = if let Some(e) = &payload.engine_id {
-            if e.to_lowercase().contains("metal") { "mtl" }
-            else if e.to_lowercase().contains("vulkan") { "vulkan" }
-            else { "cuda" }
+            if e.to_lowercase().contains("metal") {
+                "mtl"
+            } else if e.to_lowercase().contains("vulkan") {
+                "vulkan"
+            } else {
+                "cuda"
+            }
         } else {
             "cuda"
         };
+
+        let active_gpus = active_gpu_indices(payload);
 
         let mut max_gpu_index = 0;
         if let Some(gpus) = &payload.local_gpus {
@@ -1140,16 +1399,18 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                 // Actually, if we just want to set splits by index:
                 let mut gpu_splits = vec![0; max_gpu_index + 1];
                 let mut rpc_splits = vec![0; max_rpc_index + 1];
-                
+
                 let mut first_active_gpu = None;
-                
+
                 for dev_id in order {
                     let is_active;
                     if dev_id.starts_with("rpc_") {
                         if let Ok(idx) = dev_id[4..].parse::<usize>() {
                             if let Some(rpcs) = &payload.rpc_servers {
                                 is_active = rpcs.get(idx).is_some_and(|r| r.active);
-                            } else { is_active = false; }
+                            } else {
+                                is_active = false;
+                            }
                             if is_active {
                                 rpc_splits[idx] = allocs.get(dev_id).copied().unwrap_or(0);
                             }
@@ -1157,9 +1418,14 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     } else if dev_id.starts_with("gpu_") {
                         if let Ok(idx) = dev_id[4..].parse::<usize>() {
                             if let Some(gpus) = &payload.local_gpus {
-                                is_active = gpus.iter().find(|g| g.index == idx).is_some_and(|g| g.active);
-                            } else { is_active = false; }
-                            
+                                is_active = gpus
+                                    .iter()
+                                    .find(|g| g.index == idx)
+                                    .is_some_and(|g| g.active);
+                            } else {
+                                is_active = false;
+                            }
+
                             if is_active {
                                 gpu_splits[idx] = allocs.get(dev_id).copied().unwrap_or(0);
                                 if first_active_gpu.is_none() {
@@ -1169,17 +1435,18 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                         }
                     }
                 }
-                
+
                 if first_active_gpu.is_some() {
                     main_gpu = Some("0".to_string());
                 }
 
                 if let Some(gpus) = &payload.local_gpus {
                     for i in 0..=max_gpu_index {
-                        let is_active = gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
+                        let is_active =
+                            gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
                         if is_active {
                             splits.push(gpu_splits[i].to_string());
-                            devices.push(format!("{}{}", prefix, i));
+                            devices.push(device_name(prefix, i, &active_gpus));
                             total_offloaded += gpu_splits[i];
                         }
                     }
@@ -1200,11 +1467,12 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     if !gpus.is_empty() {
                         for i in 0..=max_gpu_index {
                             let key = format!("gpu_{}", i);
-                            let is_active = gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
+                            let is_active =
+                                gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
                             if is_active {
                                 let layers = allocs.get(&key).copied().unwrap_or(0);
                                 splits.push(layers.to_string());
-                                devices.push(format!("{}{}", prefix, i));
+                                devices.push(device_name(prefix, i, &active_gpus));
                                 total_offloaded += layers;
                                 has_active_gpu = true;
                             }
@@ -1233,11 +1501,12 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                     let max_gpu_index = gpus.iter().map(|g| g.index).max().unwrap_or(0);
                     for i in 0..=max_gpu_index {
                         let key = format!("gpu_{}", i);
-                        let is_active = gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
+                        let is_active =
+                            gpus.iter().find(|g| g.index == i).is_some_and(|g| g.active);
                         if is_active {
                             let layers = allocs.get(&key).copied().unwrap_or(0);
                             splits.push(layers.to_string());
-                            devices.push(format!("{}{}", prefix, i));
+                            devices.push(device_name(prefix, i, &active_gpus));
                             total_offloaded += layers;
                             has_active_gpu = true;
                         }
@@ -1259,7 +1528,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
                 main_gpu = Some("0".to_string());
             }
         }
-        
+
         actual_gpu_layers = total_offloaded;
         // Even if splits length is 1, if we are passing specific allocations we might as well pass it.
         // Actually, if splits length is > 0, just pass it to be explicit.
@@ -1290,7 +1559,7 @@ fn compute_gpu_offloads(payload: &ServerConfig, delimiter: &str) -> (u32, Option
             }
         }
     }
-    
+
     (actual_gpu_layers, ts_arg, dev_arg, main_gpu)
 }
 
@@ -1298,30 +1567,38 @@ async fn start_server(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<ServerConfig>,
 ) -> Json<StartResponse> {
-    
     let settings_path = format!("{}/data/model_settings.json", base_dir().0);
-    let mut model_settings: std::collections::HashMap<String, String> = if Path::new(&settings_path).exists() {
-        if let Ok(data) = fs::read_to_string(&settings_path) {
-            serde_json::from_str(&data).unwrap_or_default()
+    let mut model_settings: std::collections::HashMap<String, String> =
+        if Path::new(&settings_path).exists() {
+            if let Ok(data) = fs::read_to_string(&settings_path) {
+                serde_json::from_str(&data).unwrap_or_default()
+            } else {
+                std::collections::HashMap::new()
+            }
         } else {
             std::collections::HashMap::new()
-        }
-    } else {
-        std::collections::HashMap::new()
-    };
-    
+        };
+
     if let Some(ref custom_id) = payload.identifier {
         if !custom_id.is_empty() {
             model_settings.insert(payload.model_id.clone(), custom_id.clone());
         } else {
-            let clean_id = payload.model_id.strip_suffix(".gguf").unwrap_or(&payload.model_id).to_string();
+            let clean_id = payload
+                .model_id
+                .strip_suffix(".gguf")
+                .unwrap_or(&payload.model_id)
+                .to_string();
             model_settings.insert(payload.model_id.clone(), clean_id);
         }
     } else {
-        let clean_id = payload.model_id.strip_suffix(".gguf").unwrap_or(&payload.model_id).to_string();
+        let clean_id = payload
+            .model_id
+            .strip_suffix(".gguf")
+            .unwrap_or(&payload.model_id)
+            .to_string();
         model_settings.insert(payload.model_id.clone(), clean_id);
     }
-    
+
     if let Ok(json_str) = serde_json::to_string_pretty(&model_settings) {
         let _ = fs::create_dir_all(format!("{}/data", base_dir().0));
         let _ = fs::write(&settings_path, json_str);
@@ -1329,7 +1606,9 @@ async fn start_server(
 
     let (port, old_process) = {
         let mut servers_map = state.active_servers.lock().await;
-        let old_proc = servers_map.remove(&payload.model_id).and_then(|mut s| s.process.take());
+        let old_proc = servers_map
+            .remove(&payload.model_id)
+            .and_then(|mut s| s.process.take());
         let mut p = 8080;
         while servers_map.values().any(|s| s.port == p) {
             p += 1;
@@ -1341,7 +1620,7 @@ async fn start_server(
         let _ = child.kill().await;
         let _ = child.wait().await;
     }
-    
+
     let model_path = format!("{}/models/{}", base_dir().0, payload.model_id);
     let (base, _) = base_dir();
     let engine_dir = if let Some(e) = &payload.engine_id {
@@ -1353,7 +1632,7 @@ async fn start_server(
     } else {
         format!("{}/llama-cpp", base)
     };
-    
+
     let binary_path = if cfg!(windows) {
         format!("{}/llama-server.exe", engine_dir)
     } else {
@@ -1370,23 +1649,34 @@ async fn start_server(
     let (actual_gpu_layers, ts_arg, dev_arg, main_gpu) = compute_gpu_offloads(&payload, ",");
 
     let mut args = vec![
-        "-m".to_string(), model_path.clone(),
-        "-c".to_string(), payload.ctx_size.to_string(),
-        "-ngl".to_string(), actual_gpu_layers.to_string(),
-        "-t".to_string(), payload.threads.to_string(),
-        "-b".to_string(), payload.eval_batch_size.to_string(),
-        "-ub".to_string(), payload.physical_batch_size.to_string(),
-        "-np".to_string(), payload.concurrency.to_string(),
-        "--cache-type-k".to_string(), payload.k_cache_quant.clone(),
-        "--cache-type-v".to_string(), payload.v_cache_quant.clone(),
-        "--host".to_string(), "127.0.0.1".to_string(),
-        "--port".to_string(), port.to_string(),
+        "-m".to_string(),
+        model_path.clone(),
+        "-c".to_string(),
+        payload.ctx_size.to_string(),
+        "-ngl".to_string(),
+        actual_gpu_layers.to_string(),
+        "-t".to_string(),
+        payload.threads.to_string(),
+        "-b".to_string(),
+        payload.eval_batch_size.to_string(),
+        "-ub".to_string(),
+        payload.physical_batch_size.to_string(),
+        "-np".to_string(),
+        payload.concurrency.to_string(),
+        "--cache-type-k".to_string(),
+        payload.k_cache_quant.clone(),
+        "--cache-type-v".to_string(),
+        payload.v_cache_quant.clone(),
+        "--host".to_string(),
+        "127.0.0.1".to_string(),
+        "--port".to_string(),
+        port.to_string(),
     ];
 
     if !payload.spec_type.is_empty() && payload.spec_type != "none" {
         args.push("--spec-type".to_string());
         args.push(payload.spec_type.clone());
-        
+
         if payload.spec_draft_n_max > 0 {
             args.push("--spec-draft-n-max".to_string());
             args.push(payload.spec_draft_n_max.to_string());
@@ -1401,7 +1691,9 @@ async fn start_server(
                         if p.is_file() && p.extension().is_some_and(|ext| ext == "gguf") {
                             let fname = entry.file_name().to_string_lossy().to_lowercase();
                             let candidate_path = entry.path().to_string_lossy().to_string();
-                            if (fname.contains("mtp") || fname.contains("draft")) && candidate_path != model_path {
+                            if (fname.contains("mtp") || fname.contains("draft"))
+                                && candidate_path != model_path
+                            {
                                 return Some(candidate_path);
                             }
                         }
@@ -1412,7 +1704,9 @@ async fn start_server(
         });
 
         if let Some(draft_path) = draft_path_opt {
-            let full_draft_path = if std::path::Path::new(&draft_path).is_absolute() || draft_path.starts_with("models/") {
+            let full_draft_path = if std::path::Path::new(&draft_path).is_absolute()
+                || draft_path.starts_with("models/")
+            {
                 draft_path
             } else {
                 format!("{}/models/{}", base_dir().0, draft_path)
@@ -1441,11 +1735,12 @@ async fn start_server(
         });
 
         if let Some(mm_path) = mmproj_path_opt {
-            let full_mm_path = if std::path::Path::new(&mm_path).is_absolute() || mm_path.starts_with("models/") {
-                mm_path
-            } else {
-                format!("{}/models/{}", base_dir().0, mm_path)
-            };
+            let full_mm_path =
+                if std::path::Path::new(&mm_path).is_absolute() || mm_path.starts_with("models/") {
+                    mm_path
+                } else {
+                    format!("{}/models/{}", base_dir().0, mm_path)
+                };
             if std::path::Path::new(&full_mm_path).exists() {
                 args.push("--mmproj".to_string());
                 args.push(full_mm_path);
@@ -1454,15 +1749,21 @@ async fn start_server(
     }
 
     if let Some(servers) = &payload.rpc_servers {
-        let expected_engine = payload.engine_id.clone().unwrap_or_else(|| "llama-cpp".to_string());
+        let expected_engine = payload
+            .engine_id
+            .clone()
+            .unwrap_or_else(|| "llama-cpp".to_string());
         let mut active_servers = Vec::new();
-        let client = reqwest::Client::builder().timeout(std::time::Duration::from_millis(500)).build().unwrap();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(500))
+            .build()
+            .unwrap();
 
         for s in servers.iter().filter(|s| s.active) {
             let ip = s.address.split(':').next().unwrap_or(&s.address);
             let url = format!("http://{}:50053/telemetry", ip);
-            
-            // Default to matching if the server doesn't respond or if it's old version, 
+
+            // Default to matching if the server doesn't respond or if it's old version,
             // but if it responds with a different engine, we skip it.
             let mut engine_matches = true;
             if let Ok(res) = client.get(&url).send().await {
@@ -1485,7 +1786,7 @@ async fn start_server(
                 }
             }
         }
-            
+
         if !active_servers.is_empty() {
             args.push("--rpc".to_string());
             args.push(active_servers.join(","));
@@ -1505,13 +1806,17 @@ async fn start_server(
         args.push(mg);
     }
 
-    if !payload.offload_kv { args.push("--no-kv-offload".to_string()); }
-    if !payload.unified_kv { args.push("--no-kv-unified".to_string()); }
-    if payload.moe_cpu_layers > 0 { 
-        args.push("--n-cpu-moe".to_string()); 
+    if !payload.offload_kv {
+        args.push("--no-kv-offload".to_string());
+    }
+    if !payload.unified_kv {
+        args.push("--no-kv-unified".to_string());
+    }
+    if payload.moe_cpu_layers > 0 {
+        args.push("--n-cpu-moe".to_string());
         args.push(payload.moe_cpu_layers.to_string());
     }
-    
+
     if cfg!(windows) {
         if payload.keep_in_memory {
             args.push("--mlock".to_string());
@@ -1538,15 +1843,38 @@ async fn start_server(
     args.push(reasoning_val.to_string());
 
     let full_command = format!("{} {}", binary_path, args.join(" "));
-    state.system_logs.lock().await.push_back("I [SYSTEM] Booting llama-server with parameters:".to_string());
-    state.system_logs.lock().await.push_back(format!("I [SYSTEM] {}", full_command));
+    state
+        .system_logs
+        .lock()
+        .await
+        .push_back("I [SYSTEM] Booting llama-server with parameters:".to_string());
+    state
+        .system_logs
+        .lock()
+        .await
+        .push_back(format!("I [SYSTEM] {}", full_command));
 
-    let mut child = match Command::new(binary_path.clone())
+    // Restrict the child to the GPUs selected in the UI. llama.cpp would otherwise
+    // create a CUDA context on the primary visible device even when it is not in -dev.
+    let cuda_visible = cuda_visible_devices(&payload);
+    if let Some(visible) = &cuda_visible {
+        state
+            .system_logs
+            .lock()
+            .await
+            .push_back(format!("I [SYSTEM] CUDA_VISIBLE_DEVICES={}", visible));
+    }
+
+    let mut command = Command::new(binary_path.clone());
+    command
         .args(&args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .group_spawn()
-    {
+        .stderr(Stdio::piped());
+    if let Some(visible) = &cuda_visible {
+        command.env("CUDA_VISIBLE_DEVICES", visible);
+    }
+
+    let mut child = match command.group_spawn() {
         Ok(child) => child,
         Err(e) => {
             return Json(StartResponse {
@@ -1555,10 +1883,10 @@ async fn start_server(
             });
         }
     };
-    
+
     let stdout = child.inner().stdout.take().unwrap();
     let stderr = child.inner().stderr.take().unwrap();
-    
+
     let mut initial_logs = std::collections::VecDeque::new();
     initial_logs.push_back("I [SYSTEM] Booting llama-server with exact parameters:".to_string());
     initial_logs.push_back(format!("I [SYSTEM] {}", full_command));
@@ -1572,9 +1900,9 @@ async fn start_server(
         is_ready: false,
         logs: initial_logs,
         progress: 0.0,
-        instance_id: instance_id,
+        instance_id,
     };
-    
+
     {
         let mut servers_map = state.active_servers.lock().await;
         servers_map.insert(payload.model_id.clone(), server_state);
@@ -1594,7 +1922,7 @@ async fn stop_server(
     Json(payload): Json<StopRequest>,
 ) -> Json<StartResponse> {
     let mut servers_map = state.active_servers.lock().await;
-    
+
     if let Some(mut server) = servers_map.remove(&payload.model_id) {
         if let Some(mut child) = server.process.take() {
             let _ = child.kill().await;
@@ -1639,7 +1967,6 @@ async fn run_benchmark(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
     Json(payload): Json<ServerConfig>,
 ) -> Json<StartResponse> {
-    
     {
         let mut is_running = state.benchmark_running.lock().await;
         if *is_running {
@@ -1650,7 +1977,7 @@ async fn run_benchmark(
         }
         *is_running = true;
     }
-    
+
     state.benchmark_logs.lock().await.clear();
     *state.benchmark_pp.lock().await = None;
     *state.benchmark_tg.lock().await = None;
@@ -1677,7 +2004,7 @@ async fn run_benchmark(
     } else {
         format!("{}/llama-cpp", base)
     };
-    
+
     let binary_path = if cfg!(windows) {
         format!("{}/llama-bench.exe", engine_dir)
     } else {
@@ -1691,24 +2018,34 @@ async fn run_benchmark(
             message: format!("llama-bench binary not found at {}", binary_path),
         });
     }
-    
+
     let (actual_gpu_layers, ts_arg, dev_arg, main_gpu) = compute_gpu_offloads(&payload, "/");
 
     let mut args = vec![
-        "-m".to_string(), model_path,
-        "-ngl".to_string(), actual_gpu_layers.to_string(),
-        "-t".to_string(), payload.threads.to_string(),
-        "-b".to_string(), payload.eval_batch_size.to_string(),
-        "-ub".to_string(), payload.physical_batch_size.to_string(),
-        "-ctk".to_string(), payload.k_cache_quant.clone(),
-        "-ctv".to_string(), payload.v_cache_quant.clone(),
-        "-p".to_string(), "512".to_string(),
-        "-n".to_string(), "128".to_string(),
+        "-m".to_string(),
+        model_path,
+        "-ngl".to_string(),
+        actual_gpu_layers.to_string(),
+        "-t".to_string(),
+        payload.threads.to_string(),
+        "-b".to_string(),
+        payload.eval_batch_size.to_string(),
+        "-ub".to_string(),
+        payload.physical_batch_size.to_string(),
+        "-ctk".to_string(),
+        payload.k_cache_quant.clone(),
+        "-ctv".to_string(),
+        payload.v_cache_quant.clone(),
+        "-p".to_string(),
+        "512".to_string(),
+        "-n".to_string(),
+        "128".to_string(),
         "--progress".to_string(),
     ];
 
     if let Some(servers) = &payload.rpc_servers {
-        let active_servers: Vec<String> = servers.iter()
+        let active_servers: Vec<String> = servers
+            .iter()
             .filter(|s| s.active)
             .map(|s| {
                 if s.address.contains(':') {
@@ -1718,7 +2055,7 @@ async fn run_benchmark(
                 }
             })
             .collect();
-            
+
         if !active_servers.is_empty() {
             args.push("--rpc".to_string());
             args.push(active_servers.join(","));
@@ -1743,37 +2080,56 @@ async fn run_benchmark(
         args.push(payload.moe_cpu_layers.to_string());
     }
 
-    if !payload.offload_kv { args.push("-nkvo".to_string()); args.push("1".to_string()); }
+    if !payload.offload_kv {
+        args.push("-nkvo".to_string());
+        args.push("1".to_string());
+    }
     if cfg!(windows) {
-        if !payload.mmap || payload.keep_in_memory { 
-            args.push("-mmp".to_string()); 
-            args.push("0".to_string()); 
+        if !payload.mmap || payload.keep_in_memory {
+            args.push("-mmp".to_string());
+            args.push("0".to_string());
         }
     } else {
-        if payload.keep_in_memory { 
-            args.push("-lm".to_string()); 
-            args.push("mlock".to_string()); 
-        }
-        else if !payload.mmap { 
-            args.push("-lm".to_string()); 
-            args.push("none".to_string()); 
+        if payload.keep_in_memory {
+            args.push("-lm".to_string());
+            args.push("mlock".to_string());
+        } else if !payload.mmap {
+            args.push("-lm".to_string());
+            args.push("none".to_string());
         }
     }
-    if payload.flash_attention { args.push("-fa".to_string()); args.push("on".to_string()); }
+    if payload.flash_attention {
+        args.push("-fa".to_string());
+        args.push("on".to_string());
+    }
 
     let shared_state = state.clone();
-    
+    // Same device restriction as llama-server; captured by the task below.
+    let cuda_visible = cuda_visible_devices(&payload);
+
     let full_command = format!("{} {}", binary_path, args.join(" "));
-    state.benchmark_logs.lock().await.push("I [SYSTEM] Booting llama-bench with exact parameters:".to_string());
-    state.benchmark_logs.lock().await.push(format!("I [SYSTEM] {}", full_command));
-    
+    state
+        .benchmark_logs
+        .lock()
+        .await
+        .push("I [SYSTEM] Booting llama-bench with exact parameters:".to_string());
+    state
+        .benchmark_logs
+        .lock()
+        .await
+        .push(format!("I [SYSTEM] {}", full_command));
+
     tokio::spawn(async move {
-        let mut child = match Command::new(binary_path.clone())
+        let mut command = Command::new(binary_path.clone());
+        command
             .args(&args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .group_spawn()
-        {
+            .stderr(Stdio::piped());
+        if let Some(visible) = &cuda_visible {
+            command.env("CUDA_VISIBLE_DEVICES", visible);
+        }
+
+        let mut child = match command.group_spawn() {
             Ok(child) => child,
             Err(e) => {
                 let err_msg = format!("E [SYSTEM] Failed to start llama-bench: {}", e);
@@ -1793,11 +2149,11 @@ async fn run_benchmark(
             while let Ok(Some(line)) = reader.next_line().await {
                 let mut logs = state_clone_out.benchmark_logs.lock().await;
                 logs.push(line.clone());
-                
+
                 if line.contains("|") && (line.contains("pp512") || line.contains("tg128")) {
                     let parts: Vec<&str> = line.split('|').collect();
                     if parts.len() > 6 {
-                        let val_str = parts[parts.len()-2].trim();
+                        let val_str = parts[parts.len() - 2].trim();
                         let clean_val = val_str.split_whitespace().next().unwrap_or("");
                         if let Ok(val) = clean_val.parse::<f32>() {
                             if line.contains("pp512") {
@@ -1848,14 +2204,18 @@ async fn clear_system_logs(
     })
 }
 
-
 #[derive(Deserialize)]
 struct HfSearchQuery {
     q: String,
 }
 
-async fn hf_search(axum::extract::Query(query): axum::extract::Query<HfSearchQuery>) -> Json<serde_json::Value> {
-    let url = format!("https://huggingface.co/api/models?search={}&filter=gguf&limit=20", query.q);
+async fn hf_search(
+    axum::extract::Query(query): axum::extract::Query<HfSearchQuery>,
+) -> Json<serde_json::Value> {
+    let url = format!(
+        "https://huggingface.co/api/models?search={}&filter=gguf&limit=20",
+        query.q
+    );
     let client = reqwest::Client::new();
     let res = client.get(&url).send().await;
     match res {
@@ -1865,7 +2225,7 @@ async fn hf_search(axum::extract::Query(query): axum::extract::Query<HfSearchQue
             } else {
                 Json(serde_json::json!([]))
             }
-        },
+        }
         Err(_) => Json(serde_json::json!([])),
     }
 }
@@ -1875,26 +2235,38 @@ struct HfModelQuery {
     id: String,
 }
 
-async fn hf_model_files(axum::extract::Query(query): axum::extract::Query<HfModelQuery>) -> Json<serde_json::Value> {
-    let url = format!("https://huggingface.co/api/models/{}/tree/main?recursive=true", query.id);
+async fn hf_model_files(
+    axum::extract::Query(query): axum::extract::Query<HfModelQuery>,
+) -> Json<serde_json::Value> {
+    let url = format!(
+        "https://huggingface.co/api/models/{}/tree/main?recursive=true",
+        query.id
+    );
     let client = reqwest::Client::new();
     let res = client.get(&url).send().await;
     match res {
         Ok(r) => {
             if let Ok(json) = r.json::<Vec<serde_json::Value>>().await {
-                let siblings: Vec<serde_json::Value> = json.into_iter().map(|v| {
-                    let path = v.get("path").and_then(|p| p.as_str()).unwrap_or("").to_string();
-                    let size = v.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
-                    serde_json::json!({
-                        "rfilename": path,
-                        "size": size
+                let siblings: Vec<serde_json::Value> = json
+                    .into_iter()
+                    .map(|v| {
+                        let path = v
+                            .get("path")
+                            .and_then(|p| p.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let size = v.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
+                        serde_json::json!({
+                            "rfilename": path,
+                            "size": size
+                        })
                     })
-                }).collect();
+                    .collect();
                 Json(serde_json::json!({ "siblings": siblings }))
             } else {
                 Json(serde_json::json!({ "siblings": [] }))
             }
-        },
+        }
         Err(_) => Json(serde_json::json!({ "siblings": [] })),
     }
 }
@@ -1907,43 +2279,52 @@ async fn hf_download(
     {
         let mut downloads = state.hf_downloads.lock().await;
         if downloads.contains_key(&download_id) {
-            return Json(StartResponse { success: false, message: "Download already in progress".to_string() });
+            return Json(StartResponse {
+                success: false,
+                message: "Download already in progress".to_string(),
+            });
         }
-        downloads.insert(download_id.clone(), DownloadState {
-            repo_id: payload.repo_id.clone(),
-            filename: payload.filename.clone(),
-            progress: 0.0,
-            status: "downloading".to_string(),
-            error: None,
-        });
+        downloads.insert(
+            download_id.clone(),
+            DownloadState {
+                repo_id: payload.repo_id.clone(),
+                filename: payload.filename.clone(),
+                progress: 0.0,
+                status: "downloading".to_string(),
+                error: None,
+            },
+        );
     }
 
     let state_clone = state.clone();
     let repo_id = payload.repo_id.clone();
     let filename = payload.filename.clone();
-    
+
     tokio::spawn(async move {
-        let url = format!("https://huggingface.co/{}/resolve/main/{}", repo_id, filename);
+        let url = format!(
+            "https://huggingface.co/{}/resolve/main/{}",
+            repo_id, filename
+        );
         let dest_dir = format!("{}/models/{}", base_dir().0, repo_id.replace("/", "_"));
         let _ = tokio::fs::create_dir_all(&dest_dir).await;
         let dest_path = format!("{}/{}", dest_dir, filename);
-        
+
         let client = reqwest::Client::new();
-        
+
         let mut total_size = 0;
         if let Ok(res) = client.head(&url).send().await {
             if res.status().is_success() {
                 total_size = res.content_length().unwrap_or(0);
             }
         }
-        
+
         if total_size == 0 {
             if let Ok(res) = client.get(&url).header("Range", "bytes=0-0").send().await {
                 if res.status().is_success() || res.status().as_u16() == 206 {
                     if let Some(cr) = res.headers().get(reqwest::header::CONTENT_RANGE) {
                         if let Ok(cr_str) = cr.to_str() {
                             if let Some(idx) = cr_str.find('/') {
-                                total_size = cr_str[idx+1..].parse::<u64>().unwrap_or(0);
+                                total_size = cr_str[idx + 1..].parse::<u64>().unwrap_or(0);
                             }
                         }
                     } else {
@@ -1954,8 +2335,12 @@ async fn hf_download(
         }
 
         let num_chunks: u64 = if total_size > 1024 * 1024 * 10 { 4 } else { 1 };
-        let chunk_size = if total_size > 0 { total_size / num_chunks } else { 0 };
-        
+        let chunk_size = if total_size > 0 {
+            total_size / num_chunks
+        } else {
+            0
+        };
+
         let downloaded = Arc::new(tokio::sync::Mutex::new(0u64));
         let mut handles = vec![];
         let mut part_files = vec![];
@@ -1963,9 +2348,13 @@ async fn hf_download(
         let cancel_flag = Arc::new(tokio::sync::Mutex::new(false));
 
         for i in 0..num_chunks {
-            let part_path = if num_chunks > 1 { format!("{}.part{}", dest_path, i) } else { format!("{}.part", dest_path) };
+            let part_path = if num_chunks > 1 {
+                format!("{}.part{}", dest_path, i)
+            } else {
+                format!("{}.part", dest_path)
+            };
             part_files.push(part_path.clone());
-            
+
             let client = client.clone();
             let url = url.clone();
             let state_clone = state_clone.clone();
@@ -1977,7 +2366,11 @@ async fn hf_download(
                 let mut req = client.get(&url);
                 if total_size > 0 {
                     let start = i * chunk_size;
-                    let end = if i == num_chunks - 1 { total_size - 1 } else { start + chunk_size - 1 };
+                    let end = if i == num_chunks - 1 {
+                        total_size - 1
+                    } else {
+                        start + chunk_size - 1
+                    };
                     req = req.header("Range", format!("bytes={}-{}", start, end));
                 }
 
@@ -2028,7 +2421,9 @@ async fn hf_download(
                             if total_size > 0 && last_update.elapsed().as_millis() > 250 {
                                 let mut d = state_clone.hf_downloads.lock().await;
                                 if let Some(dl) = d.get_mut(&download_id) {
-                                    dl.progress = (current_downloaded as f64 / total_size as f64 * 100.0) as f32;
+                                    dl.progress = (current_downloaded as f64 / total_size as f64
+                                        * 100.0)
+                                        as f32;
                                 }
                                 last_update = tokio::time::Instant::now();
                             }
@@ -2037,7 +2432,7 @@ async fn hf_download(
                         Err(e) => return Err(e.to_string()),
                     }
                 }
-                
+
                 let _ = file.sync_all().await;
                 Ok(())
             }));
@@ -2048,14 +2443,14 @@ async fn hf_download(
 
         for handle in handles {
             match handle.await {
-                Ok(Ok(_)) => {},
+                Ok(Ok(_)) => {}
                 Ok(Err(e)) => {
                     if e == "Cancelled" {
                         was_cancelled = true;
                     } else {
                         error_msg = Some(e);
                     }
-                },
+                }
                 Err(e) => {
                     error_msg = Some(e.to_string());
                 }
@@ -2066,7 +2461,14 @@ async fn hf_download(
             for p in &part_files {
                 let _ = tokio::fs::remove_file(p).await;
             }
-            tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+            tokio::spawn({
+                let s = state_clone.clone();
+                let id = download_id.clone();
+                async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    s.hf_downloads.lock().await.remove(&id);
+                }
+            });
             return;
         }
 
@@ -2079,7 +2481,14 @@ async fn hf_download(
             for p in &part_files {
                 let _ = tokio::fs::remove_file(p).await;
             }
-            tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+            tokio::spawn({
+                let s = state_clone.clone();
+                let id = download_id.clone();
+                async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    s.hf_downloads.lock().await.remove(&id);
+                }
+            });
             return;
         }
 
@@ -2110,12 +2519,19 @@ async fn hf_download(
                     for p in &part_files {
                         let _ = tokio::fs::remove_file(p).await;
                     }
-                    tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+                    tokio::spawn({
+                        let s = state_clone.clone();
+                        let id = download_id.clone();
+                        async move {
+                            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                            s.hf_downloads.lock().await.remove(&id);
+                        }
+                    });
                     return;
                 }
             };
 
-            use tokio::io::{AsyncWriteExt, AsyncReadExt};
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
             let mut stitch_error = None;
             for p in &part_files {
                 match tokio::fs::File::open(p).await {
@@ -2167,10 +2583,20 @@ async fn hf_download(
             }
         }
 
-        tokio::spawn({ let s = state_clone.clone(); let id = download_id.clone(); async move { tokio::time::sleep(std::time::Duration::from_secs(10)).await; s.hf_downloads.lock().await.remove(&id); } });
+        tokio::spawn({
+            let s = state_clone.clone();
+            let id = download_id.clone();
+            async move {
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                s.hf_downloads.lock().await.remove(&id);
+            }
+        });
     });
 
-    Json(StartResponse { success: true, message: "Download started".to_string() })
+    Json(StartResponse {
+        success: true,
+        message: "Download started".to_string(),
+    })
 }
 
 async fn cancel_hf_download(
@@ -2182,9 +2608,15 @@ async fn cancel_hf_download(
     if let Some(dl) = downloads.get_mut(&download_id) {
         dl.status = "cancelled".to_string();
     } else {
-        return Json(StartResponse { success: false, message: "Download not found".to_string() });
+        return Json(StartResponse {
+            success: false,
+            message: "Download not found".to_string(),
+        });
     }
-    Json(StartResponse { success: true, message: "Download cancelled".to_string() })
+    Json(StartResponse {
+        success: true,
+        message: "Download cancelled".to_string(),
+    })
 }
 
 async fn hf_downloads_status(
@@ -2204,7 +2636,7 @@ async fn get_system_info() -> Json<serde_json::Value> {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     let has_nvidia = nvml_wrapper::Nvml::init().is_ok();
-    
+
     let mut distro = "unknown".to_string();
     if os == "linux" {
         if Path::new("/usr/bin/pacman").exists() || Path::new("/bin/pacman").exists() {
@@ -2215,7 +2647,7 @@ async fn get_system_info() -> Json<serde_json::Value> {
             distro = "fedora".to_string();
         }
     }
-    
+
     let has_xcode_clt = if os == "macos" {
         std::process::Command::new("xcode-select")
             .arg("-p")
@@ -2225,7 +2657,7 @@ async fn get_system_info() -> Json<serde_json::Value> {
     } else {
         false
     };
-    
+
     let has_brew = if os == "macos" {
         std::process::Command::new("brew")
             .arg("--version")
@@ -2235,13 +2667,13 @@ async fn get_system_info() -> Json<serde_json::Value> {
     } else {
         false
     };
-    
+
     let has_cmake = std::process::Command::new("cmake")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
-    
+
     Json(serde_json::json!({
         "os": os,
         "arch": arch,
@@ -2302,10 +2734,14 @@ async fn get_available_engines(
         serde_json::json!({
             "name": "cudart-llama-bin-win-cuda-12.4-x64.zip",
             "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/b10713/cudart-llama-bin-win-cuda-12.4-x64.zip"
-        })
+        }),
     ];
 
-    if let Ok(res) = client.get("https://api.github.com/repos/ggml-org/llama.cpp/releases").send().await {
+    if let Ok(res) = client
+        .get("https://api.github.com/repos/ggml-org/llama.cpp/releases")
+        .send()
+        .await
+    {
         if res.status().is_success() {
             if let Ok(data) = res.json::<Vec<serde_json::Value>>().await {
                 for release in data {
@@ -2326,7 +2762,6 @@ async fn get_available_engines(
     Json(fallback_assets)
 }
 
-
 async fn get_installed_engines() -> Json<Vec<String>> {
     let mut engines = Vec::new();
     let (base, _) = base_dir();
@@ -2341,7 +2776,11 @@ async fn get_installed_engines() -> Json<Vec<String>> {
                         continue;
                     }
                     let dir_path = entry.path();
-                    let bin_path = if cfg!(windows) { dir_path.join("llama-server.exe") } else { dir_path.join("llama-server") };
+                    let bin_path = if cfg!(windows) {
+                        dir_path.join("llama-server.exe")
+                    } else {
+                        dir_path.join("llama-server")
+                    };
                     if bin_path.exists() {
                         engines.push(dir_name);
                     }
@@ -2354,7 +2793,7 @@ async fn get_installed_engines() -> Json<Vec<String>> {
 
 async fn download_engine(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
-    Json(payload): Json<EngineDownloadPayload>
+    Json(payload): Json<EngineDownloadPayload>,
 ) -> Json<serde_json::Value> {
     let app_base = app_dir();
     let (base, _) = base_dir();
@@ -2368,17 +2807,27 @@ async fn download_engine(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .group_spawn();
-        
+
     if let Ok(mut child) = child_res {
         let stdout = child.inner().stdout.take().unwrap();
         let stderr = child.inner().stderr.take().unwrap();
-        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
-        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
-        
+        spawn_log_reader(
+            stdout,
+            state.clone(),
+            "engine_setup".to_string(),
+            uuid::Uuid::nil(),
+        );
+        spawn_log_reader(
+            stderr,
+            state.clone(),
+            "engine_setup".to_string(),
+            uuid::Uuid::nil(),
+        );
+
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         *state.engine_setup_killer.lock().await = Some((payload.engine_id.clone(), tx));
         let state_clone = state.clone();
-        
+
         tokio::spawn(async move {
             tokio::select! {
                 _ = child.wait() => {}
@@ -2389,7 +2838,7 @@ async fn download_engine(
             }
             *state_clone.engine_setup_killer.lock().await = None;
         });
-        
+
         Json(serde_json::json!({"success": true}))
     } else {
         Json(serde_json::json!({"success": false, "message": "Failed to spawn engine_manager"}))
@@ -2398,7 +2847,7 @@ async fn download_engine(
 
 async fn compile_engine(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
-    Json(payload): Json<EngineDownloadPayload>
+    Json(payload): Json<EngineDownloadPayload>,
 ) -> Json<serde_json::Value> {
     let app_base = app_dir();
     let (base, _) = base_dir();
@@ -2412,17 +2861,27 @@ async fn compile_engine(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .group_spawn();
-        
+
     if let Ok(mut child) = child_res {
         let stdout = child.inner().stdout.take().unwrap();
         let stderr = child.inner().stderr.take().unwrap();
-        spawn_log_reader(stdout, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
-        spawn_log_reader(stderr, state.clone(), "engine_setup".to_string(), uuid::Uuid::nil());
-        
+        spawn_log_reader(
+            stdout,
+            state.clone(),
+            "engine_setup".to_string(),
+            uuid::Uuid::nil(),
+        );
+        spawn_log_reader(
+            stderr,
+            state.clone(),
+            "engine_setup".to_string(),
+            uuid::Uuid::nil(),
+        );
+
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         *state.engine_setup_killer.lock().await = Some((payload.engine_id.clone(), tx));
         let state_clone = state.clone();
-        
+
         tokio::spawn(async move {
             tokio::select! {
                 _ = child.wait() => {}
@@ -2433,7 +2892,7 @@ async fn compile_engine(
             }
             *state_clone.engine_setup_killer.lock().await = None;
         });
-        
+
         Json(serde_json::json!({"success": true}))
     } else {
         Json(serde_json::json!({"success": false, "message": "Failed to spawn engine_manager"}))
@@ -2446,7 +2905,10 @@ async fn stop_engine_setup(
     if let Some((_, tx)) = state.engine_setup_killer.lock().await.take() {
         let _ = tx.send(());
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        state.system_logs.lock().await.push_back(format!("[{}] engine_setup: Process stopped by user.", timestamp));
+        state.system_logs.lock().await.push_back(format!(
+            "[{}] engine_setup: Process stopped by user.",
+            timestamp
+        ));
     }
     Json(serde_json::json!({"success": true}))
 }
@@ -2470,7 +2932,7 @@ async fn delete_engine(
     let engine_dir = format!("{}/engines/{}", base, engine_id);
     match fs::remove_dir_all(&engine_dir) {
         Ok(_) => Json(serde_json::json!({"success": true})),
-        Err(e) => Json(serde_json::json!({"success": false, "message": e.to_string()}))
+        Err(e) => Json(serde_json::json!({"success": false, "message": e.to_string()})),
     }
 }
 
@@ -2483,14 +2945,17 @@ async fn main() {
     let _ = fs::create_dir_all(&data_dir);
     let engines_dir = format!("{}/engines", base);
     let _ = fs::create_dir_all(&engines_dir);
-    
+
     // Warn if scripts/engine_manager.js is missing (engine installs will fail later)
     let app_base = app_dir();
     let script_path = format!("{}/scripts/engine_manager.js", app_base);
     if !std::path::Path::new(&script_path).exists() {
-        eprintln!("Warning: {} not found — engine installs will fail", script_path);
+        eprintln!(
+            "Warning: {} not found — engine installs will fail",
+            script_path
+        );
     }
-    
+
     let telemetry_cache = Arc::new(Mutex::new(TelemetryResponse {
         cpu_name: "Loading...".to_string(),
         cpu_usage_pct: 0.0,
@@ -2506,21 +2971,23 @@ async fn main() {
         let mut sys = System::new_all();
         let mut components = sysinfo::Components::new();
         let mut nvml_opt = nvml_wrapper::Nvml::init().ok();
-        
+
         loop {
             sys.refresh_cpu_usage();
             sys.refresh_memory();
             components.refresh_list();
-            
-            let cpu_name = sys.cpus().first().map(|c| c.brand().to_string()).unwrap_or_else(|| "Unknown CPU".to_string());
+
+            let cpu_name = sys
+                .cpus()
+                .first()
+                .map(|c| c.brand().to_string())
+                .unwrap_or_else(|| "Unknown CPU".to_string());
             let cpu_usage_pct = sys.global_cpu_info().cpu_usage();
             let physical_cores = sys.physical_core_count();
-            
-
 
             #[allow(unused_mut)]
             let mut ram_used_gb = sys.used_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
-            
+
             #[cfg(target_os = "macos")]
             {
                 if let Some(macos_mem) = get_macos_used_memory() {
@@ -2530,16 +2997,31 @@ async fn main() {
             let ram_total_gb = sys.total_memory() as f32 / (1024.0 * 1024.0 * 1024.0);
 
             let mut gpus = Vec::new();
-            
+
             if let Some(nvml) = &mut nvml_opt {
                 if let Ok(device_count) = nvml.device_count() {
                     for i in 0..device_count {
                         if let Ok(device) = nvml.device_by_index(i) {
                             let name = device.name().unwrap_or_else(|_| "Unknown GPU".to_string());
-                            let util = device.utilization_rates().unwrap_or(nvml_wrapper::struct_wrappers::device::Utilization { gpu: 0, memory: 0 });
-                            let temp = device.temperature(nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu).unwrap_or(0);
-                            let memory = device.memory_info().unwrap_or(nvml_wrapper::struct_wrappers::device::MemoryInfo { free: 0, total: 0, used: 0 });
-                            
+                            let util = device.utilization_rates().unwrap_or(
+                                nvml_wrapper::struct_wrappers::device::Utilization {
+                                    gpu: 0,
+                                    memory: 0,
+                                },
+                            );
+                            let temp = device
+                                .temperature(
+                                    nvml_wrapper::enum_wrappers::device::TemperatureSensor::Gpu,
+                                )
+                                .unwrap_or(0);
+                            let memory = device.memory_info().unwrap_or(
+                                nvml_wrapper::struct_wrappers::device::MemoryInfo {
+                                    free: 0,
+                                    total: 0,
+                                    used: 0,
+                                },
+                            );
+
                             gpus.push(GpuTelemetry {
                                 name,
                                 gpu_usage_pct: util.gpu,
@@ -2562,7 +3044,7 @@ async fn main() {
                 cache.ram_total_gb = ram_total_gb;
                 cache.gpus = gpus;
             }
-            
+
             tokio::time::sleep(std::time::Duration::from_millis(800)).await;
         }
     });
@@ -2585,7 +3067,10 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_check))
-        .route("/api/models", get(get_local_models).delete(delete_local_model))
+        .route(
+            "/api/models",
+            get(get_local_models).delete(delete_local_model),
+        )
         .route("/api/server/status", get(get_server_status))
         .route("/api/server/logs", get(get_server_logs))
         .route("/api/server/logs/clear", post(clear_server_logs))
@@ -2620,17 +3105,25 @@ async fn main() {
         .with_state(shared_state)
         .layer(CorsLayer::permissive());
 
-    let mut port = 3001;
+    let start_port = std::env::var("ONYX_PORT")
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
+        .unwrap_or(3001);
+    let mut port = start_port;
     let listener = loop {
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
         match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => break l,
             Err(_e) => {
-                if port < 3010 {
+                if port < start_port + 9 {
                     eprintln!("Port {} in use, trying {}...", port, port + 1);
                     port += 1;
                 } else {
-                    eprintln!("Dashboard port 3001-3010 all in use — close other Onyx instances or set ONYX_PORT");
+                    eprintln!(
+                        "Dashboard port {}-{} all in use — close other Onyx instances or set ONYX_PORT",
+                        start_port,
+                        start_port + 9
+                    );
                     std::process::exit(1);
                 }
             }
@@ -2649,7 +3142,10 @@ async fn main() {
         } else if cfg!(target_os = "linux") {
             Some(("xdg-open", vec![url.clone()]))
         } else if cfg!(target_os = "windows") {
-            Some(("cmd", vec!["/c".to_string(), "start".to_string(), "".to_string(), url]))
+            Some((
+                "cmd",
+                vec!["/c".to_string(), "start".to_string(), "".to_string(), url],
+            ))
         } else {
             eprintln!("Auto-open: unsupported OS, please open {} manually", url);
             None

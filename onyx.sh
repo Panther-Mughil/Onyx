@@ -141,8 +141,9 @@ while true; do
 		FRONTEND_PID=$!
 		cd ../backend || exit
 		echo "Development servers are running. Press Ctrl+C to stop."
+		echo -e "${CYAN}[INFO] API backend pinned to port 3003, UI is on http://127.0.0.1:3001${NC}"
 		trap "kill $FRONTEND_PID 2>/dev/null; exit" INT
-		cargo run
+		ONYX_PORT=3003 cargo run
 		kill $FRONTEND_PID 2>/dev/null
 		trap - INT
 		cd ..
